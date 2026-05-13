@@ -1,0 +1,30 @@
+{
+  "name": "ChipTap #204",
+  "description": "A prized ChipTap chip with distinctive blue patterns. Rare chips are worth fighting for.",
+  "image": "ipfs://PLACEHOLDER_CID/chip_204.svg",
+  "external_url": "https://chiptap.gg/chip/204",
+  "attributes": [
+    {
+      "trait_type": "Rarity",
+      "value": "Rare"
+    },
+    {
+      "trait_type": "Max Supply",
+      "value": "3,000"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Rarity Tier",
+      "value": 2,
+      "max_value": 4
+    },
+    {
+      "trait_type": "Collection",
+      "value": "Genesis"
+    },
+    {
+      "trait_type": "Game",
+      "value": "ChipTap PvP"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+[features]
+seeds = false
+skip-lint = false
+
+[programs.localnet]
+chip_nft      = "A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ"
+battle_arena  = "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8"
+treasury      = "wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp"
+
+[programs.devnet]
+chip_nft      = "A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ"
+battle_arena  = "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8"
+treasury      = "wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet  = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 'tests/**/*.ts'"
+
+[test.validator]
+url = "https://api.devnet.solana.com"
+# Clone Metaplex Core program from devnet so we can CPI into it locally.
+[[test.validator.clone]]
+address = "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"

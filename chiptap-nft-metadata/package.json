@@ -1,0 +1,14 @@
+{
+  "name": "chiptap-nft-metadata",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "generate:samples": "node scripts/generateImages.js && node scripts/generateMetadata.js",
+    "generate:batch": "node scripts/batchGenerate.js",
+    "generate:common": "node scripts/batchGenerate.js 1 100 0",
+    "generate:uncommon": "node scripts/batchGenerate.js 1 100 1",
+    "generate:rare": "node scripts/batchGenerate.js 1 100 2",
+    "generate:epic": "node scripts/batchGenerate.js 1 100 3",
+    "generate:legendary": "node scripts/batchGenerate.js 1 50 4"
+  }
+}

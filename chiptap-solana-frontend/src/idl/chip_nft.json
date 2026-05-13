@@ -1,0 +1,609 @@
+{
+  "address": "A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ",
+  "metadata": {
+    "name": "chip_nft",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_mint_enabled",
+      "discriminator": [
+        76,
+        77,
+        8,
+        197,
+        208,
+        74,
+        183,
+        2
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "enabled",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_mint_price",
+      "discriminator": [
+        105,
+        146,
+        251,
+        12,
+        72,
+        223,
+        220,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "rarity",
+          "type": "u8"
+        },
+        {
+          "name": "price_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_max_supply",
+      "discriminator": [
+        16,
+        207,
+        140,
+        77,
+        107,
+        20,
+        202,
+        158
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "rarity",
+          "type": "u8"
+        },
+        {
+          "name": "supply",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "set_battle_authority",
+      "discriminator": [
+        118,
+        81,
+        135,
+        239,
+        168,
+        156,
+        243,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "mint_chip",
+      "discriminator": [
+        228,
+        116,
+        114,
+        77,
+        132,
+        48,
+        238,
+        101
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "asset",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "chip_data",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "rarity",
+          "type": "u8"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "uri",
+          "type": "string"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ChipNftConfig",
+      "discriminator": [
+        229,
+        50,
+        81,
+        100,
+        222,
+        59,
+        247,
+        236
+      ]
+    },
+    {
+      "name": "ChipData",
+      "discriminator": [
+        251,
+        241,
+        194,
+        13,
+        225,
+        216,
+        160,
+        97
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "ChipNftInitialized",
+      "discriminator": [
+        52,
+        205,
+        192,
+        225,
+        102,
+        129,
+        164,
+        48
+      ]
+    },
+    {
+      "name": "MintPriceUpdated",
+      "discriminator": [
+        86,
+        177,
+        211,
+        230,
+        250,
+        159,
+        103,
+        252
+      ]
+    },
+    {
+      "name": "BattleAuthorityUpdated",
+      "discriminator": [
+        98,
+        108,
+        135,
+        34,
+        231,
+        157,
+        196,
+        123
+      ]
+    },
+    {
+      "name": "ChipMinted",
+      "discriminator": [
+        95,
+        128,
+        232,
+        157,
+        148,
+        180,
+        113,
+        121
+      ]
+    },
+    {
+      "name": "MintEnabledUpdated",
+      "discriminator": [
+        111,
+        229,
+        204,
+        177,
+        59,
+        120,
+        27,
+        107
+      ]
+    },
+    {
+      "name": "MaxSupplyUpdated",
+      "discriminator": [
+        227,
+        187,
+        147,
+        191,
+        84,
+        72,
+        203,
+        219
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotOwner",
+      "msg": "Caller is not the owner"
+    },
+    {
+      "code": 6001,
+      "name": "NotBattleAuthorityDeprecated",
+      "msg": "(deprecated)"
+    },
+    {
+      "code": 6002,
+      "name": "MintDisabled",
+      "msg": "Mint is currently disabled"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidRarity",
+      "msg": "Invalid rarity"
+    },
+    {
+      "code": 6004,
+      "name": "MaxSupplyReached",
+      "msg": "Maximum supply for this rarity has been reached"
+    },
+    {
+      "code": 6005,
+      "name": "InsufficientBalance",
+      "msg": "Vault has insufficient lamports above rent minimum"
+    },
+    {
+      "code": 6006,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6007,
+      "name": "NameTooLong",
+      "msg": "Asset name exceeds 32 bytes"
+    },
+    {
+      "code": 6008,
+      "name": "UriTooLong",
+      "msg": "Asset URI exceeds 200 bytes"
+    },
+    {
+      "code": 6009,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    }
+  ],
+  "types": [
+    {
+      "name": "ChipNftConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "battle_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "next_token_id",
+            "type": "u64"
+          },
+          {
+            "name": "mint_price",
+            "type": {
+              "array": [
+                "u64",
+                5
+              ]
+            }
+          },
+          {
+            "name": "max_supply",
+            "type": {
+              "array": [
+                "u32",
+                5
+              ]
+            }
+          },
+          {
+            "name": "minted_count",
+            "type": {
+              "array": [
+                "u32",
+                5
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ChipData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_id",
+            "type": "u64"
+          },
+          {
+            "name": "rarity",
+            "type": "u8"
+          },
+          {
+            "name": "minted_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ChipNftInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MintPriceUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "rarity",
+            "type": "u8"
+          },
+          {
+            "name": "new_price",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleAuthorityUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ChipMinted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "asset",
+            "type": "pubkey"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "token_id",
+            "type": "u64"
+          },
+          {
+            "name": "rarity",
+            "type": "u8"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MintEnabledUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "enabled",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MaxSupplyUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "rarity",
+            "type": "u8"
+          },
+          {
+            "name": "supply",
+            "type": "u32"
+          }
+        ]
+      }
+    }
+  ]
+}

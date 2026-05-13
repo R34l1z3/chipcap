@@ -1,0 +1,30 @@
+{
+  "name": "ChipTap #301",
+  "description": "A powerful ChipTap chip radiating purple energy. Epic chips command respect in the arena.",
+  "image": "ipfs://PLACEHOLDER_CID/chip_301.svg",
+  "external_url": "https://chiptap.gg/chip/301",
+  "attributes": [
+    {
+      "trait_type": "Rarity",
+      "value": "Epic"
+    },
+    {
+      "trait_type": "Max Supply",
+      "value": "500"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Rarity Tier",
+      "value": 3,
+      "max_value": 4
+    },
+    {
+      "trait_type": "Collection",
+      "value": "Genesis"
+    },
+    {
+      "trait_type": "Game",
+      "value": "ChipTap PvP"
+    }
+  ]
+}

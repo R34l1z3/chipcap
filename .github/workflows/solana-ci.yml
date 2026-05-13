@@ -1,0 +1,306 @@
+name: Solana CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "chiptap-solana-programs/**"
+      - "chiptap-solana-indexer/**"
+      - "chiptap-solana-frontend/**"
+      - ".github/workflows/solana-ci.yml"
+  pull_request:
+    paths:
+      - "chiptap-solana-programs/**"
+      - "chiptap-solana-indexer/**"
+      - "chiptap-solana-frontend/**"
+      - ".github/workflows/solana-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: solana-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # SEC-14 — align with the documented dev toolchain in CLAUDE.md:
+  # Agave 3.1.14 from release.anza.xyz (the old release.solana.com domain
+  # serves 1.18.x and earlier; mixing that with our `--no-idl` build
+  # + edition2024 transitive deps would silently regress).
+  SOLANA_VERSION: 3.1.14
+  ANCHOR_VERSION: 0.30.1
+  RUST_VERSION:   1.79.0
+
+jobs:
+  # ----------------------------------------------------------------
+  # Anchor programs: compile + tests
+  # ----------------------------------------------------------------
+  programs:
+    name: Programs (anchor build + test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: chiptap-solana-programs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry / git / target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            chiptap-solana-programs/target
+          key: ${{ runner.os }}-anchor-${{ env.ANCHOR_VERSION }}-${{ hashFiles('chiptap-solana-programs/**/Cargo.lock', 'chiptap-solana-programs/**/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-anchor-${{ env.ANCHOR_VERSION }}-
+
+      - name: Cache Solana CLI install
+        id: cache-solana
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/solana/install
+          key: ${{ runner.os }}-solana-${{ env.SOLANA_VERSION }}
+
+      - name: Install Solana CLI ${{ env.SOLANA_VERSION }} (Agave)
+        if: steps.cache-solana.outputs.cache-hit != 'true'
+        run: sh -c "$(curl -sSfL https://release.anza.xyz/v${SOLANA_VERSION}/install)"
+
+      - name: Add Solana to PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Generate dummy keypair (for solana-test-validator + anchor wallet)
+        run: |
+          mkdir -p ~/.config/solana
+          solana-keygen new --no-bip39-passphrase -o ~/.config/solana/id.json --force
+
+      - name: Cache Anchor CLI binary
+        id: cache-anchor
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/anchor
+          key: ${{ runner.os }}-anchor-cli-${{ env.ANCHOR_VERSION }}
+
+      - name: Install Anchor CLI ${{ env.ANCHOR_VERSION }}
+        if: steps.cache-anchor.outputs.cache-hit != 'true'
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+          avm install ${ANCHOR_VERSION}
+          avm use ${ANCHOR_VERSION}
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+          cache-dependency-path: chiptap-solana-programs/yarn.lock
+
+      - name: Install JS deps
+        run: |
+          if [ -f yarn.lock ]; then yarn install --frozen-lockfile
+          else                     yarn install
+          fi
+
+      # SEC-14 — `anchor build` (with IDL) is wedged on Rust ≥ 1.95 due
+      # to `proc_macro::SourceFile` removal; we generate IDLs by hand.
+      - name: anchor build --no-idl
+        run: anchor build --no-idl
+
+      - name: Generate IDLs (gen-idls.js)
+        run: node gen-idls.js
+
+      # `anchor test` would spawn solana-test-validator + run mocha; we
+      # don't ship a mocha suite — instead we run our own smoke + attack
+      # regression scripts against a freshly started validator below.
+      - name: solana-test-validator (background)
+        run: |
+          mkdir -p /tmp/test-ledger
+          solana-test-validator --reset \
+            --ledger /tmp/test-ledger \
+            --rpc-port 8899 \
+            --clone-upgradeable-program CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d \
+            --url https://api.devnet.solana.com \
+            > /tmp/validator.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS -X POST -H 'Content-Type: application/json' \
+                 --data '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' \
+                 http://127.0.0.1:8899 | grep -q '"result"'; then
+              echo "Validator up after ${i}s"; break
+            fi
+            sleep 1
+          done
+
+      - name: solana airdrop + deploy + init
+        run: |
+          solana config set --url http://127.0.0.1:8899 --keypair ~/.config/solana/id.json
+          solana airdrop 100 || true
+          # Anchor.toml's [programs.localnet] expects the deploy keypair files
+          # to already exist; gen-program-keys.sh creates them if missing.
+          if ls target/deploy/*-keypair.json >/dev/null 2>&1; then
+            anchor deploy --provider.cluster localnet
+          else
+            echo "missing deploy keypairs — generating"
+            bash gen-program-keys.sh
+            anchor build --no-idl
+            node gen-idls.js
+            anchor deploy --provider.cluster localnet
+          fi
+          node init-programs.js
+
+      - name: Sync IDLs into indexer + frontend trees
+        run: bash copy-idls.sh
+
+      - name: Happy-path smoke
+        run: node smoke.js
+
+      - name: Attack-regression smoke (SEC-1/2/3/8)
+        run: node attack-smoke.js
+
+      - name: Upload generated IDLs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solana-idls
+          path: chiptap-solana-programs/target/idl/*.json
+          retention-days: 7
+
+  # ----------------------------------------------------------------
+  # Indexer (lint + boot)
+  # ----------------------------------------------------------------
+  indexer:
+    name: Solana indexer (boot + idempotency + WS auth + events-prefix)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: chiptap-solana-indexer
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: chiptap
+          POSTGRES_PASSWORD: chiptap_secret
+          POSTGRES_DB: chiptap_pvp_db
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U chiptap -d chiptap_pvp_db"
+          --health-interval 5s
+          --health-timeout  5s
+          --health-retries  10
+
+    env:
+      DATABASE_URL: postgresql://chiptap:chiptap_secret@localhost:5433/chiptap_pvp_db
+      SOLANA_RPC: http://127.0.0.1:8899
+      SOLANA_WS:  ws://127.0.0.1:8900
+      # SEC-14 — use the real localnet program IDs (deterministic from
+      # target/deploy keypairs).  The CI runner never connects to those
+      # programs (no validator in this job), but the indexer's startup
+      # validates them as base58 pubkeys.  Placeholders like "ChipNFT11…"
+      # decode to non-32-byte garbage and crash on `new PublicKey()`.
+      CHIP_NFT_PROGRAM:     "A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ"
+      BATTLE_ARENA_PROGRAM: "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8"
+      TREASURY_PROGRAM:     "wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: chiptap-solana-indexer/package-lock.json
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      # SEC-14 — generate real IDLs from gen-idls.js (pure Node, no
+      # Anchor/Rust required).  Stubbed empty IDLs let the indexer boot
+      # but BorshEventCoder silently drops every event — the boot-test
+      # used to pass against a broken indexer.
+      - name: Generate IDLs via gen-idls.js
+        working-directory: chiptap-solana-programs
+        run: |
+          node gen-idls.js
+          bash copy-idls.sh
+
+      - name: Migrate
+        run: npm run db:migrate
+
+      - name: Idempotency regression (SEC-5)
+        run: node test/idempotency.test.js
+
+      - name: Event-prefix regression (SEC-12)
+        run: node test/events-prefix.test.js
+
+      - name: Boot + healthcheck + WS auth (SEC-6, SEC-13)
+        run: |
+          WS_TOKEN=ci-secret npm start > indexer.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3002/api/health >/dev/null; then
+              echo "Healthy on attempt $i"; break
+            fi
+            sleep 1
+          done
+          curl -fsS http://localhost:3002/api/health
+          curl -fsS http://localhost:3002/api/stats
+          node test/ws-auth.test.js
+          kill "$PID" 2>/dev/null || true
+          tail -40 indexer.log || true
+
+  # ----------------------------------------------------------------
+  # Frontend (typecheck + build)
+  # ----------------------------------------------------------------
+  frontend:
+    name: Solana frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: chiptap-solana-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: chiptap-solana-frontend/package-lock.json
+      - run: npm install --no-audit --no-fund
+      - run: npx tsc --noEmit
+      - run: npm run build
+      - name: Upload dist artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: solana-frontend-dist
+          path: chiptap-solana-frontend/dist
+          retention-days: 7
+
+  # ----------------------------------------------------------------
+  # Aggregate gate
+  # ----------------------------------------------------------------
+  ci-success:
+    name: Solana CI success
+    if: always()
+    needs: [programs, indexer, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "programs: ${{ needs.programs.result }}"
+          echo "indexer:  ${{ needs.indexer.result }}"
+          echo "frontend: ${{ needs.frontend.result }}"
+          if [[ "${{ needs.programs.result }}" != "success" ]] || \
+             [[ "${{ needs.indexer.result }}"  != "success" ]] || \
+             [[ "${{ needs.frontend.result }}" != "success" ]]; then
+            exit 1
+          fi

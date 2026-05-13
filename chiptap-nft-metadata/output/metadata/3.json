@@ -1,0 +1,30 @@
+{
+  "name": "ChipTap #3",
+  "description": "A standard ChipTap battle chip. Common but reliable — every champion started here.",
+  "image": "ipfs://PLACEHOLDER_CID/chip_3.svg",
+  "external_url": "https://chiptap.gg/chip/3",
+  "attributes": [
+    {
+      "trait_type": "Rarity",
+      "value": "Common"
+    },
+    {
+      "trait_type": "Max Supply",
+      "value": "Unlimited"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Rarity Tier",
+      "value": 0,
+      "max_value": 4
+    },
+    {
+      "trait_type": "Collection",
+      "value": "Genesis"
+    },
+    {
+      "trait_type": "Game",
+      "value": "ChipTap PvP"
+    }
+  ]
+}

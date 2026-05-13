@@ -1,0 +1,285 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel in-flight runs on the same ref when a newer push lands.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ----------------------------------------------------------------
+  # Smart contracts: compile + unit tests
+  # ----------------------------------------------------------------
+  contracts:
+    name: Contracts (compile + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chiptap-contracts
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: chiptap-contracts/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npx hardhat compile
+
+      - name: Run unit tests
+        run: npx hardhat test
+
+      - name: E2E battle script (smoke)
+        run: npx hardhat run scripts/e2e-battle.js --network hardhat
+
+  # ----------------------------------------------------------------
+  # Indexer: install + migrate + boot + healthcheck
+  # ----------------------------------------------------------------
+  indexer:
+    name: Indexer (migrate + boot)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chiptap-indexer
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: chiptap
+          POSTGRES_PASSWORD: chiptap_secret
+          POSTGRES_DB: chiptap_pvp_db
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U chiptap -d chiptap_pvp_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://chiptap:chiptap_secret@localhost:5433/chiptap_pvp_db
+      # Indexer requires both addresses; values don't matter for the boot test
+      # because we don't have a chain — REST/WS still come up regardless.
+      CHIP_NFT_ADDRESS: "0x0000000000000000000000000000000000000001"
+      BATTLE_ARENA_ADDRESS: "0x0000000000000000000000000000000000000002"
+      RPC_WS: "ws://127.0.0.1:8545"
+      RPC_HTTP: "http://127.0.0.1:8545"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: chiptap-indexer/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run database migration
+        run: npm run db:migrate
+
+      - name: Boot indexer + healthcheck
+        run: |
+          # Start in background, kill after the healthcheck.
+          npm start > indexer.log 2>&1 &
+          IDX_PID=$!
+          # Wait up to 30s for /api/health to come up (event listener may
+          # be retrying RPC, but Express still binds early).
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3002/api/health >/dev/null 2>&1; then
+              echo "Indexer reachable on attempt $i"
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://localhost:3002/api/health
+          curl -fsS http://localhost:3002/api/stats
+          kill "$IDX_PID" 2>/dev/null || true
+          wait "$IDX_PID" 2>/dev/null || true
+          echo "---- indexer log (last 40 lines) ----"
+          tail -40 indexer.log || true
+
+  # ----------------------------------------------------------------
+  # Frontend: typecheck + production build
+  # ----------------------------------------------------------------
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chiptap-pvp-frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: chiptap-pvp-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Production build
+        run: npm run build
+
+      - name: Upload dist artifact
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: chiptap-pvp-frontend/dist
+          retention-days: 7
+          if-no-files-found: error
+
+  # ----------------------------------------------------------------
+  # Docker image build for the indexer (cache-aware)
+  # ----------------------------------------------------------------
+  docker-indexer:
+    name: Indexer Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: chiptap-indexer
+          file: chiptap-indexer/Dockerfile
+          push: false
+          load: true
+          tags: chiptap-indexer:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image starts and exposes /api/health
+        run: |
+          docker run -d --name idx-ci \
+            -e DATABASE_URL=postgresql://x:x@127.0.0.1:1/x \
+            -e CHIP_NFT_ADDRESS=0x0000000000000000000000000000000000000001 \
+            -e BATTLE_ARENA_ADDRESS=0x0000000000000000000000000000000000000002 \
+            -p 3002:3002 -p 3003:3003 \
+            chiptap-indexer:ci-${{ github.sha }}
+          # Wait for HTTP server to bind. The event listener may fail to
+          # connect to the (non-existent) RPC, but Express boots before
+          # that and stays up.
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3002/api/health >/dev/null 2>&1; then
+              echo "Image healthy on attempt $i"
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://localhost:3002/api/health
+          docker logs idx-ci | tail -30
+          docker rm -f idx-ci
+
+  # ----------------------------------------------------------------
+  # Docker image build for the frontend (nginx-served SPA)
+  # ----------------------------------------------------------------
+  docker-frontend:
+    name: Frontend Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: chiptap-pvp-frontend
+          file: chiptap-pvp-frontend/Dockerfile
+          push: false
+          load: true
+          tags: chiptap-frontend:ci-${{ github.sha }}
+          # Pinned, environment-agnostic build args (default values).
+          # Override per-deployment via build-arg in real release.
+          build-args: |
+            VITE_INDEXER_URL=/api
+            VITE_WS_URL=/ws
+            VITE_WALLETCONNECT_PROJECT_ID=chiptap-pvp
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Verify image starts and serves SPA + /healthz
+        run: |
+          docker run -d --name fe-ci \
+            -p 8080:8080 \
+            chiptap-frontend:ci-${{ github.sha }}
+          # nginx is fast to bind, but give it a brief grace period.
+          for i in $(seq 1 20); do
+            if curl -fsS http://localhost:8080/healthz >/dev/null 2>&1; then
+              echo "Frontend healthy on attempt $i"
+              break
+            fi
+            sleep 1
+          done
+          # /healthz from nginx
+          curl -fsS http://localhost:8080/healthz
+          # SPA shell — must contain a <script type="module" src="/assets/...">
+          curl -fsS http://localhost:8080/ | grep -q 'src="/assets/' \
+            && echo "SPA shell references hashed assets ✓"
+          # Hashed asset must exist (validates that the build actually
+          # produced a bundle and nginx can serve it).
+          ASSET=$(curl -fsS http://localhost:8080/ | grep -oE '/assets/[A-Za-z0-9._-]+\.js' | head -1)
+          echo "Probing $ASSET"
+          curl -fsSI "http://localhost:8080$ASSET" | head -1
+          # SPA fallback: any unknown route returns index.html
+          curl -fsS http://localhost:8080/some/random/path | grep -q '<div id="root">' \
+            && echo "SPA fallback to index.html ✓"
+          # /api/* returns 502 (no upstream in CI) — proves the proxy is wired.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/health || true)
+          echo "/api/health upstream-less response: $code (expected 502/504)"
+          docker logs fe-ci | tail -30
+          docker rm -f fe-ci
+
+  # ----------------------------------------------------------------
+  # Aggregate gate — easy to set as a required check in branch rules
+  # ----------------------------------------------------------------
+  ci-success:
+    name: CI success
+    if: always()
+    needs: [contracts, indexer, frontend, docker-indexer, docker-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job failed or was cancelled
+        run: |
+          echo "contracts:       ${{ needs.contracts.result }}"
+          echo "indexer:         ${{ needs.indexer.result }}"
+          echo "frontend:        ${{ needs.frontend.result }}"
+          echo "docker-indexer:  ${{ needs.docker-indexer.result }}"
+          echo "docker-frontend: ${{ needs.docker-frontend.result }}"
+          if [[ "${{ needs.contracts.result }}"       != "success" ]] || \
+             [[ "${{ needs.indexer.result }}"         != "success" ]] || \
+             [[ "${{ needs.frontend.result }}"        != "success" ]] || \
+             [[ "${{ needs.docker-indexer.result }}"  != "success" ]] || \
+             [[ "${{ needs.docker-frontend.result }}" != "success" ]]; then
+            exit 1
+          fi

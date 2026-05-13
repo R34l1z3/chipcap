@@ -1,0 +1,30 @@
+{
+  "name": "ChipTap #103",
+  "description": "An enhanced ChipTap chip with improved markings. Uncommon chips show you're getting serious.",
+  "image": "ipfs://PLACEHOLDER_CID/chip_103.svg",
+  "external_url": "https://chiptap.gg/chip/103",
+  "attributes": [
+    {
+      "trait_type": "Rarity",
+      "value": "Uncommon"
+    },
+    {
+      "trait_type": "Max Supply",
+      "value": "10,000"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Rarity Tier",
+      "value": 1,
+      "max_value": 4
+    },
+    {
+      "trait_type": "Collection",
+      "value": "Genesis"
+    },
+    {
+      "trait_type": "Game",
+      "value": "ChipTap PvP"
+    }
+  ]
+}

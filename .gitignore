@@ -1,0 +1,80 @@
+# ============================================================
+# Top-level .gitignore for chiptap-full
+# ============================================================
+# Covers EVM + Solana + indexer + frontend stacks.  Per-package
+# .gitignore files exist for legacy reasons but the indexer dirs
+# never had any, so committed-by-accident .env was an open footgun.
+# ============================================================
+
+# ---- secrets / env ----
+# All forms of .env are ignored.  Add `.env.example` (committed) for
+# documentation; the unignore exception below allows it.
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Solana CLI / Anchor wallets — never commit a real keypair.
+**/id.json
+**/wallet-keypair.json
+**/*-keypair.json
+# ...but program-deploy-keypair.json files (target/deploy/*) ARE
+# the on-chain program addresses for localnet; allow only those.
+!**/target/deploy/*-keypair.json
+
+# ---- build / cache ----
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.vite/
+**/.vite/
+.cache/
+**/.cache/
+
+# Rust / Anchor
+target/
+**/target/
+# Allow the deploy-keypair files inside target/deploy specifically.
+!target/deploy/
+!**/target/deploy/
+.anchor/
+**/.anchor/
+**/*.rs.bk
+
+# Hardhat / Solidity
+artifacts/
+**/artifacts/
+cache/
+**/cache/
+typechain-types/
+**/typechain-types/
+coverage/
+**/coverage/
+coverage.json
+.deployments/
+
+# ---- runtime / logs ----
+*.log
+**/*.log
+test-ledger/
+**/test-ledger/
+.tmp/
+**/.tmp/
+
+# ---- OS / IDE ----
+.DS_Store
+**/.DS_Store
+Thumbs.db
+ehthumbs.db
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+.idea/
+*.swp
+*.swo
+*~

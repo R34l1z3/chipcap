@@ -1,0 +1,20 @@
+# Keep the build context small + don't leak secrets/dev artefacts
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+.vscode
+.idea
+*.md
+README*
+LICENSE*
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile
+.dockerignore
+coverage
+dist
+.DS_Store

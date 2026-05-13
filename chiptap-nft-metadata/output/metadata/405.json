@@ -1,0 +1,30 @@
+{
+  "name": "ChipTap #405",
+  "description": "The ultimate ChipTap chip, bathed in golden light. Only 50 exist. Legends are made with these.",
+  "image": "ipfs://PLACEHOLDER_CID/chip_405.svg",
+  "external_url": "https://chiptap.gg/chip/405",
+  "attributes": [
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Max Supply",
+      "value": "50"
+    },
+    {
+      "display_type": "number",
+      "trait_type": "Rarity Tier",
+      "value": 4,
+      "max_value": 4
+    },
+    {
+      "trait_type": "Collection",
+      "value": "Genesis"
+    },
+    {
+      "trait_type": "Game",
+      "value": "ChipTap PvP"
+    }
+  ]
+}

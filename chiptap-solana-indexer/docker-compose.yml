@@ -1,0 +1,102 @@
+# Same dev/prod split as the EVM indexer:
+#   docker compose up -d                     -> Postgres only (dev)
+#   docker compose --profile prod up -d ...  -> Postgres + indexer + frontend
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chiptap-solana-db
+    restart: unless-stopped
+    # SEC-17: credentials sourced from env (`.env` or shell).  In dev,
+    # symlink/copy `.env.example` → `.env` (defaults chiptap/chiptap_secret).
+    # In prod, set POSTGRES_PASSWORD to a real secret — `${VAR:?required}`
+    # in the DATABASE_URL ensures the stack refuses to start without it.
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-chiptap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB:       ${POSTGRES_DB:-chiptap_pvp_db}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chiptap} -d ${POSTGRES_DB:-chiptap_pvp_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  indexer-migrate:
+    profiles: ["prod"]
+    image: chiptap-solana-indexer:latest
+    build: { context: ., dockerfile: Dockerfile }
+    command: ["node", "src/db/migrate.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-chiptap}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-chiptap_pvp_db}
+    restart: "no"
+
+  indexer:
+    profiles: ["prod"]
+    image: chiptap-solana-indexer:latest
+    container_name: chiptap-solana-indexer
+    build: { context: ., dockerfile: Dockerfile }
+    depends_on:
+      postgres: { condition: service_healthy }
+      indexer-migrate: { condition: service_completed_successfully }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-chiptap}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-chiptap_pvp_db}
+      PORT: "3002"
+      WS_PORT: "3003"
+      SOLANA_RPC: ${SOLANA_RPC_PROD:-http://host.docker.internal:8899}
+      SOLANA_WS:  ${SOLANA_WS_PROD:-ws://host.docker.internal:8900}
+      CHIP_NFT_PROGRAM:     ${CHIP_NFT_PROGRAM:?required}
+      BATTLE_ARENA_PROGRAM: ${BATTLE_ARENA_PROGRAM:?required}
+      TREASURY_PROGRAM:     ${TREASURY_PROGRAM:?required}
+      START_SLOT:           ${START_SLOT:-0}
+    ports:
+      - "3002:3002"
+      - "3003:3003"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3002/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # nginx serving the Solana SPA, reverse-proxies /api → indexer:3002
+  # and /ws → indexer:3003.
+  frontend:
+    profiles: ["prod"]
+    image: chiptap-solana-frontend:latest
+    container_name: chiptap-solana-frontend
+    build:
+      context: ../chiptap-solana-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_INDEXER_URL:           ${VITE_INDEXER_URL:-/api}
+        VITE_WS_URL:                ${VITE_WS_URL:-/ws}
+        VITE_SOLANA_CLUSTER:        ${VITE_SOLANA_CLUSTER:-devnet}
+        VITE_SOLANA_RPC:            ${VITE_SOLANA_RPC:-}
+        VITE_CHIP_NFT_PROGRAM:      ${CHIP_NFT_PROGRAM:?required}
+        VITE_BATTLE_ARENA_PROGRAM:  ${BATTLE_ARENA_PROGRAM:?required}
+        VITE_TREASURY_PROGRAM:      ${TREASURY_PROGRAM:?required}
+    depends_on:
+      indexer:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+volumes:
+  pgdata:
