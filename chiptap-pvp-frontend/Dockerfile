@@ -36,12 +36,21 @@ COPY src ./src
 # Build args become env vars for `vite build` — embedded into the bundle.
 ARG VITE_INDEXER_URL=/api
 ARG VITE_WS_URL=/ws
-ARG VITE_WALLETCONNECT_PROJECT_ID=chiptap-pvp
+# SEC-EVM — no default for the WalletConnect project ID.  Shipping the
+# placeholder `chiptap-pvp` to production silently falls back to
+# WalletConnect's demo project (rate-limited, may disappear).  Set it
+# explicitly via --build-arg or override at the compose level.
+ARG VITE_WALLETCONNECT_PROJECT_ID=""
+ARG REQUIRE_WC_PROJECT_ID="0"
 ENV VITE_INDEXER_URL=$VITE_INDEXER_URL \
     VITE_WS_URL=$VITE_WS_URL \
     VITE_WALLETCONNECT_PROJECT_ID=$VITE_WALLETCONNECT_PROJECT_ID
 
-RUN npm run build && ls -la dist
+# Optional hard-fail when building a real prod image:
+# docker build --build-arg REQUIRE_WC_PROJECT_ID=1 --build-arg VITE_WALLETCONNECT_PROJECT_ID=xyz ...
+RUN if [ "$REQUIRE_WC_PROJECT_ID" = "1" ] && [ -z "$VITE_WALLETCONNECT_PROJECT_ID" ]; then \
+      echo "VITE_WALLETCONNECT_PROJECT_ID is required when REQUIRE_WC_PROJECT_ID=1" >&2; exit 1; \
+    fi && npm run build && ls -la dist
 
 
 # ---- stage 2: nginx ----

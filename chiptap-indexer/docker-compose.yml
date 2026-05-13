@@ -15,16 +15,17 @@ services:
     image: postgres:16-alpine
     container_name: chiptap-indexer-db
     restart: unless-stopped
+    # SEC-17 mirror — password sourced from env, `:?required` fails fast.
     environment:
-      POSTGRES_USER: chiptap
-      POSTGRES_PASSWORD: chiptap_secret
-      POSTGRES_DB: chiptap_pvp_db
+      POSTGRES_USER:     ${POSTGRES_USER:-chiptap}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB:       ${POSTGRES_DB:-chiptap_pvp_db}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U chiptap -d chiptap_pvp_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-chiptap} -d ${POSTGRES_DB:-chiptap_pvp_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -42,7 +43,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://chiptap:chiptap_secret@postgres:5432/chiptap_pvp_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-chiptap}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-chiptap_pvp_db}
     restart: "no"
 
   # Long-running event listener + REST + WS server.
@@ -60,7 +61,7 @@ services:
         condition: service_completed_successfully
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://chiptap:chiptap_secret@postgres:5432/chiptap_pvp_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-chiptap}:${POSTGRES_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:-chiptap_pvp_db}
       PORT: "3002"
       WS_PORT: "3003"
       # NOTE: these names are *_PROD on purpose so they don't collide with
@@ -71,7 +72,11 @@ services:
       CHIP_NFT_ADDRESS: ${CHIP_NFT_ADDRESS:?CHIP_NFT_ADDRESS is required for prod profile}
       BATTLE_ARENA_ADDRESS: ${BATTLE_ARENA_ADDRESS:?BATTLE_ARENA_ADDRESS is required for prod profile}
       START_BLOCK:      ${START_BLOCK_PROD:-0}
-      CONFIRMATIONS:    ${CONFIRMATIONS_PROD:-0}
+      # SEC-EVM — default to 3 confirmations so reorg-handling bugs surface
+      # in dev rather than silently first appearing on Polygon mainnet.
+      # Override with CONFIRMATIONS_PROD=0 only for in-process Hardhat (no
+      # reorgs there); any real chain should keep >= 3.
+      CONFIRMATIONS:    ${CONFIRMATIONS_PROD:-3}
     ports:
       - "3002:3002"
       - "3003:3003"
