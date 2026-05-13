@@ -134,10 +134,19 @@ pub struct TreasuryConfig {
     pub total_withdrawn: u64,
     pub bump:            u8,
     pub vault_bump:      u8,
+    // SEC-20 — forward-compat padding.  Anchor accounts cannot grow
+    // past their allocated size without an explicit `realloc`, so we
+    // pre-reserve a fixed buffer at the *end* of the struct.  New
+    // primitive fields go BEFORE the padding (shrink it to compensate),
+    // never appended after — that preserves byte offsets of every
+    // existing field, so already-initialised accounts still deserialise.
+    // See `CLAUDE.md` → PDA versioning section for the realloc recipe
+    // when the padding eventually runs out.
+    pub _reserved:       [u8; 64],
 }
 
 impl TreasuryConfig {
-    pub const SPACE: usize = 8 /* discr */ + 32 + 32 + 8 + 8 + 1 + 1;
+    pub const SPACE: usize = 8 /* discr */ + 32 + 32 + 8 + 8 + 1 + 1 + 64;
 }
 
 #[derive(Accounts)]

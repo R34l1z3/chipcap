@@ -111,6 +111,8 @@ const treasuryIdl = {
           { name: "total_withdrawn",  type: "u64" },
           { name: "bump",             type: "u8" },
           { name: "vault_bump",       type: "u8" },
+          // SEC-20 forward-compat padding (see CLAUDE.md)
+          { name: "_reserved",        type: arr("u8", 64) },
         ],
       },
     },
@@ -192,6 +194,8 @@ const chipNftIdl = {
         { name: "minted_count",     type: arr("u32", 5) },
         { name: "bump",             type: "u8" },
         { name: "vault_bump",       type: "u8" },
+        // SEC-20 forward-compat padding
+        { name: "_reserved",        type: arr("u8", 64) },
       ]},
     },
     {
@@ -446,6 +450,8 @@ const arenaIdl = {
         { name: "bump",                 type: "u8" },
         { name: "vault_bump",           type: "u8" },
         { name: "chip_authority_bump",  type: "u8" },
+        // SEC-20 forward-compat padding
+        { name: "_reserved",            type: arr("u8", 64) },
       ]},
     },
     {

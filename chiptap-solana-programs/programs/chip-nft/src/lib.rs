@@ -254,11 +254,13 @@ pub struct ChipNftConfig {
     pub minted_count:     [u32; 5],
     pub bump:             u8,
     pub vault_bump:       u8,
+    // SEC-20 — see TreasuryConfig and CLAUDE.md "PDA versioning".
+    pub _reserved:        [u8; 64],
 }
 
 impl ChipNftConfig {
-    // 8 discr + 32 + 32 + 1 + 8 + 5*8 + 5*4 + 5*4 + 1 + 1 = 143
-    pub const SPACE: usize = 8 + 32 + 32 + 1 + 8 + (5 * 8) + (5 * 4) + (5 * 4) + 1 + 1;
+    // 8 discr + 32 + 32 + 1 + 8 + 5*8 + 5*4 + 5*4 + 1 + 1 + 64 = 207
+    pub const SPACE: usize = 8 + 32 + 32 + 1 + 8 + (5 * 8) + (5 * 4) + (5 * 4) + 1 + 1 + 64;
 }
 
 #[account]

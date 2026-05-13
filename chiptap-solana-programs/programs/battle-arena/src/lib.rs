@@ -685,12 +685,17 @@ pub struct ArenaConfig {
     pub bump:                u8,
     pub vault_bump:          u8,
     pub chip_authority_bump: u8,
+    // SEC-20 — see CLAUDE.md "PDA versioning".  Anchor account sizes
+    // are frozen at init; new fields go BEFORE this padding (and the
+    // padding shrinks) so existing accounts keep deserialising.  Once
+    // padding is exhausted, schedule a `realloc` migration ix.
+    pub _reserved:           [u8; 64],
 }
 
 impl ArenaConfig {
-    // 8 + 32*4 + 8 + 6*8 + 2 + 8 + 8 + 8 + 1 + 1 + 1 + 1 = 220
+    // 8 + 32*4 + 8 + 6*8 + 2 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 64 = 284
     pub const SPACE: usize =
-        8 + (32 * 4) + 8 + (8 * N_TIERS) + 2 + 8 + 8 + 8 + 1 + 1 + 1 + 1;
+        8 + (32 * 4) + 8 + (8 * N_TIERS) + 2 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 64;
 }
 
 #[account]

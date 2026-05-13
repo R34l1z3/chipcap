@@ -1262,6 +1262,15 @@
           {
             "name": "chip_authority_bump",
             "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           }
         ]
       }

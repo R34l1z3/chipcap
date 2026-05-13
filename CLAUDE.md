@@ -35,6 +35,12 @@ reading the matching SEC- comment in the source first.**
 | SEC-17 | `POSTGRES_PASSWORD: chiptap_secret` was hardcoded in `docker-compose.yml` — any `--profile prod` deployment shipped with the dev password. Moved to `${POSTGRES_PASSWORD:?required}` so the stack refuses to start without it. User / DB name / port also externalised, with safe dev defaults via `.env.example`. | `docker-compose.yml`, `.env.example` |
 | SEC-18 | `useChipsByOwner` ran `toLowerCase()` on both the connected wallet and the broadcast event's owner before comparing — but Solana base58 IS case-sensitive (a single letter casing differs by bytes). The equality check silently never matched and the inventory page stopped updating until a manual reload. Removed the lower-case dance. | `chiptap-solana-frontend/src/hooks/useChipsByOwner.ts` |
 | SEC-19 | Admin-only mutations (`set_paused`, `set_fee_bps`, `set_pool_amount`, `set_*_timeout`, `set_vrf_authority` on battle-arena; `set_mint_enabled`, `set_max_supply` on chip-nft) didn't emit events. Indexer could not reflect admin state changes in its history, and audits could not reconstruct the timeline. Now every setter emits its matching `*Updated` event. New events: `PausedUpdated`, `FeeBpsUpdated`, `PoolAmountUpdated`, `TimeoutUpdated{kind:0=decision/1=join/2=vrf}`, `VrfAuthorityUpdated`, `MintEnabledUpdated`, `MaxSupplyUpdated`. Also retired dead `chip_nft::NotBattleAuthority` error variant (kept slot 6001 as `NotBattleAuthorityDeprecated` so codes don't shift). Cleanup: removed one-shot `fix-seeds.sh` (its job is done). | `battle-arena/src/lib.rs`, `chip-nft/src/lib.rs`, `gen-idls.js` |
+| SEC-20 | PDA configs weren't forward-compatible — any new field would re-shift byte offsets and corrupt existing accounts.  All 3 config structs (`ArenaConfig`, `ChipNftConfig`, `TreasuryConfig`) now end with a `_reserved: [u8; 64]` padding field.  New primitive fields go BEFORE the padding (shrink it to compensate), never appended after.  When the padding eventually runs out, schedule a `realloc!` migration ix.  **Adding/changing this field is a hard break — requires `solana-test-validator --reset` + redeploy + reinit on localnet.**  Per-game accounts (`Battle`, `ChipData`, `UserAccount`) intentionally have no padding — they're cheap to create and short-lived; future shape changes there should ship as a new account type rather than a migration. | All 3 program `lib.rs` + `gen-idls.js` |
+
+Switchboard On-Demand VRF integration is documented but not yet performed —
+see `chiptap-solana-programs/SWITCHBOARD.md` for the devnet checklist
+and option-A (trusted-relayer interim) / option-B (full SDK with on-chain
+verification) split.
 
 Regression suites (run after any program change):
 - `wsl -d Ubuntu -- bash /mnt/c/.../chiptap-solana-programs/run-smoke.sh` — happy path (SEC-10 winner-PDA-via-ensure_user_account)
@@ -253,7 +259,7 @@ Already adapted (don't redo):
 - ~~`POSTGRES_PASSWORD` hardcoded in `docker-compose.yml`~~ → closed by SEC-17
 - ~~Frontend `useChipsByOwner` lower-cases base58~~ → closed by SEC-18
 - ~~Composite `(owner, token_id DESC)` index missing~~ → closed by SEC-15
-- PDA accounts are not versioned. Any future change to `Battle::SPACE` / `ChipNftConfig::SPACE` / etc. corrupts existing on-chain accounts. Workaround for localnet: reset validator on schema change. For mainnet: add an explicit `realloc` migration ix before bumping struct size.
+- ~~PDA accounts are not versioned~~ → partial fix in SEC-20: the three `*Config` structs got a 64-byte `_reserved` trailer; per-battle / per-chip / per-user PDAs still don't have padding and any schema change there is a hard break.  When `_reserved` runs out on the configs, write a `realloc!`-constraint migration ix.
 - WalletConnect project ID in the EVM frontend's Dockerfile defaults to a placeholder
 - GitHub Actions are pinned to `@v4`/`@stable` not to SHAs (supply-chain drift risk — Dependabot or `pin-github-action` should land before any real release)
 
