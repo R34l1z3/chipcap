@@ -1,0 +1,18 @@
+{
+  "name": "chiptap-solana-relayer",
+  "version": "0.1.0",
+  "description": "Auto-fulfills BattleArena VRF requests on Solana — Option A (trusted relayer) per chiptap-solana-programs/SWITCHBOARD.md",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start":     "node src/index.js",
+    "dev":       "node --watch src/index.js",
+    "smoke":     "node src/smoke.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@coral-xyz/anchor":  "^0.30.1",
+    "@solana/web3.js":    "^1.95.3",
+    "dotenv":             "^16.4.5"
+  }
+}

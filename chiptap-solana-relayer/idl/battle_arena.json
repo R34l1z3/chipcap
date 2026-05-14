@@ -1,0 +1,1671 @@
+{
+  "address": "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8",
+  "metadata": {
+    "name": "battle_arena",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "chip_authority",
+          "writable": true
+        },
+        {
+          "name": "chip_nft_program"
+        },
+        {
+          "name": "treasury_program"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_paused",
+      "discriminator": [
+        91,
+        60,
+        125,
+        192,
+        176,
+        225,
+        166,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "set_fee_bps",
+      "discriminator": [
+        2,
+        161,
+        245,
+        141,
+        111,
+        32,
+        39,
+        198
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "fee_bps",
+          "type": "u16"
+        }
+      ]
+    },
+    {
+      "name": "set_pool_amount",
+      "discriminator": [
+        160,
+        51,
+        110,
+        238,
+        123,
+        254,
+        188,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "tier",
+          "type": "u8"
+        },
+        {
+          "name": "lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_decision_timeout",
+      "discriminator": [
+        64,
+        85,
+        202,
+        158,
+        19,
+        240,
+        118,
+        82
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "seconds",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_join_timeout",
+      "discriminator": [
+        188,
+        195,
+        191,
+        146,
+        221,
+        57,
+        182,
+        69
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "seconds",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_vrf_timeout",
+      "discriminator": [
+        155,
+        50,
+        17,
+        45,
+        34,
+        236,
+        126,
+        47
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "seconds",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "set_vrf_authority",
+      "discriminator": [
+        219,
+        49,
+        136,
+        166,
+        71,
+        6,
+        51,
+        74
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "authority",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "ensure_user_account",
+      "discriminator": [
+        74,
+        113,
+        87,
+        33,
+        29,
+        52,
+        93,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "authority"
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deposit",
+      "discriminator": [
+        242,
+        35,
+        198,
+        137,
+        82,
+        225,
+        242,
+        182
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "discriminator": [
+        183,
+        18,
+        70,
+        156,
+        148,
+        109,
+        161,
+        34
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "user",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_battle",
+      "discriminator": [
+        2,
+        249,
+        54,
+        216,
+        42,
+        99,
+        187,
+        102
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip",
+          "writable": true
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_tier",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "join_battle",
+      "discriminator": [
+        126,
+        0,
+        69,
+        130,
+        127,
+        145,
+        54,
+        100
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip",
+          "writable": true
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_battle",
+      "discriminator": [
+        234,
+        61,
+        97,
+        187,
+        97,
+        170,
+        101,
+        141
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip_a",
+          "writable": true
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "fulfill_random_words",
+      "discriminator": [
+        241,
+        31,
+        92,
+        116,
+        42,
+        230,
+        221,
+        188
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "vrf_authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "seed",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_winner_chip",
+      "discriminator": [
+        199,
+        120,
+        186,
+        85,
+        32,
+        246,
+        121,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle"
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip",
+          "writable": true
+        },
+        {
+          "name": "winner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "pay_ransom",
+      "discriminator": [
+        244,
+        252,
+        96,
+        26,
+        129,
+        161,
+        131,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "loser_user",
+          "writable": true
+        },
+        {
+          "name": "winner_user",
+          "writable": true
+        },
+        {
+          "name": "chip_loser",
+          "writable": true
+        },
+        {
+          "name": "treasury_config",
+          "writable": true
+        },
+        {
+          "name": "treasury_vault",
+          "writable": true
+        },
+        {
+          "name": "treasury_program"
+        },
+        {
+          "name": "loser",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "winner"
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "forfeit_chip",
+      "discriminator": [
+        238,
+        160,
+        114,
+        177,
+        209,
+        71,
+        52,
+        7
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip_loser",
+          "writable": true
+        },
+        {
+          "name": "loser",
+          "signer": true
+        },
+        {
+          "name": "winner",
+          "writable": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "expire_decision",
+      "discriminator": [
+        122,
+        2,
+        21,
+        168,
+        177,
+        244,
+        143,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip_loser",
+          "writable": true
+        },
+        {
+          "name": "loser"
+        },
+        {
+          "name": "winner",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "expire_join",
+      "discriminator": [
+        146,
+        35,
+        227,
+        101,
+        38,
+        80,
+        218,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip_a",
+          "writable": true
+        },
+        {
+          "name": "player_a",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "force_resolve",
+      "discriminator": [
+        143,
+        201,
+        99,
+        154,
+        46,
+        107,
+        109,
+        41
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip_a",
+          "writable": true
+        },
+        {
+          "name": "chip_b",
+          "writable": true
+        },
+        {
+          "name": "player_a",
+          "writable": true
+        },
+        {
+          "name": "player_b",
+          "writable": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ArenaConfig",
+      "discriminator": [
+        9,
+        186,
+        181,
+        145,
+        197,
+        50,
+        33,
+        38
+      ]
+    },
+    {
+      "name": "UserAccount",
+      "discriminator": [
+        211,
+        33,
+        136,
+        16,
+        186,
+        110,
+        242,
+        127
+      ]
+    },
+    {
+      "name": "Battle",
+      "discriminator": [
+        81,
+        148,
+        121,
+        71,
+        63,
+        166,
+        116,
+        24
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "ArenaInitialized",
+      "discriminator": [
+        86,
+        178,
+        41,
+        113,
+        247,
+        170,
+        140,
+        57
+      ]
+    },
+    {
+      "name": "Deposited",
+      "discriminator": [
+        111,
+        141,
+        26,
+        45,
+        161,
+        35,
+        100,
+        57
+      ]
+    },
+    {
+      "name": "Withdrawn",
+      "discriminator": [
+        20,
+        89,
+        223,
+        198,
+        194,
+        124,
+        219,
+        13
+      ]
+    },
+    {
+      "name": "BattleCreated",
+      "discriminator": [
+        33,
+        66,
+        118,
+        96,
+        130,
+        0,
+        113,
+        218
+      ]
+    },
+    {
+      "name": "BattleJoined",
+      "discriminator": [
+        135,
+        195,
+        19,
+        119,
+        186,
+        10,
+        187,
+        48
+      ]
+    },
+    {
+      "name": "BattleDecided",
+      "discriminator": [
+        183,
+        131,
+        90,
+        244,
+        94,
+        96,
+        33,
+        99
+      ]
+    },
+    {
+      "name": "BattleSettledPaid",
+      "discriminator": [
+        124,
+        191,
+        85,
+        172,
+        21,
+        7,
+        173,
+        175
+      ]
+    },
+    {
+      "name": "BattleSettledForfeited",
+      "discriminator": [
+        184,
+        16,
+        129,
+        120,
+        255,
+        155,
+        114,
+        253
+      ]
+    },
+    {
+      "name": "BattleCancelled",
+      "discriminator": [
+        52,
+        123,
+        54,
+        137,
+        90,
+        187,
+        138,
+        60
+      ]
+    },
+    {
+      "name": "BattleExpired",
+      "discriminator": [
+        225,
+        37,
+        98,
+        85,
+        105,
+        200,
+        120,
+        153
+      ]
+    },
+    {
+      "name": "VrfTimedOut",
+      "discriminator": [
+        181,
+        122,
+        231,
+        100,
+        130,
+        50,
+        178,
+        104
+      ]
+    },
+    {
+      "name": "PausedUpdated",
+      "discriminator": [
+        209,
+        89,
+        200,
+        35,
+        126,
+        183,
+        132,
+        23
+      ]
+    },
+    {
+      "name": "FeeBpsUpdated",
+      "discriminator": [
+        151,
+        59,
+        111,
+        165,
+        241,
+        143,
+        149,
+        117
+      ]
+    },
+    {
+      "name": "PoolAmountUpdated",
+      "discriminator": [
+        75,
+        90,
+        152,
+        180,
+        75,
+        72,
+        53,
+        10
+      ]
+    },
+    {
+      "name": "TimeoutUpdated",
+      "discriminator": [
+        72,
+        168,
+        158,
+        6,
+        92,
+        8,
+        202,
+        36
+      ]
+    },
+    {
+      "name": "VrfAuthorityUpdated",
+      "discriminator": [
+        19,
+        48,
+        181,
+        170,
+        246,
+        167,
+        225,
+        196
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NotOwner",
+      "msg": "Caller is not the configured owner / authority"
+    },
+    {
+      "code": 6001,
+      "name": "Paused",
+      "msg": "Battles are paused"
+    },
+    {
+      "code": 6002,
+      "name": "WrongStatus",
+      "msg": "Wrong battle status for this action"
+    },
+    {
+      "code": 6003,
+      "name": "CannotJoinOwnBattle",
+      "msg": "Cannot join your own battle"
+    },
+    {
+      "code": 6004,
+      "name": "NotYourBattle",
+      "msg": "Caller is not playerA"
+    },
+    {
+      "code": 6005,
+      "name": "NotWinner",
+      "msg": "Caller is not the winner"
+    },
+    {
+      "code": 6006,
+      "name": "NotLoser",
+      "msg": "Caller is not the loser"
+    },
+    {
+      "code": 6007,
+      "name": "DecisionPeriodExpired",
+      "msg": "Decision period has expired"
+    },
+    {
+      "code": 6008,
+      "name": "DecisionPeriodActive",
+      "msg": "Decision period still active"
+    },
+    {
+      "code": 6009,
+      "name": "JoinPeriodNotExpired",
+      "msg": "Join period has not expired"
+    },
+    {
+      "code": 6010,
+      "name": "VrfNotTimedOut",
+      "msg": "VRF has not timed out yet"
+    },
+    {
+      "code": 6011,
+      "name": "NotVrfAuthority",
+      "msg": "Caller is not the registered VRF authority"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidTier",
+      "msg": "Pool tier index out of range"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidTimeout",
+      "msg": "Invalid timeout (out of allowed window)"
+    },
+    {
+      "code": 6014,
+      "name": "FeeTooHigh",
+      "msg": "Fee bps too high (max 10%)"
+    },
+    {
+      "code": 6015,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient internal balance"
+    },
+    {
+      "code": 6016,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6017,
+      "name": "WrongChip",
+      "msg": "Wrong chip account passed for this battle slot"
+    },
+    {
+      "code": 6018,
+      "name": "WrongPlayer",
+      "msg": "Wrong player account — does not match battle.player_a / player_b"
+    },
+    {
+      "code": 6019,
+      "name": "MathOverflow",
+      "msg": "Arithmetic overflow"
+    }
+  ],
+  "types": [
+    {
+      "name": "ArenaConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip_nft_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "vrf_authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "next_battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "pool_amounts",
+            "type": {
+              "array": [
+                "u64",
+                6
+              ]
+            }
+          },
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "decision_timeout",
+            "type": "i64"
+          },
+          {
+            "name": "join_timeout",
+            "type": "i64"
+          },
+          {
+            "name": "vrf_timeout",
+            "type": "i64"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "vault_bump",
+            "type": "u8"
+          },
+          {
+            "name": "chip_authority_bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "balance",
+            "type": "u64"
+          },
+          {
+            "name": "locked",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Battle",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "player_a",
+            "type": "pubkey"
+          },
+          {
+            "name": "player_b",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip_a",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip_b",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool_tier",
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "loser",
+            "type": "pubkey"
+          },
+          {
+            "name": "random_seed",
+            "type": "u64"
+          },
+          {
+            "name": "resolution",
+            "type": "u8"
+          },
+          {
+            "name": "payment_amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "decided_at",
+            "type": "i64"
+          },
+          {
+            "name": "settled_at",
+            "type": "i64"
+          },
+          {
+            "name": "rolling_at",
+            "type": "i64"
+          },
+          {
+            "name": "vrf_request_id",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ArenaInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip_authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Deposited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "balance",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Withdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "balance",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "player_a",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip_a",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool_tier",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleJoined",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "player_b",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip_b",
+            "type": "pubkey"
+          },
+          {
+            "name": "vrf_request_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleDecided",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "loser",
+            "type": "pubkey"
+          },
+          {
+            "name": "random_seed",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleSettledPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "loser",
+            "type": "pubkey"
+          },
+          {
+            "name": "payment",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleSettledForfeited",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "loser",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip_forfeited",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "player_a",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleExpired",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "loser",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VrfTimedOut",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PausedUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeeBpsUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fee_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoolAmountUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tier",
+            "type": "u8"
+          },
+          {
+            "name": "lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TimeoutUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "seconds",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VrfAuthorityUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    }
+  ]
+}

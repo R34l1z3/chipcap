@@ -16,7 +16,12 @@ const walletPath = path.join(os.homedir(), ".config/solana/id.json");
 const secret = JSON.parse(fs.readFileSync(walletPath, "utf8"));
 const keypair = Keypair.fromSecretKey(Uint8Array.from(secret));
 const wallet = new anchor.Wallet(keypair);
-const connection = new Connection("http://127.0.0.1:8899", "confirmed");
+// SOLANA_RPC env var lets the same script target localnet / devnet /
+// mainnet without code changes:
+//   SOLANA_RPC=https://api.devnet.solana.com node init-programs.js
+const RPC = process.env.SOLANA_RPC || "http://127.0.0.1:8899";
+console.log("[init] RPC:", RPC);
+const connection = new Connection(RPC, "confirmed");
 const provider = new anchor.AnchorProvider(connection, wallet, {
   commitment: "confirmed",
   preflightCommitment: "confirmed",
