@@ -47,7 +47,14 @@ const log = (...a) => console.log(new Date().toISOString(), ...a);
 const dbg = (...a) => { if (cfg.debug) log("[debug]", ...a); };
 
 // ---- wallet + provider -------------------------------------------
-const secret = JSON.parse(fs.readFileSync(cfg.keypairPath, "utf8"));
+// Two ways to provide the keypair, in priority order:
+//   1. VRF_AUTHORITY_KEYPAIR_JSON — raw JSON array, used by Fly.io / Docker
+//      where the keypair is a "secret" env var.
+//   2. VRF_AUTHORITY_KEYPAIR — file path, used in local dev where the
+//      keypair lives at ~/.config/solana/id.json.
+const secret = process.env.VRF_AUTHORITY_KEYPAIR_JSON
+  ? JSON.parse(process.env.VRF_AUTHORITY_KEYPAIR_JSON)
+  : JSON.parse(fs.readFileSync(cfg.keypairPath, "utf8"));
 const wallet = new Wallet(Keypair.fromSecretKey(Uint8Array.from(secret)));
 log("[relayer] vrf_authority =", wallet.publicKey.toBase58());
 

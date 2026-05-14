@@ -1,0 +1,55 @@
+app = "chiptap-indexer"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Two services exposed on the same machine:
+#   :3002 — REST API (HTTP, public)
+#   :3003 — WebSocket broadcast (HTTP-upgrade, public)
+[http_service]
+  internal_port = 3002
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/health"
+
+# WebSocket port — Fly handles the protocol upgrade automatically.
+[[services]]
+  protocol = "tcp"
+  internal_port = 3003
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpu_kind = "shared"
+
+# Required Fly secrets (set via `fly secrets set KEY=value`):
+#   DATABASE_URL          (Neon / Supabase Postgres connection URL)
+#   WS_TOKEN              (optional shared token for SEC-13 WS auth)
+#
+[env]
+  NODE_ENV   = "production"
+  SOLANA_RPC = "https://api.devnet.solana.com"
+  SOLANA_WS  = "wss://api.devnet.solana.com"
+  CHIP_NFT_PROGRAM     = "A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ"
+  BATTLE_ARENA_PROGRAM = "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8"
+  TREASURY_PROGRAM     = "wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp"
+  EVENTS_RETENTION_DAYS = "30"
+  WS_MAX_CLIENTS        = "200"
+  WS_MAX_BUFFERED_BYTES = "1048576"
+  WS_PING_MS            = "30000"

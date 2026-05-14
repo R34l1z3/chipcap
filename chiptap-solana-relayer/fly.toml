@@ -1,0 +1,32 @@
+app = "chiptap-relayer"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# No HTTP service — relayer is a worker, not a server.
+# auto_stop=false: keep running so we don't miss BattleJoined events.
+[[services]]
+  protocol = "tcp"
+  internal_port = 0
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+  cpu_kind = "shared"
+
+# Set via `fly secrets`:
+#   fly secrets set VRF_AUTHORITY_KEYPAIR_JSON='[123,45,67,...]'
+#   fly secrets set SOLANA_RPC=https://api.devnet.solana.com
+#   fly secrets set BATTLE_ARENA_PROGRAM=Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8
+#
+# Use VRF_AUTHORITY_KEYPAIR_JSON (the secret's *content*) rather than
+# VRF_AUTHORITY_KEYPAIR (a file path), since Fly secrets are env vars.
+[env]
+  RANDOMNESS_SOURCE = "slothash"
+  FULFILL_DELAY_MS = "3000"
+  POLL_INTERVAL_MS = "20000"
+  DEBUG = "1"
