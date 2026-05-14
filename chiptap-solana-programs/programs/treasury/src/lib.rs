@@ -126,7 +126,6 @@ pub mod treasury {
 // ============================================================
 
 #[account]
-#[derive(Default)]
 pub struct TreasuryConfig {
     pub owner:           Pubkey,
     pub battle_arena:    Pubkey, // PDA of the registered BattleArena vault
@@ -143,6 +142,23 @@ pub struct TreasuryConfig {
     // See `CLAUDE.md` → PDA versioning section for the realloc recipe
     // when the padding eventually runs out.
     pub _reserved:       [u8; 64],
+}
+
+// `[u8; 64]` is not Default (std only impls Default for arrays up to
+// length 32), so we provide a manual impl.  Required by Anchor's
+// `init` constraint via the `#[account]` macro chain.
+impl Default for TreasuryConfig {
+    fn default() -> Self {
+        Self {
+            owner:           Pubkey::default(),
+            battle_arena:    Pubkey::default(),
+            total_collected: 0,
+            total_withdrawn: 0,
+            bump:            0,
+            vault_bump:      0,
+            _reserved:       [0u8; 64],
+        }
+    }
 }
 
 impl TreasuryConfig {

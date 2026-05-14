@@ -42,6 +42,18 @@ see `chiptap-solana-programs/SWITCHBOARD.md` for the devnet checklist
 and option-A (trusted-relayer interim) / option-B (full SDK with on-chain
 verification) split.
 
+Squads multisig setup (pre-devnet) is documented but not yet executed —
+see `chiptap-solana-programs/SQUADS_SETUP.md`.  Cold backup keypair is
+already generated (HOT `Dkq4Vi…CJ5s` + COLD `DMJJSE…RsLd`).  Move the
+cold `cold-backup.json` to a USB / password manager before mainnet
+and `shred -u` the on-disk copy.
+
+End-to-end UX validation on localnet (May 14) — full play-through with
+real Backpack wallet + 2 separate keypairs went through: connect →
+mint → create → join → VRF → claim → deposit → pay_ransom (one popup,
+SEC-10) → withdraw.  Confirms all 20 SEC fixes work under real
+wallet-popup conditions, not just programmatic smoke.
+
 Regression suites (run after any program change):
 - `wsl -d Ubuntu -- bash /mnt/c/.../chiptap-solana-programs/run-smoke.sh` — happy path (SEC-10 winner-PDA-via-ensure_user_account)
 - `wsl -d Ubuntu -- bash -lc 'cd .../chiptap-solana-programs && node attack-smoke.js'` — SEC-1/2/3/8

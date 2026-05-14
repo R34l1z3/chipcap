@@ -669,7 +669,6 @@ fn execute_forfeit<'info>(
 // ============================================================
 
 #[account]
-#[derive(Default)]
 pub struct ArenaConfig {
     pub owner:               Pubkey,
     pub chip_nft_program:    Pubkey,
@@ -690,6 +689,28 @@ pub struct ArenaConfig {
     // padding shrinks) so existing accounts keep deserialising.  Once
     // padding is exhausted, schedule a `realloc` migration ix.
     pub _reserved:           [u8; 64],
+}
+
+impl Default for ArenaConfig {
+    fn default() -> Self {
+        Self {
+            owner:               Pubkey::default(),
+            chip_nft_program:    Pubkey::default(),
+            treasury_program:    Pubkey::default(),
+            vrf_authority:       Pubkey::default(),
+            next_battle_id:      0,
+            pool_amounts:        [0; N_TIERS],
+            fee_bps:             0,
+            decision_timeout:    0,
+            join_timeout:        0,
+            vrf_timeout:         0,
+            paused:              false,
+            bump:                0,
+            vault_bump:          0,
+            chip_authority_bump: 0,
+            _reserved:           [0u8; 64],
+        }
+    }
 }
 
 impl ArenaConfig {

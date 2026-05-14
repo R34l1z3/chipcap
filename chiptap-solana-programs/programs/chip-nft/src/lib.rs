@@ -243,7 +243,6 @@ pub mod chip_nft {
 // ============================================================
 
 #[account]
-#[derive(Default)]
 pub struct ChipNftConfig {
     pub owner:            Pubkey,
     pub battle_authority: Pubkey,
@@ -256,6 +255,23 @@ pub struct ChipNftConfig {
     pub vault_bump:       u8,
     // SEC-20 — see TreasuryConfig and CLAUDE.md "PDA versioning".
     pub _reserved:        [u8; 64],
+}
+
+impl Default for ChipNftConfig {
+    fn default() -> Self {
+        Self {
+            owner:            Pubkey::default(),
+            battle_authority: Pubkey::default(),
+            mint_enabled:     false,
+            next_token_id:    0,
+            mint_price:       [0; 5],
+            max_supply:       [0; 5],
+            minted_count:     [0; 5],
+            bump:             0,
+            vault_bump:       0,
+            _reserved:        [0u8; 64],
+        }
+    }
 }
 
 impl ChipNftConfig {
