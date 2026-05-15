@@ -20,12 +20,23 @@ import config from "../config/index.js";
 let wss = null;
 let heartbeat = null;
 
-export function startWsServer() {
-  wss = new WebSocketServer({
-    port: config.wsPort,
-    // Reject Sec-WebSocket-Protocol negotiation we don't speak.
-    handleProtocols: () => false,
-  });
+/**
+ * Start the WS server.
+ *
+ * Two modes:
+ *   - standalone port (dev / Fly.io style):  startWsServer()
+ *   - attached to an existing HTTP server at `/ws` (Render free tier,
+ *     Vercel proxy, or any single-port host):
+ *         startWsServer({ httpServer, path: "/ws" })
+ *
+ * Same WSS instance + handlers either way.
+ */
+export function startWsServer(opts = {}) {
+  const { httpServer = null, path = "/ws" } = opts;
+  const wssOpts = httpServer
+    ? { server: httpServer, path, handleProtocols: () => false }
+    : { port: config.wsPort, handleProtocols: () => false };
+  wss = new WebSocketServer(wssOpts);
 
   wss.on("connection", (ws, req) => {
     // ---- auth -----------------------------------------------------
@@ -73,8 +84,11 @@ export function startWsServer() {
     heartbeat = null;
   });
 
+  const where = httpServer
+    ? `attached to API server at path=${path}`
+    : `on port ${config.wsPort}`;
   console.log(
-    `[WS] WebSocket server running on port ${config.wsPort}` +
+    `[WS] WebSocket server running ${where}` +
     (config.ws.token ? " (token auth on)" : " (anon)"),
   );
   return wss;

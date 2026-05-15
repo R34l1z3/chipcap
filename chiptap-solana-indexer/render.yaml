@@ -1,0 +1,50 @@
+# Render service config — free tier, single port, WS on /ws.
+#
+# Why /ws path-upgrade: Render free web services expose exactly one
+# public port (the one bound to $PORT).  Our `WS_ATTACH_HTTP=1` env var
+# tells the indexer to attach the WebSocketServer to the Express HTTP
+# server at /ws instead of opening a separate :3003 listener.
+#
+# Free-tier limits to know:
+#   - Auto-sleep after 15 min of no HTTP traffic (cold start ~30-60s).
+#     Mitigation: ping /api/health every 10 min via UptimeRobot (free).
+#   - 750 hours/month (= one always-on service).
+#   - No persistent disk.  Postgres lives elsewhere (Neon).
+
+services:
+  - type: web
+    name: chiptap-indexer
+    runtime: docker
+    region: frankfurt
+    plan: free
+    rootDir: chiptap-solana-indexer
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WS_ATTACH_HTTP
+        value: "1"
+      - key: SOLANA_RPC
+        value: https://api.devnet.solana.com
+      - key: SOLANA_WS
+        value: wss://api.devnet.solana.com
+      - key: CHIP_NFT_PROGRAM
+        value: A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ
+      - key: BATTLE_ARENA_PROGRAM
+        value: Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8
+      - key: TREASURY_PROGRAM
+        value: wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp
+      - key: EVENTS_RETENTION_DAYS
+        value: "30"
+      - key: WS_MAX_CLIENTS
+        value: "200"
+      - key: WS_MAX_BUFFERED_BYTES
+        value: "1048576"
+      - key: WS_PING_MS
+        value: "30000"
+      # Secrets — enter manually in Render dashboard:
+      - key: DATABASE_URL
+        sync: false
+      - key: WS_TOKEN
+        generateValue: true

@@ -54,17 +54,27 @@ app.use((err, _req, res, _next) => {
 });
 
 async function main() {
-  app.listen(config.port, () => {
+  // Bind to PORT (Render / Heroku / Fly all set this) or fall back.
+  const port = parseInt(process.env.PORT || config.port, 10);
+  const httpServer = app.listen(port, () => {
     console.log(`
   ╔══════════════════════════════════════╗
   ║   ChipTap Solana Indexer             ║
-  ║   API:  http://localhost:${config.port}        ║
-  ║   WS:   ws://localhost:${config.wsPort}         ║
+  ║   API:  http://localhost:${String(port).padEnd(13)}║
+  ║   WS:   ${(process.env.WS_ATTACH_HTTP === "1" ? `/ws on :${port}` : `ws://localhost:${config.wsPort}`).padEnd(28)} ║
   ║   RPC:  ${config.rpc.http.padEnd(28)} ║
   ╚══════════════════════════════════════╝`);
   });
 
-  startWsServer();
+  // Single-port hosts (Render free tier, Vercel proxy) attach WS to the
+  // same port via /ws path-upgrade.  Multi-port (Fly.io, local dev) use
+  // a separate WS_PORT.
+  if (process.env.WS_ATTACH_HTTP === "1") {
+    startWsServer({ httpServer, path: "/ws" });
+  } else {
+    startWsServer();
+  }
+
   startEventsRetention();
   await startIndexer();
 }
