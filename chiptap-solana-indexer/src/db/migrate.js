@@ -61,6 +61,13 @@ CREATE INDEX IF NOT EXISTS idx_battles_player_b ON battles(player_b);
 CREATE INDEX IF NOT EXISTS idx_battles_winner   ON battles(winner);
 CREATE INDEX IF NOT EXISTS idx_battles_created  ON battles(created_at DESC);
 
+-- SEC-21: VRF method tracking.  'slothash' = trusted relayer (Option A),
+-- 'switchboard' = on-chain verified via Switchboard On-Demand (Option B).
+-- randomness_account holds the Switchboard RandomnessAccountData PDA so
+-- the UI can link to it on solscan for independent audit.
+ALTER TABLE battles ADD COLUMN IF NOT EXISTS vrf_method        VARCHAR(16);
+ALTER TABLE battles ADD COLUMN IF NOT EXISTS randomness_account VARCHAR(44);
+
 -- ============================================================
 -- Player stats (aggregated)
 -- ============================================================

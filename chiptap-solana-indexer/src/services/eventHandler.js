@@ -133,15 +133,44 @@ export async function handleBattleDecided(data, ctx) {
 
   if (!await claimEvent("BattleDecided", ctx, { id, winner, loser })) return;
 
+  // SEC-21 — default to 'slothash' (Option A trusted relayer).  If a
+  // SwitchboardVerified event arrives in the same tx (same logIndex+1),
+  // the handler below will overwrite to 'switchboard' + set the
+  // randomness_account.  COALESCE prevents an Option-B battle from
+  // being downgraded if BattleDecided gets replayed.
   await db.query(
     `UPDATE battles
        SET status = 2, winner = $1, loser = $2, random_seed = $3,
-           decided_at = NOW(), decide_tx = $4
+           decided_at = NOW(), decide_tx = $4,
+           vrf_method = COALESCE(vrf_method, 'slothash')
      WHERE id = $5`,
     [winner, loser, seed, ctx.signature, id],
   );
 
   broadcastToPlayers("battle:decided", { id, winner, loser, status: 2 }, [winner, loser]);
+}
+
+// SEC-21 — emitted alongside BattleDecided when fulfilment goes
+// through `fulfill_random_words_switchboard`.  Upgrades the battle's
+// vrf_method and records the randomness account for audit.
+export async function handleSwitchboardVerified(data, ctx) {
+  const id                = asNum(data.battleId ?? data.battle_id);
+  const randomnessAccount = asPubkey(data.randomnessAccount ?? data.randomness_account);
+
+  if (!await claimEvent("SwitchboardVerified", ctx, { id, randomnessAccount })) return;
+
+  await db.query(
+    `UPDATE battles
+       SET vrf_method = 'switchboard', randomness_account = $1
+     WHERE id = $2`,
+    [randomnessAccount, id],
+  );
+
+  broadcastToPlayers(
+    "battle:vrf_verified",
+    { id, randomnessAccount, method: "switchboard" },
+    [],
+  );
 }
 
 export async function handleBattleSettledPaid(data, ctx) {
@@ -332,6 +361,7 @@ const DISPATCH = {
   VrfTimedOut:            handleVrfTimedOut,
   Deposited:              handleDeposited,
   Withdrawn:              handleWithdrawnUser,
+  SwitchboardVerified:    handleSwitchboardVerified,
 };
 
 export async function dispatchEvent(event, data, ctx) {
