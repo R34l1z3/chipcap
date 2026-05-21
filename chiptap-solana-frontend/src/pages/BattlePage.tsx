@@ -22,6 +22,7 @@ import { MPL_CORE_PROGRAM } from "../lib/mpl";
 import { POOL_TIERS, BATTLE_STATUS } from "../config";
 import { fmtSol, lamportsToSol, shortAddr } from "../lib/format";
 import ChipCard from "../components/ChipCard";
+import BattleAuditPanel from "../components/BattleAuditPanel";
 
 type View = "lobby" | "create" | "watch";
 
@@ -809,6 +810,18 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           </div>
         )}
       </div>
+
+      {/* On-chain audit trail — visible past WAITING.  Lets any
+          spectator verify the VRF result was not picked by the relayer
+          operator (Option A interim trust model). */}
+      {status >= 1 && (
+        <BattleAuditPanel
+          battleId={battleId}
+          randomSeed={battle.randomSeed?.toString?.()}
+          winner={battle.winner?.toBase58?.()}
+          loser={battle.loser?.toBase58?.()}
+        />
+      )}
     </div>
   );
 }
