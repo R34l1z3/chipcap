@@ -29,6 +29,7 @@ import anchorPkg from "@coral-xyz/anchor";
 const { AnchorProvider, BN, BorshEventCoder, Program, Wallet, setProvider: setProviderSafely } = anchorPkg;
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { pickSource } from "./randomness.js";
+import { runSwitchboardCycle, switchboardEndpoints } from "./switchboard.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -112,6 +113,28 @@ async function fulfill(battleId) {
       return;
     }
 
+    // SEC-21 — Option B uses a separate ix and skips picking a seed in
+    // JS (the seed comes from the on-chain Switchboard value).
+    if (cfg.randomnessSource === "switchboard") {
+      const { queue } = switchboardEndpoints(
+        cfg.rpcHttp.includes("mainnet") ? "mainnet" : "devnet",
+      );
+      log(`[fulfill #${battleId}] starting Switchboard cycle (queue=${queue.toBase58().slice(0,8)}…)`);
+      const { randomnessAccount, fulfillSig } = await runSwitchboardCycle({
+        connection,
+        payer:           wallet.payer,
+        arenaProgram:    arena,
+        battleId,
+        battlePda:       bPda,
+        arenaConfigPda:  arenaConfig,
+        queuePubkey:     queue,
+      });
+      log(`[fulfill #${battleId}] OK (Switchboard)  randomness=${randomnessAccount.toBase58().slice(0,8)}…  tx=${fulfillSig.slice(0,16)}…`);
+      completed.add(key);
+      return;
+    }
+
+    // Option A — legacy trusted-relayer path (slothash).
     const fetchSeed = pickSource(cfg.randomnessSource);
     const seedU64   = await fetchSeed(connection, battleId);
     dbg(`battle #${battleId} seed = ${seedU64} (source=${cfg.randomnessSource})`);

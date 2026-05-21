@@ -257,6 +257,35 @@
       ]
     },
     {
+      "name": "set_vrf_program",
+      "discriminator": [
+        187,
+        175,
+        0,
+        46,
+        220,
+        11,
+        148,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "owner",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "program",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "ensure_user_account",
       "discriminator": [
         74,
@@ -536,6 +565,37 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "fulfill_random_words_switchboard",
+      "discriminator": [
+        9,
+        203,
+        192,
+        181,
+        88,
+        77,
+        79,
+        86
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "battle",
+          "writable": true
+        },
+        {
+          "name": "randomness_account"
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
     },
     {
       "name": "claim_winner_chip",
@@ -1092,6 +1152,32 @@
         225,
         196
       ]
+    },
+    {
+      "name": "VrfProgramUpdated",
+      "discriminator": [
+        153,
+        172,
+        208,
+        98,
+        146,
+        35,
+        84,
+        70
+      ]
+    },
+    {
+      "name": "SwitchboardVerified",
+      "discriminator": [
+        105,
+        151,
+        160,
+        38,
+        242,
+        135,
+        163,
+        71
+      ]
     }
   ],
   "errors": [
@@ -1192,6 +1278,26 @@
     },
     {
       "code": 6019,
+      "name": "WrongVrfProgram",
+      "msg": "Randomness account is not owned by the configured Switchboard program"
+    },
+    {
+      "code": 6020,
+      "name": "SwitchboardDisabled",
+      "msg": "Switchboard VRF disabled (vrf_program is zero) — call set_vrf_program first"
+    },
+    {
+      "code": 6021,
+      "name": "MalformedRandomnessAccount",
+      "msg": "Switchboard randomness account is malformed (wrong size or discriminator)"
+    },
+    {
+      "code": 6022,
+      "name": "RandomnessNotRevealed",
+      "msg": "Switchboard randomness has not been revealed yet (value_slot <= seed_slot)"
+    },
+    {
+      "code": 6023,
       "name": "MathOverflow",
       "msg": "Arithmetic overflow"
     }
@@ -1264,11 +1370,15 @@
             "type": "u8"
           },
           {
+            "name": "vrf_program",
+            "type": "pubkey"
+          },
+          {
             "name": "_reserved",
             "type": {
               "array": [
                 "u8",
-                64
+                32
               ]
             }
           }
@@ -1662,6 +1772,34 @@
         "fields": [
           {
             "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "VrfProgramUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "program",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SwitchboardVerified",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "battle_id",
+            "type": "u64"
+          },
+          {
+            "name": "randomness_account",
             "type": "pubkey"
           }
         ]

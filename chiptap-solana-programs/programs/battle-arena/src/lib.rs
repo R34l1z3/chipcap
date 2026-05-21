@@ -141,6 +141,15 @@ pub mod battle_arena {
         Ok(())
     }
 
+    /// SEC-21 — register the Switchboard On-Demand program ID whose
+    /// RandomnessAccountData this program will trust.  Set to
+    /// Pubkey::default() to disable the Switchboard path.
+    pub fn set_vrf_program(ctx: Context<OwnerOnly>, program: Pubkey) -> Result<()> {
+        ctx.accounts.config.vrf_program = program;
+        emit!(VrfProgramUpdated { program });
+        Ok(())
+    }
+
     // ============================================================
     //                  USER LEDGER (deposit / withdraw)
     // ============================================================
@@ -344,6 +353,95 @@ pub mod battle_arena {
             winner:    b.winner,
             loser:     b.loser,
             random_seed: seed,
+        });
+        Ok(())
+    }
+
+    /// SEC-21 — trustless VRF via Switchboard On-Demand.
+    ///
+    /// Caller passes a `randomness_account` whose owner is the
+    /// configured `vrf_program`.  We parse the account bytes manually
+    /// (no `switchboard-on-demand` crate dep — see CLAUDE.md for why
+    /// the borsh chain forbids it) and consume `value[..8]` as the u64
+    /// seed.  This removes the relayer's ability to choose the
+    /// winner: even if the relayer's keypair is compromised, the seed
+    /// is fixed by the Switchboard oracle network at reveal time.
+    ///
+    /// Layout from switchboard-xyz/solana-sdk@on-demand RandomnessAccountData
+    /// (verified against live devnet accounts on the queue
+    /// EYiAmGSdsQTuCw413V5BzaruWuCCSDgTPtBGvLkXHbe7):
+    ///
+    ///   [0..8]     discriminator = sha256("account:RandomnessAccountData")[..8]
+    ///                             = 0a42e587dcefd972 = [10,66,229,135,220,239,217,114]
+    ///   [8..40]    authority:      Pubkey
+    ///   [40..72]   queue:          Pubkey
+    ///   [72..104]  seed_slothash:  [u8; 32]
+    ///   [104..112] seed_slot:      u64 LE
+    ///   [112..144] oracle:         Pubkey         ← assigned at commit
+    ///   [144..152] reveal_slot:    u64 LE         ← > seed_slot iff revealed
+    ///   [152..184] value:          [u8; 32]       ← the actual randomness
+    ///   [184..]    lut_slot / ebuf padding
+    pub fn fulfill_random_words_switchboard(
+        ctx: Context<FulfillVrfSwitchboard>,
+    ) -> Result<()> {
+        // 1) Verify the account is actually owned by the configured
+        //    Switchboard program — protects against a forged account.
+        require_keys_eq!(
+            *ctx.accounts.randomness_account.owner,
+            ctx.accounts.config.vrf_program,
+            ArenaError::WrongVrfProgram
+        );
+        require!(
+            ctx.accounts.config.vrf_program != Pubkey::default(),
+            ArenaError::SwitchboardDisabled
+        );
+
+        let b = &mut ctx.accounts.battle;
+        require!(b.status == STATUS_ROLLING, ArenaError::WrongStatus);
+
+        // 2) Read the account bytes.  184 is the minimum we need.
+        let data = ctx.accounts.randomness_account.try_borrow_data()?;
+        require!(data.len() >= 184, ArenaError::MalformedRandomnessAccount);
+
+        // 3) Discriminator check — protects against a Switchboard
+        //    account of the wrong shape (e.g. their queue / config).
+        const DISC: [u8; 8] = [10, 66, 229, 135, 220, 239, 217, 114];
+        require!(data[0..8] == DISC, ArenaError::MalformedRandomnessAccount);
+
+        // 4) Slot check: reveal must have happened.  reveal_slot is
+        //    set by Switchboard's reveal ix; before reveal it's 0.
+        let seed_slot   = u64::from_le_bytes(data[104..112].try_into().unwrap());
+        let reveal_slot = u64::from_le_bytes(data[144..152].try_into().unwrap());
+        require!(reveal_slot > seed_slot, ArenaError::RandomnessNotRevealed);
+
+        // 5) Read first 8 bytes of `value` (offset 152) as u64 LE seed.
+        let seed = u64::from_le_bytes(data[152..160].try_into().unwrap());
+        drop(data);
+
+        // 6) Apply seed — same as the legacy `fulfill_random_words`.
+        b.random_seed = seed;
+        b.status      = STATUS_DECIDED;
+        b.decided_at  = Clock::get()?.unix_timestamp;
+        if seed % 2 == 0 {
+            b.winner = b.player_a;
+            b.loser  = b.player_b;
+        } else {
+            b.winner = b.player_b;
+            b.loser  = b.player_a;
+        }
+
+        emit!(BattleDecided {
+            battle_id:   b.id,
+            winner:      b.winner,
+            loser:       b.loser,
+            random_seed: seed,
+        });
+        // SEC-21 — extra event lets the indexer mark this battle as
+        // "Switchboard-verified" without changing BattleDecided's wire
+        // shape (BREAKING change avoided).
+        emit!(SwitchboardVerified {
+            battle_id:          b.id,
+            randomness_account: ctx.accounts.randomness_account.key(),
         });
         Ok(())
     }
@@ -684,11 +782,20 @@ pub struct ArenaConfig {
     pub bump:                u8,
     pub vault_bump:          u8,
     pub chip_authority_bump: u8,
-    // SEC-20 — see CLAUDE.md "PDA versioning".  Anchor account sizes
-    // are frozen at init; new fields go BEFORE this padding (and the
-    // padding shrinks) so existing accounts keep deserialising.  Once
-    // padding is exhausted, schedule a `realloc` migration ix.
-    pub _reserved:           [u8; 64],
+    // SEC-21 — Switchboard On-Demand program ID.  When set, the
+    // `fulfill_random_words_switchboard` ix verifies its argument
+    // belongs to this program before consuming the revealed value.
+    // Zero pubkey (Pubkey::default()) disables the Switchboard path
+    // and only the mock `fulfill_random_words(seed)` ix can fulfil
+    // (= legacy Option A).
+    //
+    // Field carved out of the leading 32 bytes of the old _reserved
+    // padding (SEC-20).  Existing on-chain accounts deserialise
+    // identically — their bytes that *used* to be _reserved[0..32]
+    // become this field, which was zeroed at init = Pubkey::default()
+    // = Switchboard path disabled until owner calls set_vrf_program.
+    pub vrf_program:         Pubkey,
+    pub _reserved:           [u8; 32],
 }
 
 impl Default for ArenaConfig {
@@ -708,7 +815,8 @@ impl Default for ArenaConfig {
             bump:                0,
             vault_bump:          0,
             chip_authority_bump: 0,
-            _reserved:           [0u8; 64],
+            vrf_program:         Pubkey::default(),
+            _reserved:           [0u8; 32],
         }
     }
 }
@@ -1078,6 +1186,33 @@ pub struct FulfillVrf<'info> {
     pub vrf_authority: Signer<'info>,
 }
 
+/// SEC-21 — accounts for the trustless Switchboard fulfill ix.
+/// `randomness_account` is the off-chain-created RandomnessAccountData;
+/// its owner must equal `config.vrf_program` (checked at runtime).
+/// `caller` is the relayer's gas-payer (anyone can submit — the seed
+/// is fixed by the on-chain randomness data, not the caller).
+#[derive(Accounts)]
+pub struct FulfillVrfSwitchboard<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"battle".as_ref(), battle.id.to_le_bytes().as_ref()],
+        bump  = battle.bump,
+    )]
+    pub battle: Account<'info, Battle>,
+
+    /// CHECK: parsed manually — owner must equal config.vrf_program.
+    pub randomness_account: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub caller: Signer<'info>,
+}
+
 #[derive(Accounts)]
 pub struct ClaimWinnerChip<'info> {
     #[account(
@@ -1376,6 +1511,12 @@ pub struct ForceResolve<'info> {
 #[event] pub struct PoolAmountUpdated   { pub tier:      u8,  pub lamports: u64 }
 #[event] pub struct TimeoutUpdated      { pub kind:      u8,  pub seconds:  i64 }
 #[event] pub struct VrfAuthorityUpdated { pub authority: Pubkey }
+// SEC-21
+#[event] pub struct VrfProgramUpdated   { pub program:   Pubkey }
+#[event] pub struct SwitchboardVerified {
+    pub battle_id:          u64,
+    pub randomness_account: Pubkey,
+}
 
 // ============================================================
 //                          ERRORS
@@ -1421,6 +1562,14 @@ pub enum ArenaError {
     WrongChip,
     #[msg("Wrong player account — does not match battle.player_a / player_b")]
     WrongPlayer,
+    #[msg("Randomness account is not owned by the configured Switchboard program")]
+    WrongVrfProgram,
+    #[msg("Switchboard VRF disabled (vrf_program is zero) — call set_vrf_program first")]
+    SwitchboardDisabled,
+    #[msg("Switchboard randomness account is malformed (wrong size or discriminator)")]
+    MalformedRandomnessAccount,
+    #[msg("Switchboard randomness has not been revealed yet (value_slot <= seed_slot)")]
+    RandomnessNotRevealed,
     #[msg("Arithmetic overflow")]
     MathOverflow,
 }

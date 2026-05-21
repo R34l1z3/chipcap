@@ -253,6 +253,7 @@ const arenaIdl = {
     ix("set_join_timeout",      [W("config"), S("owner")], [{ name: "seconds", type: "i64" }]),
     ix("set_vrf_timeout",       [W("config"), S("owner")], [{ name: "seconds", type: "i64" }]),
     ix("set_vrf_authority",     [W("config"), S("owner")], [{ name: "authority", type: PUBKEY }]),
+    ix("set_vrf_program",       [W("config"), S("owner")], [{ name: "program",   type: PUBKEY }]),
 
     ix("ensure_user_account", [
       W ("user"),
@@ -312,6 +313,15 @@ const arenaIdl = {
       W ("battle"),
       S ("vrf_authority"),
     ], [{ name: "seed", type: "u64" }]),
+
+    // SEC-21 — trustless variant.  randomness_account is verified
+    // against config.vrf_program; seed comes from its `value` field.
+    ix("fulfill_random_words_switchboard", [
+      A ("config"),
+      W ("battle"),
+      A ("randomness_account"),
+      WS("caller"),
+    ]),
 
     ix("claim_winner_chip", [
       A ("config"),
@@ -407,6 +417,9 @@ const arenaIdl = {
     ev("PoolAmountUpdated"),
     ev("TimeoutUpdated"),
     ev("VrfAuthorityUpdated"),
+    // SEC-21
+    ev("VrfProgramUpdated"),
+    ev("SwitchboardVerified"),
   ],
 
   errors: [
@@ -428,8 +441,13 @@ const arenaIdl = {
     { code: 6015, name: "InsufficientBalance",   msg: "Insufficient internal balance" },
     { code: 6016, name: "ZeroAmount",            msg: "Amount must be greater than zero" },
     { code: 6017, name: "WrongChip",             msg: "Wrong chip account passed for this battle slot" },
-    { code: 6018, name: "WrongPlayer",           msg: "Wrong player account — does not match battle.player_a / player_b" },
-    { code: 6019, name: "MathOverflow",          msg: "Arithmetic overflow" },
+    { code: 6018, name: "WrongPlayer",                 msg: "Wrong player account — does not match battle.player_a / player_b" },
+    // SEC-21
+    { code: 6019, name: "WrongVrfProgram",             msg: "Randomness account is not owned by the configured Switchboard program" },
+    { code: 6020, name: "SwitchboardDisabled",         msg: "Switchboard VRF disabled (vrf_program is zero) — call set_vrf_program first" },
+    { code: 6021, name: "MalformedRandomnessAccount",  msg: "Switchboard randomness account is malformed (wrong size or discriminator)" },
+    { code: 6022, name: "RandomnessNotRevealed",       msg: "Switchboard randomness has not been revealed yet (value_slot <= seed_slot)" },
+    { code: 6023, name: "MathOverflow",                msg: "Arithmetic overflow" },
   ],
 
   types: [
@@ -450,8 +468,10 @@ const arenaIdl = {
         { name: "bump",                 type: "u8" },
         { name: "vault_bump",           type: "u8" },
         { name: "chip_authority_bump",  type: "u8" },
-        // SEC-20 forward-compat padding
-        { name: "_reserved",            type: arr("u8", 64) },
+        // SEC-21 — Switchboard On-Demand program registration.
+        { name: "vrf_program",          type: PUBKEY },
+        // SEC-20 forward-compat padding (was 64, shrunk to 32 by SEC-21)
+        { name: "_reserved",            type: arr("u8", 32) },
       ]},
     },
     {
@@ -549,6 +569,12 @@ const arenaIdl = {
       { name: "seconds", type: "i64" },
     ]}},
     { name: "VrfAuthorityUpdated", type: { kind: "struct", fields: [{ name: "authority", type: PUBKEY }]}},
+    // SEC-21
+    { name: "VrfProgramUpdated",   type: { kind: "struct", fields: [{ name: "program", type: PUBKEY }]}},
+    { name: "SwitchboardVerified", type: { kind: "struct", fields: [
+      { name: "battle_id",          type: "u64" },
+      { name: "randomness_account", type: PUBKEY },
+    ]}},
   ],
 };
 
