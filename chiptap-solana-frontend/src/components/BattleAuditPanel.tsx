@@ -152,24 +152,80 @@ export default function BattleAuditPanel({ battleId, randomSeed, winner, loser }
         </div>
       )}
 
-      <div className="text-xs opacity-70 mb-2" style={{ lineHeight: 1.4 }}>
-        <span className="font-pixel" style={{ fontSize: 7, color: "#FFD700" }}>
-          HOW VRF WORKS (Option A / interim):
-        </span>
-        <br />
-        Relayer reads <code>connection.getLatestBlockhash("finalized")</code> shortly after BattleJoined,
-        then computes <code>seed = SHA256(blockhash ‖ battle_id_le8)[..8]</code> as u64 LE.
-        Winner = playerA if seed is even, else playerB.
-        Algorithm is open-source — see{" "}
-        <a
-          href="https://github.com/R34l1z3/chipcap/blob/main/chiptap-solana-relayer/src/randomness.js"
-          target="_blank" rel="noreferrer"
-          style={{ color: "#FFD700" }}
-        >
-          chiptap-solana-relayer/src/randomness.js
-        </a>.
-        Long-term roadmap → on-chain Switchboard verification (Option B).
-      </div>
+      {/* SEC-21 — VRF method badge.  Three states:
+            'switchboard' — on-chain verified via Switchboard On-Demand (Option B)
+            'slothash'    — open-source relayer (Option A interim)
+            null          — pre-SEC-21 battles                                 */}
+      {data?.vrf_method === "switchboard" && (
+        <div className="mb-2" style={{
+          background: "#001a11", border: "2px solid #00FF88",
+          padding: "6px 8px",
+        }}>
+          <div className="font-pixel" style={{ fontSize: 8, color: "#00FF88", marginBottom: 3 }}>
+            ✓ VERIFIED BY SWITCHBOARD
+          </div>
+          <div className="text-xs opacity-80" style={{ lineHeight: 1.4 }}>
+            Seed proven on-chain.  Even the relayer operator could not
+            choose the winner — Switchboard's oracle network signed the
+            randomness, our program verified the proof before consuming
+            it.
+            {data.randomness_account && (
+              <>
+                <br/>
+                <span className="opacity-60">Randomness account: </span>
+                <a
+                  href={solscanAcc(data.randomness_account)}
+                  target="_blank" rel="noreferrer"
+                  style={{ color: "#00FF88", fontFamily: "'VT323', monospace" }}
+                >
+                  {data.randomness_account.slice(0, 8)}…{data.randomness_account.slice(-4)} ↗
+                </a>
+              </>
+            )}
+            <br/>
+            <span className="opacity-60">VRF program: </span>
+            <a
+              href={solscanAcc("Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2")}
+              target="_blank" rel="noreferrer"
+              style={{ color: "#00FF88", fontFamily: "'VT323', monospace" }}
+            >
+              Switchboard On-Demand ↗
+            </a>
+          </div>
+        </div>
+      )}
+
+      {data?.vrf_method === "slothash" && (
+        <div className="text-xs opacity-70 mb-2" style={{ lineHeight: 1.4 }}>
+          <span className="font-pixel" style={{ fontSize: 7, color: "#FFD700" }}>
+            ◇ VRF METHOD: SLOTHASH (Option A interim)
+          </span>
+          <br />
+          Relayer reads <code>connection.getLatestBlockhash("finalized")</code> shortly after BattleJoined,
+          then computes <code>seed = SHA256(blockhash ‖ battle_id_le8)[..8]</code> as u64 LE.
+          Winner = playerA if seed is even, else playerB.
+          Algorithm is open-source — see{" "}
+          <a
+            href="https://github.com/R34l1z3/chipcap/blob/main/chiptap-solana-relayer/src/randomness.js"
+            target="_blank" rel="noreferrer"
+            style={{ color: "#FFD700" }}
+          >
+            chiptap-solana-relayer/src/randomness.js
+          </a>.
+        </div>
+      )}
+
+      {data && !data.vrf_method && (
+        <div className="text-xs opacity-50 mb-2" style={{ lineHeight: 1.4 }}>
+          <span className="font-pixel" style={{ fontSize: 7, color: "#888" }}>
+            VRF METHOD: legacy (pre-SEC-21)
+          </span>
+          <br />
+          This battle was decided before the indexer started tagging
+          VRF methods.  Algorithm was the Option A slothash relayer
+          (open source — see repo).
+        </div>
+      )}
 
       {randomSeed && (
         <div className="flex flex-col gap-1">
