@@ -830,10 +830,20 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
 // Main export
 // ============================================================
 
-export default function BattlePage() {
+export default function BattlePage({ initialWatchId }: { initialWatchId?: number | null } = {}) {
   const { connected } = useWallet();
-  const [view, setView] = useState<View>("lobby");
-  const [watchId, setWatchId] = useState<number | null>(null);
+  const [view, setView] = useState<View>(
+    initialWatchId != null ? "watch" : "lobby"
+  );
+  const [watchId, setWatchId] = useState<number | null>(initialWatchId ?? null);
+
+  // Open the requested battle when navigated via deep-link.
+  useEffect(() => {
+    if (initialWatchId != null) {
+      setWatchId(initialWatchId);
+      setView("watch");
+    }
+  }, [initialWatchId]);
 
   if (!connected) {
     return (

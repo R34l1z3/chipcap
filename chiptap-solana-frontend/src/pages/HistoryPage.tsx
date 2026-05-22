@@ -1,5 +1,5 @@
 // Stub — uses indexer-backed hook so it already works at read-time.
-import React from "react";
+import React, { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useIndexerBattles } from "../hooks/useIndexerBattles";
 import { POOL_TIERS } from "../config";
@@ -7,21 +7,50 @@ import { fmtSol, shortAddr, timeAgo } from "../lib/format";
 
 interface Props {
   onViewPlayer?: (address: string) => void;
+  onWatchBattle?: (id: number) => void;
 }
 
-export default function HistoryPage({ onViewPlayer }: Props) {
+export default function HistoryPage({ onViewPlayer, onWatchBattle }: Props) {
   const { publicKey } = useWallet();
   const me = publicKey?.toBase58();
   const { myHistory, battles, loading } = useIndexerBattles();
+  const [view, setView] = useState<"mine" | "all">(publicKey ? "mine" : "all");
 
-  const showAll = !publicKey;
-  const displayed = showAll ? battles.filter((b) => b.status >= 3) : myHistory;
+  // "all" shows every public decided/settled battle.  "mine" shows
+  // only battles where the connected wallet was player_a or player_b.
+  const displayed = view === "all"
+    ? battles.filter((b) => b.status >= 2)
+    : myHistory;
 
   return (
     <div className="p-2 sm:p-4 max-w-3xl mx-auto">
-      <h1 className="font-pixel text-retro-cyan mb-4" style={{ fontSize: 14 }}>
-        BATTLE HISTORY
-      </h1>
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+        <h1 className="font-pixel text-retro-cyan" style={{ fontSize: 14 }}>
+          BATTLE HISTORY
+        </h1>
+        {publicKey && (
+          <div className="flex gap-1">
+            <button
+              className="retro-btn"
+              style={{
+                fontSize: 8, padding: "3px 8px",
+                background: view === "mine" ? "#FFD700" : undefined,
+                color:      view === "mine" ? "#000"    : undefined,
+              }}
+              onClick={() => setView("mine")}
+            >MY</button>
+            <button
+              className="retro-btn"
+              style={{
+                fontSize: 8, padding: "3px 8px",
+                background: view === "all"  ? "#FFD700" : undefined,
+                color:      view === "all"  ? "#000"    : undefined,
+              }}
+              onClick={() => setView("all")}
+            >ALL</button>
+          </div>
+        )}
+      </div>
 
       {loading && displayed.length === 0 ? (
         <div className="retro-panel text-center py-8">
@@ -43,7 +72,10 @@ export default function HistoryPage({ onViewPlayer }: Props) {
                 style={{
                   borderColor: isWinner ? "#00FF88" : isLoser ? "#FF4444" : "#4a4a8a",
                   borderLeftWidth: (isWinner || isLoser) ? 4 : 2,
+                  cursor: onWatchBattle ? "pointer" : "default",
                 }}
+                onClick={() => onWatchBattle?.(b.id)}
+                title={onWatchBattle ? "Open audit trail" : undefined}
               >
                 <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                   <div className="flex items-center gap-2">
@@ -56,7 +88,7 @@ export default function HistoryPage({ onViewPlayer }: Props) {
                 </div>
                 <div className="flex items-center gap-2 text-xs flex-wrap">
                   <span
-                    onClick={() => onViewPlayer?.(b.playerA)}
+                    onClick={(e) => { e.stopPropagation(); onViewPlayer?.(b.playerA); }}
                     style={{
                       color: b.winner === b.playerA ? "#00FF88" : "#FF4444",
                       cursor: onViewPlayer ? "pointer" : "default",
@@ -65,7 +97,7 @@ export default function HistoryPage({ onViewPlayer }: Props) {
                   >{shortAddr(b.playerA)}</span>
                   <span className="text-retro-gold font-pixel" style={{ fontSize: 9 }}>VS</span>
                   <span
-                    onClick={() => b.playerB && onViewPlayer?.(b.playerB)}
+                    onClick={(e) => { e.stopPropagation(); b.playerB && onViewPlayer?.(b.playerB); }}
                     style={{
                       color: b.winner === b.playerB ? "#00FF88" : "#FF4444",
                       cursor: onViewPlayer && b.playerB ? "pointer" : "default",

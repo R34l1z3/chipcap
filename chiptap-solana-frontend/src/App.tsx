@@ -22,6 +22,9 @@ type Tab = "mint" | "inventory" | "battle" | "history" | "leaderboard" | "profil
 export default function App() {
   const [tab, setTab] = useState<Tab>("mint");
   const [viewedPlayer, setViewedPlayer] = useState<string | null>(null);
+  // Deep-link from HistoryPage / LeaderboardPage row clicks into the
+  // BattlePage's "watch" view.  Consumed once on mount of BattlePage.
+  const [watchBattleId, setWatchBattleId] = useState<number | null>(null);
 
   const openProfile = useCallback((address: string | null) => {
     setViewedPlayer(address);
@@ -33,8 +36,14 @@ export default function App() {
     setTab("leaderboard");
   }, []);
 
+  const openBattle = useCallback((id: number) => {
+    setWatchBattleId(id);
+    setTab("battle");
+  }, []);
+
   const handleSetTab = useCallback((t: Tab) => {
     if (t !== "profile") setViewedPlayer(null);
+    if (t !== "battle")  setWatchBattleId(null);
     setTab(t);
   }, []);
 
@@ -45,9 +54,9 @@ export default function App() {
       <main className="flex-1 overflow-y-auto">
         {tab === "mint"        && <MintPage />}
         {tab === "inventory"   && <InventoryPage />}
-        {tab === "battle"      && <BattlePage />}
+        {tab === "battle"      && <BattlePage initialWatchId={watchBattleId} />}
         {tab === "leaderboard" && <LeaderboardPage onViewPlayer={openProfile} />}
-        {tab === "history"     && <HistoryPage onViewPlayer={openProfile} />}
+        {tab === "history"     && <HistoryPage onViewPlayer={openProfile} onWatchBattle={openBattle} />}
         {tab === "profile"     && (
           <ProfilePage viewedAddress={viewedPlayer} onViewLeaderboard={goLeaderboard} />
         )}
