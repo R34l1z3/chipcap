@@ -227,7 +227,11 @@ export default function BattleAuditPanel({ battleId, randomSeed, winner, loser }
         </div>
       )}
 
-      {randomSeed && (
+      {/* Recompute panel only makes sense for slothash battles — for
+          Switchboard, the seed lives in the on-chain randomness account
+          which a client cannot recompute (it's signed by the oracle).
+          Audit those via the randomness-account solscan link instead. */}
+      {randomSeed && data?.vrf_method !== "switchboard" && (
         <div className="flex flex-col gap-1">
           <button
             onClick={runVerify}
