@@ -36,11 +36,12 @@ reading the matching SEC- comment in the source first.**
 | SEC-18 | `useChipsByOwner` ran `toLowerCase()` on both the connected wallet and the broadcast event's owner before comparing — but Solana base58 IS case-sensitive (a single letter casing differs by bytes). The equality check silently never matched and the inventory page stopped updating until a manual reload. Removed the lower-case dance. | `chiptap-solana-frontend/src/hooks/useChipsByOwner.ts` |
 | SEC-19 | Admin-only mutations (`set_paused`, `set_fee_bps`, `set_pool_amount`, `set_*_timeout`, `set_vrf_authority` on battle-arena; `set_mint_enabled`, `set_max_supply` on chip-nft) didn't emit events. Indexer could not reflect admin state changes in its history, and audits could not reconstruct the timeline. Now every setter emits its matching `*Updated` event. New events: `PausedUpdated`, `FeeBpsUpdated`, `PoolAmountUpdated`, `TimeoutUpdated{kind:0=decision/1=join/2=vrf}`, `VrfAuthorityUpdated`, `MintEnabledUpdated`, `MaxSupplyUpdated`. Also retired dead `chip_nft::NotBattleAuthority` error variant (kept slot 6001 as `NotBattleAuthorityDeprecated` so codes don't shift). Cleanup: removed one-shot `fix-seeds.sh` (its job is done). | `battle-arena/src/lib.rs`, `chip-nft/src/lib.rs`, `gen-idls.js` |
 | SEC-20 | PDA configs weren't forward-compatible — any new field would re-shift byte offsets and corrupt existing accounts.  All 3 config structs (`ArenaConfig`, `ChipNftConfig`, `TreasuryConfig`) now end with a `_reserved: [u8; 64]` padding field.  New primitive fields go BEFORE the padding (shrink it to compensate), never appended after.  When the padding eventually runs out, schedule a `realloc!` migration ix.  **Adding/changing this field is a hard break — requires `solana-test-validator --reset` + redeploy + reinit on localnet.**  Per-game accounts (`Battle`, `ChipData`, `UserAccount`) intentionally have no padding — they're cheap to create and short-lived; future shape changes there should ship as a new account type rather than a migration. | All 3 program `lib.rs` + `gen-idls.js` |
+| SEC-21 | **Switchboard On-Demand VRF — Option B (full on-chain verification).** Replaces interim Option A (trusted-relayer slothash). New `fulfill_random_words_switchboard` ix — manual layout parsing (NO `Randomness::try_deserialize` because borsh resolves to `()`). Verifies `randomness_account.owner == config.vrf_program` + 8-byte discriminator + `reveal_slot > seed_slot` (proof that oracle revealed AFTER commit), then reads seed from `data[152..160]`. New admin ix `set_vrf_program` (sets the trusted Switchboard program ID — devnet `Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2`, mainnet `SBondMDrcV3K4kxZR1HNVT7osZxAHVHgYXL5Ze1oMUv`). `vrf_program: Pubkey` field carved out of `ArenaConfig._reserved` (so SEC-20's padding shrunk by 32 bytes, no migration needed). Devnet queue: `EYiAmGSdsQTuCw413V5BzaruWuCCSDgTPtBGvLkXHbe7`. **Relayer SDK pitfalls (all hit and fixed)**: `loadProgramFromConnection` uses a dummy wallet → `getNodePayer` returns undefined → crashes (use `loadProgramFromProvider` with `new Wallet(payer)` instead); SDK's `commitAndReveal` calls `asV0TxWithComputeIxs({connection, ixs})` with no `payer` field → "Payer not provided" (build reveal+fulfill atomic tx manually with retry loop, 3s × 25 attempts because reveal window is slot-dependent); `Randomness.createAndCommitIxs` returns `[randomness, accountKeypair, [createIx, commitIx]]` not `[randomness, ixs, accountKeypair]`; `@coral-xyz/anchor` is CJS-only — must import via `import pkg from "@coral-xyz/anchor"; const { BN, ... } = pkg;`. Indexer: new `BattleSwitchboardVerified` event handler overrides `battles.vrf_method = 'switchboard'` and stores `randomness_account`; `BattleDecided` uses `COALESCE` to default `'slothash'` without downgrading switchboard rows. Frontend: green "✓ VERIFIED BY SWITCHBOARD" badge in `BattleAuditPanel.tsx` with solscan link to randomness account + Switchboard program; "RECOMPUTE LOCALLY" button hidden for switchboard rows (only makes sense for slothash). End-to-end verified on devnet: battle #13, seed `3263297841133832218`, seed%2=0 → player_a won ✓. | `battle-arena/src/lib.rs`, `chiptap-solana-relayer/src/switchboard.js`, `chiptap-solana-indexer/src/services/eventHandler.js`, `chiptap-solana-indexer/src/db/migrate.js`, `chiptap-solana-frontend/src/components/BattleAuditPanel.tsx`, `SWITCHBOARD.md` |
+| SEC-22 | **Battle Royale Phase 1 (on-chain only) — 8-player single-VRF mode.** New `BattleRoyale` account (758 bytes — supports up to MAX_PLAYERS=8 with room for future expansion via per-account padding). 7 new ix: `create_battle_royale(pool_tier, max_players)`, `join_battle_royale` (deposits chip + stake from internal balance), `fulfill_random_words_br_switchboard` (atomic reveal+fulfill, sets status=DECIDED, picks `winner = players[seed % max_players]`), `claim_chip_br` (any player reclaims their chip after DECIDED — chips are membership tokens, always returned), `claim_winnings_br` (winner pulls `pool - fee` to internal balance, fee → treasury), `expire_battle_royale_join` (refund-on-cancel if not full before timeout — cancels and returns all chips), `force_resolve_battle_royale` (admin escape hatch if VRF reveal hangs > vrf_timeout). Helpers: `try_settle_br` (transitions DECIDED → SETTLED when chips_claimed_mask == (1<<max_players)-1 AND prize_claimed), `cancel_br` (returns all chips + refunds stakes on cancellation). 6 new events: `BattleRoyaleCreated`, `BattleRoyaleJoined`, `BattleRoyaleRolling`, `BattleRoyaleDecided`, `BattleRoyaleChipClaimed`, `BattleRoyaleWinningsClaimed`, `BattleRoyaleCancelled`, `BattleRoyaleSwitchboardVerified`. 7 new errors (codes 6023-6028 for BR-specific; `MathOverflow` shifted to 6029). **End-to-end smoke `br-smoke.js` validates the full flow on devnet**: 8 throwaway players funded, mint chips × 8, deposit stakes × 8, create, join × 8, Switchboard cycle, all 8 claim chips, winner claims winnings — verifies `winner == players[seed % 8]`, final status=SETTLED, chips_claimed_mask=255. Phase 2-5 (relayer event handler / indexer table+handlers / frontend BR lobby + watch view / deploy) **pending**. | `battle-arena/src/lib.rs`, `gen-idls.js`, `br-smoke.js` |
 
-Switchboard On-Demand VRF integration is documented but not yet performed —
-see `chiptap-solana-programs/SWITCHBOARD.md` for the devnet checklist
-and option-A (trusted-relayer interim) / option-B (full SDK with on-chain
-verification) split.
+Switchboard On-Demand VRF Option B is **live on devnet** (SEC-21). See
+`chiptap-solana-programs/SWITCHBOARD.md` for the layout dump (`sb-debug.js`)
+and the option-A → option-B migration notes.
 
 Squads multisig setup (pre-devnet) is documented but not yet executed —
 see `chiptap-solana-programs/SQUADS_SETUP.md`.  Cold backup keypair is
@@ -54,9 +55,37 @@ mint → create → join → VRF → claim → deposit → pay_ransom (one popup
 SEC-10) → withdraw.  Confirms all 20 SEC fixes work under real
 wallet-popup conditions, not just programmatic smoke.
 
+End-to-end **devnet** validation (May 24, post SEC-21) — battle #13
+through public `https://chipcap.vercel.app/`, indexer on Render,
+Switchboard On-Demand fulfilled randomness, frontend showed "✓ VERIFIED
+BY SWITCHBOARD" badge with working solscan deeplinks.  Battle Royale
+smoke (`br-smoke.js`) also passed on devnet — 8 players, winner picked
+by Switchboard, all 8 chips claimed back, prize claimed.
+
+## Public deployment (devnet)
+
+| Surface | URL / ID | Notes |
+|---|---|---|
+| Frontend | https://chipcap.vercel.app | Vercel free, auto-deploy from `main` |
+| Indexer API + WS | https://chiptap-indexer-re8t.onrender.com (`/api/...`, `/ws`) | Render free (cold-start ~30s after idle); `WS_ATTACH_HTTP=1` so WS rides the same port |
+| Postgres | Neon: `ep-curly-morning-alcler5g-pooler.c-3.eu-central-1.aws.neon.tech/chiptap_pvp_db` | Serverless, free tier. **ROTATE the leaked password before mainnet** |
+| Relayer | Local on user's PC (WSL) | Listens to BattleJoined → commits + reveals Switchboard cycle. Needs hosting before "public" launch |
+| GitHub | https://github.com/R34l1z3/chipcap | Public; unlocked devnet faucet |
+| Solana programs (devnet) | `treasury wGAqd…ESPp`, `chip_nft A8fqF…k5qQ`, `battle_arena Ae65n…BU8` | Same keypairs as localnet (deterministic IDs) |
+| Switchboard On-Demand | devnet PID `Aio4gaXjXzJNVLtzwtNVmSqGKpANtXhybbkhtAC94ji2`, queue `EYiAmGSdsQTuCw413V5BzaruWuCCSDgTPtBGvLkXHbe7` | Stored in `ArenaConfig.vrf_program` (set via `set_vrf_program` admin ix) |
+| Squads multisig | NOT YET (cold backup `DMJJSE…RsLd` generated, hot `Dkq4Vi…CJ5s` is the operator wallet) | Documented in `SQUADS_SETUP.md`; execute before mainnet |
+
+**Credential hygiene reminders (carried over from chat — DO before mainnet)**:
+- Rotate the Neon DB password — was shared in chat verbatim
+- `fly tokens revoke` the Fly.io API token shared in chat (Fly.io was abandoned in favour of Render — token never used in production)
+- Reset `WS_TOKEN` in Render Environment — also shared in chat
+- Move `~/.config/solana/multisig/cold-backup.json` to USB / password manager, `shred -u` the on-disk copy
+
 Regression suites (run after any program change):
 - `wsl -d Ubuntu -- bash /mnt/c/.../chiptap-solana-programs/run-smoke.sh` — happy path (SEC-10 winner-PDA-via-ensure_user_account)
 - `wsl -d Ubuntu -- bash -lc 'cd .../chiptap-solana-programs && node attack-smoke.js'` — SEC-1/2/3/8
+- `wsl -d Ubuntu -- bash -lc 'cd .../chiptap-solana-programs && SOLANA_RPC=https://api.devnet.solana.com node sb-smoke.js'` — SEC-21 (Switchboard 1v1 end-to-end, **devnet only** — uses real Switchboard On-Demand)
+- `wsl -d Ubuntu -- bash -lc 'cd .../chiptap-solana-programs && SOLANA_RPC=https://api.devnet.solana.com node br-smoke.js'` — SEC-22 (Battle Royale 8-player end-to-end, **devnet only** — fund + mint + deposit + create + join × 8 + Switchboard + claim chips + claim winnings). Burns ~0.8+ SOL of throwaway funding; run sparingly.
 - From `chiptap-solana-indexer/`:
   - `node test/idempotency.test.js` — SEC-5 (needs Postgres up; verifies SEC-15 composite index + SEC-9 `bumpChipStats` along the way)
   - `node test/events-prefix.test.js` — SEC-12 (pure unit, no infra)
@@ -191,6 +220,7 @@ cd chiptap-solana-frontend && npm run dev                         # :5173
 | `ArenaConfig`/`vault`/`chip_authority` | `[arena]`, `[arena, vault]`, `[arena, chip_authority]` |
 | `UserAccount`            | `[user, authority_pubkey]` |
 | `Battle`                 | `[battle, id_le_bytes_8]` |
+| `BattleRoyale` (SEC-22)  | `[royale, id_le_bytes_8]` (id from `arena.next_battle_id`, shared counter) |
 
 **SOL flow** (UserAccount ledger model):
 - `deposit(amount)` → SOL from wallet → arena_vault, `user.balance += amount`
@@ -202,8 +232,17 @@ cd chiptap-solana-frontend && npm run dev                         # :5173
 **Pool tiers (lamports, fixed)**: `0.05 / 0.1 / 0.25 / 0.5 / 1 / 5 SOL`
 **Mint prices (lamports, fixed)**: `0.02 / 0.1 / 0.4 / 1 / 4 SOL` for Common/Uncommon/Rare/Epic/Legendary
 
+**Battle Royale (SEC-22, on-chain Phase 1)**:
+- Same pool tiers as 1v1 (max 8 players → pool = 8 × tier; fee = `pool * fee_bps / 10_000`)
+- Stake comes from internal `UserAccount.balance` (NOT a fresh deposit), same as 1v1
+- Chips are MEMBERSHIP TOKENS — always returned to original owner after DECIDED (no chip-loss mechanic; only stake is at risk)
+- Single VRF call decides winner: `winner = players[seed_u64 % max_players]`. Same Switchboard On-Demand path as 1v1 (SEC-21).
+- Lifecycle: `WAITING → ROLLING (full lobby) → DECIDED (VRF returned) → SETTLED (all chips claimed AND winner claimed prize)` OR `CANCELLED (timeout before full)`
+- `chips_claimed_mask` is a bitmask — `(1 << max_players) - 1` means everyone got their chip back
+- Anyone can be the `caller: Signer` for `fulfill_random_words_br_switchboard`, `expire_battle_royale_join`, `claim_winnings_br`, `claim_chip_br` (player-scoped only by `address` constraint on `player_a/b`-style fields)
+
 **Error codes** (battle_arena, hand-mapped in `gen-idls.js`):
-`0=NotOwner, 1=Paused, 2=WrongStatus, 3=CannotJoinOwnBattle, 4=NotYourBattle, 5=NotWinner, 6=NotLoser, 7=DecisionPeriodExpired, 8=DecisionPeriodActive, 9=JoinPeriodNotExpired, 10=VrfNotTimedOut, 11=NotVrfAuthority, 12=InvalidTier, 13=InvalidTimeout, 14=FeeTooHigh, 15=InsufficientBalance, 16=ZeroAmount, 17=WrongChip, 18=WrongPlayer, 19=MathOverflow`
+`0=NotOwner, 1=Paused, 2=WrongStatus, 3=CannotJoinOwnBattle, 4=NotYourBattle, 5=NotWinner, 6=NotLoser, 7=DecisionPeriodExpired, 8=DecisionPeriodActive, 9=JoinPeriodNotExpired, 10=VrfNotTimedOut, 11=NotVrfAuthority, 12=InvalidTier, 13=InvalidTimeout, 14=FeeTooHigh, 15=InsufficientBalance, 16=ZeroAmount, 17=WrongChip, 18=WrongPlayer, 19=InvalidRandomnessAccount, 20=RandomnessNotRevealed, 21=RandomnessTooOld, 22=WrongVrfProgram` + **SEC-22 Battle Royale**: `23=InvalidMaxPlayers, 24=BattleRoyaleFull, 25=AlreadyJoined, 26=NotABattleRoyalePlayer, 27=ChipAlreadyClaimed, 28=PrizeAlreadyClaimed, 29=MathOverflow`
 
 **Admin event audit trail** (SEC-19): every `set_*` mutation emits a matching `*Updated` event so the indexer can replay admin actions. New ones since SEC-19: `PausedUpdated`, `FeeBpsUpdated`, `PoolAmountUpdated`, `TimeoutUpdated{kind, seconds}` (kind 0=decision / 1=join / 2=vrf), `VrfAuthorityUpdated`, `MintEnabledUpdated`, `MaxSupplyUpdated`. `set_battle_arena` and `set_mint_price` already emitted theirs.
 
@@ -213,12 +252,19 @@ cd chiptap-solana-frontend && npm run dev                         # :5173
 | `chiptap-solana-programs/programs/{treasury,chip-nft,battle-arena}/src/lib.rs` | Anchor programs |
 | `chiptap-solana-programs/gen-idls.js` | Hand-written IDL generator (replaces broken `anchor build` IDL stage) |
 | `chiptap-solana-programs/init-programs.js`, `smoke.js`, `attack-smoke.js` | TS scripts using Anchor TS client. attack-smoke validates SEC-1/2/3/8 stay closed. |
+| `chiptap-solana-programs/sb-smoke.js`, `sb-debug.js` | SEC-21 — Switchboard Option B end-to-end smoke + raw account layout dumper (`sb-debug.js` was how we found that `value` is at offset 152..160, not 112) |
+| `chiptap-solana-programs/br-smoke.js` | SEC-22 — Battle Royale full 8-player smoke (fund → mint → deposit → create → join × 8 → Switchboard cycle → claim_chip × 8 → claim_winnings). Asserts winner = seed % 8 and final status = SETTLED. |
 | `chiptap-solana-programs/target/idl/*.json` | Generated IDLs (also copied to indexer + frontend by `copy-idls.sh`) |
+| `chiptap-solana-programs/SWITCHBOARD.md`, `SQUADS_SETUP.md`, `DEPLOY.md` | Operator runbooks |
+| `chiptap-solana-relayer/src/switchboard.js` | SEC-21 — Switchboard Option B driver (commit + reveal + fulfill atomic tx with retry loop). NOT used in Option A path. |
 | `chiptap-solana-indexer/src/utils/{idl,events}.js` | `BorshEventCoder`, parses `Program data:` log lines |
 | `chiptap-solana-indexer/test/idempotency.test.js` | Regression for SEC-5 (5× replay must not double stats) |
 | `chiptap-solana-frontend/src/lib/{pda,programs,format,mpl,notifications}.ts` | Anchor TS client wrappers |
 | `chiptap-solana-frontend/src/idl/*.json` | Frontend IDLs (synced by `copy-idls.sh` from programs/target/idl after rebuild) |
 | `chiptap-solana-frontend/src/components/{ErrorBoundary,BootDiagnostics}.tsx` | SEC-4 — visible error display + boot-time probes (RPC, programs, wallet) |
+| `chiptap-solana-frontend/src/components/BattleAuditPanel.tsx` | SEC-21 — three-state VRF method badge (switchboard / slothash / legacy), RECOMPUTE LOCALLY button (slothash only), solscan deep-links for randomness account |
+| `chiptap-solana-frontend/vercel.json` | Vite SPA rewrite rule (`/(.*) → /index.html`) so deep-links don't 404 |
+| `chiptap-solana-indexer/render.yaml` | Render Blueprint (free tier, WS_ATTACH_HTTP=1) |
 
 ## Gotchas — DO NOT re-discover
 
@@ -258,14 +304,14 @@ Already adapted (don't redo):
 - Slither / npm audit in CI
 
 ### Solana
-- Switchboard On-Demand VRF (currently mock — `vrf_authority` is owner)
+- ~~Switchboard On-Demand VRF (currently mock)~~ → closed by SEC-21 (live on devnet, Option B with on-chain proof verification)
 - Anchor `target/types/*.ts` — no typed Program (we cast IDL to `anchor.Idl`)
-- Frontend not battle-tested with real Phantom on localnet
+- ~~Frontend not battle-tested with real Phantom on localnet~~ → closed (devnet validation May 24)
 - `chiptap-solana-frontend` Dockerfile + nginx exists but never pushed through `docker compose --profile prod up` for Solana
 - Compressed NFTs alternative
 - `target/types` generation needs Anchor IDL stage which is broken — would need separate node-side type generator
-- WS broadcast on `:3003` open without auth / no backpressure (review item #13) — fine for localnet, must not ship to prod as-is
-- Solana CI on `release.solana.com/v1.18.22` while dev is on Agave 3.1.14 via `release.anza.xyz` (review item #14)
+- ~~WS broadcast on `:3003` open without auth / no backpressure~~ → closed by SEC-13
+- ~~Solana CI on `release.solana.com/v1.18.22`~~ → closed by SEC-14
 - ~~`set_vrf_authority` / admin ix don't emit events~~ → closed by SEC-19
 - ~~`events` table grows unbounded~~ → closed by SEC-16 (30-day default TTL)
 - ~~`POSTGRES_PASSWORD` hardcoded in `docker-compose.yml`~~ → closed by SEC-17
@@ -274,6 +320,18 @@ Already adapted (don't redo):
 - ~~PDA accounts are not versioned~~ → partial fix in SEC-20: the three `*Config` structs got a 64-byte `_reserved` trailer; per-battle / per-chip / per-user PDAs still don't have padding and any schema change there is a hard break.  When `_reserved` runs out on the configs, write a `realloc!`-constraint migration ix.
 - WalletConnect project ID in the EVM frontend's Dockerfile defaults to a placeholder
 - GitHub Actions are pinned to `@v4`/`@stable` not to SHAs (supply-chain drift risk — Dependabot or `pin-github-action` should land before any real release)
+
+### Outstanding work (post SEC-22)
+- ~~**Battle Royale Phase 2** — relayer~~ → **DONE**. `runSwitchboardCycle` refactored to take a `buildFulfillIx` callback so the same driver serves 1v1 (`fulfill_random_words_switchboard`) and BR (`fulfill_random_words_br_switchboard`). New `fulfillBr()` + `extractFulfillCandidates()` (replaces `extractBattleJoinedIds` — decodes both `BattleJoined` and `BattleRoyaleRolling`). Live + poll paths dispatch on event type. BR is Switchboard-only (no slothash fallback ix exists on chain) — relayer logs `DISABLED` if `RANDOMNESS_SOURCE != switchboard` for BR. `.env.example` flipped default to `RANDOMNESS_SOURCE=switchboard`.
+- ~~**Battle Royale Phase 3** — indexer~~ → **DONE**. New `battle_royales` table (denormalised `players` JSONB array with GIN index for `players @> [{player:X}]` lookups; `idx_br_status/creator/winner/created`). 6 handlers registered in DISPATCH: `BattleRoyaleCreated / Joined / Rolling / Decided / SettledPaid / Cancelled`. `BattleRoyaleSettledPaid` credits winner `total_earned` and bumps `losses + total_paid` for every other participant from the denormalised `players` array (chips are NOT lost in BR — membership only). `handleSwitchboardVerified` extended to UPDATE BOTH `battles` and `battle_royales` (only one row matches per id since both tables share `arena.next_battle_id` counter). No separate `BattleRoyaleSwitchboardVerified` / `ChipClaimed` / `WinningsClaimed` events exist on-chain — the program reuses `SwitchboardVerified` for both modes, and `claim_chip_br` only flips the on-chain `chips_claimed_mask` bitmask (the UI reads that directly from chain). New REST endpoints: `GET /battle-royales[?status&player&pool_tier]`, `/battle-royales/open`, `/battle-royales/live`, `/battle-royales/:id`. `/players/:address` returns `recentBattleRoyales` alongside `recentBattles`; `/stats` returns `battleRoyales` count + `brVolume` aggregate.
+- ~~**Battle Royale Phase 4** — frontend~~ → **DONE** (Lobby + Create + minimal Watch). New `pages/BattleRoyalePage.tsx`, `hooks/useIndexerBattleRoyales.ts` (REST + `br:*` WS topics with optimistic numJoined bump + lazy refetch on join because broadcast doesn't carry slot/chip), `lib/pda.ts` adds `royale(id)` helper, `services/indexerApi.ts` adds `IndexedBattleRoyale` + 4 endpoint getters, `config/index.ts` adds `BR_MAX_PLAYERS_CAP=8 / BR_MIN_PLAYERS=2 / BR_PLAYER_OPTIONS=[4,6,8] / BR_CANCEL_REASON`. Create issues TWO popups: `create_battle_royale(tier, max_players)` then auto-join with creator's chip (bundling via `.preInstructions()` doesn't work because join reads the just-created royale account from chain). Lobby surfaces an "IN LOBBY ✓" badge for rooms the player already joined and a yellow `BalanceHint` panel if internal balance < stake. Watch view renders 8 seat-cards from on-chain BR account's `players[]` + `chips[]` + `chips_claimed_mask` (bitmask drives per-seat `claimed ✓` label) — winner sees CLAIM WINNINGS button (gated on `prizeClaimed=false`), every participant sees CLAIM MY CHIP BACK gated on their bit in the mask. New tab `[%] ROYALE / BR` in `RetroHeader.tsx`, `App.tsx` adds `watchRoyaleId` deep-link state mirroring `watchBattleId`. `tsc --noEmit` + `vite build` both green.
+- **Battle Royale Phase 5** — commit + push + manual deploy on Render + Vercel
+- **Tournament system** (ticket-based, SPL token) — deferred until BR is fully wired
+- **Relayer on hosting** — currently runs on user's PC in WSL. Render free tier doesn't support always-on workers cheaply; consider Fly.io with the rotated token, or a tiny self-hosted VPS
+- **Verifiable build** for solscan (`solana-verify`) — proves the deployed bytecode matches the GitHub source. Needed before any mainnet announcement
+- **Squads multisig execution** on devnet (rehearsal) then mainnet — runbook in `SQUADS_SETUP.md`, both keypairs already generated
+- **Public devnet announcement** — once Phase 2-5 ship and the relayer has a stable home
+- **Mainnet deploy** with capped pool tiers (start with the cheapest tier only, lift cap after a week of clean operation)
 
 ## How to resume
 
