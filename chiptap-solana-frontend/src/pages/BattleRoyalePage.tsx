@@ -63,18 +63,16 @@ function BalanceHint({ neededLamports }: { neededLamports: number }) {
   return (
     <div
       className="retro-panel mb-3"
-      style={{ borderColor: "#FFD700", background: "#221a00" }}
+      style={{ borderColor: "#00FFFF", background: "#001a22" }}
     >
       <div className="text-xs">
-        <span className="font-pixel text-retro-gold" style={{ fontSize: 9 }}>
-          NEED MORE INTERNAL BALANCE
+        <span className="font-pixel text-retro-cyan" style={{ fontSize: 9 }}>
+          AUTO TOP-UP ON JOIN
         </span>
         <div className="opacity-80 mt-1">
-          You have <span className="text-retro-gold">{fmtSol(have / 1e9)} SOL</span> internal,
-          {" "}need <span className="text-retro-gold">{fmtSol(neededLamports / 1e9)} SOL</span>
-          {" "}(short by {fmtSol(shortBy / 1e9)} SOL).
-          {" "}Top up via the <span className="text-retro-cyan">BATTLE</span> tab's
-          {" "}<i>INTERNAL BALANCE</i> banner first.
+          Internal balance: <span className="text-retro-gold">{fmtSol(have / 1e9)} SOL</span>
+          {" "}— join will pull <span className="text-retro-gold">+{fmtSol(shortBy / 1e9)} SOL</span>
+          {" "}from your wallet automatically (one popup, no extra steps).
         </div>
       </div>
     </div>
@@ -97,6 +95,7 @@ function Lobby({
   const { open, rolling, decided, myActive, loading, refetch } =
     useIndexerBattleRoyales();
   const { chips } = useChipsByOwner(me);
+  const { data: user, refetch: refetchUser } = useUserAccount();
 
   const [joining, setJoining] = useState<number | null>(null);
   const [selectedChip, setSelectedChip] = useState<string | null>(null);
@@ -106,6 +105,42 @@ function Lobby({
     if (!arena || !publicKey || !selectedChip) return;
     setBusy(br.id);
     try {
+      const stakeLamports = Math.floor(br.poolSol * LAMPORTS_PER_SOL);
+      const currentBalance = user?.balance?.toNumber?.() ?? 0;
+      // Top-up needed so post-join balance is non-negative.  joinBattleRoyale
+      // also moves a tiny rent buffer (1M lamports = 0.001 SOL) inside the
+      // PDA, so we add that to the shortfall.
+      const shortfall = Math.max(0, stakeLamports + 1_000_000 - currentBalance);
+
+      // Build the preinstruction chain.  Always include ensureUserAccount
+      // (cheap no-op if PDA exists); add a deposit if internal balance is
+      // short of the stake.  Result: brand-new wallets can JOIN in a single
+      // popup without first visiting the BATTLE tab to top up.
+      const preIxs: any[] = [];
+
+      preIxs.push(
+        await (arena.methods as any).ensureUserAccount()
+          .accounts({
+            user:          pda.userAccount(publicKey),
+            authority:     publicKey,
+            payer:         publicKey,
+            systemProgram: SystemProgram.programId,
+          }).instruction(),
+      );
+
+      if (shortfall > 0) {
+        preIxs.push(
+          await (arena.methods as any).deposit(new BN(shortfall))
+            .accounts({
+              config:        pda.arenaConfig(),
+              vault:         pda.arenaVault(),
+              user:          pda.userAccount(publicKey),
+              payer:         publicKey,
+              systemProgram: SystemProgram.programId,
+            }).instruction(),
+        );
+      }
+
       const sig = await (arena.methods as any)
         .joinBattleRoyale()
         .accounts({
@@ -119,11 +154,12 @@ function Lobby({
           mplCore:       MPL_CORE_PROGRAM,
           systemProgram: SystemProgram.programId,
         })
+        .preInstructions(preIxs)
         .rpc();
       notify("joined", `Joined royale #${br.id}! ${sig.slice(0, 8)}…`);
       setJoining(null);
       setSelectedChip(null);
-      await refetch();
+      await Promise.all([refetch(), refetchUser()]);
     } catch (e) { notifyTxError("Join battle royale", e); }
     finally { setBusy(null); }
   };
@@ -355,7 +391,7 @@ function Create({ onBack }: { onBack: () => void }) {
   const arena = useArenaProgram();
   const { chips } = useChipsByOwner(publicKey?.toBase58());
   const { data: cfg, refetch: refetchCfg } = useArenaConfig();
-  const { refetch: refetchUser } = useUserAccount();
+  const { data: user, refetch: refetchUser } = useUserAccount();
 
   const [chip, setChip] = useState<string | null>(null);
   const [tier, setTier] = useState(0);          // default cheapest tier
@@ -391,6 +427,43 @@ function Create({ onBack }: { onBack: () => void }) {
       // STEP 2 — creator joins as the first player.  Their chip goes to
       // chip_authority escrow and `pool_tier` SOL is moved from internal
       // balance to locked.
+      //
+      // Bundled preinstructions (one popup):
+      //   • ensureUserAccount — first-time creators have no UserAccount
+      //     PDA; the join ix dereferences it and would fail with
+      //     AnchorError 3012 (AccountNotInitialized) without this.
+      //     SEC-10 pattern reused from pay_ransom.
+      //   • deposit(shortfall) — if internal balance < stake, top up
+      //     from the wallet.  Result: brand-new wallets can create AND
+      //     join their own BR with one signature.
+      const currentBalance = user?.balance?.toNumber?.() ?? 0;
+      const shortfall = Math.max(0, stakeLamports + 1_000_000 - currentBalance);
+
+      const preIxs: any[] = [];
+
+      preIxs.push(
+        await (arena.methods as any).ensureUserAccount()
+          .accounts({
+            user:          pda.userAccount(publicKey),
+            authority:     publicKey,
+            payer:         publicKey,
+            systemProgram: SystemProgram.programId,
+          }).instruction(),
+      );
+
+      if (shortfall > 0) {
+        preIxs.push(
+          await (arena.methods as any).deposit(new BN(shortfall))
+            .accounts({
+              config:        pda.arenaConfig(),
+              vault:         pda.arenaVault(),
+              user:          pda.userAccount(publicKey),
+              payer:         publicKey,
+              systemProgram: SystemProgram.programId,
+            }).instruction(),
+        );
+      }
+
       const joinSig = await (arena.methods as any)
         .joinBattleRoyale()
         .accounts({
@@ -404,6 +477,7 @@ function Create({ onBack }: { onBack: () => void }) {
           mplCore:       MPL_CORE_PROGRAM,
           systemProgram: SystemProgram.programId,
         })
+        .preInstructions(preIxs)
         .rpc();
       notify("joined", `Joined royale #${royaleId} · ${joinSig.slice(0, 8)}…`);
       await refetchUser();
