@@ -42,3 +42,14 @@ export const battle = (id: number | bigint | BN) => {
     BATTLE_ARENA_PROGRAM,
   )[0];
 };
+
+// SEC-22 — Battle Royale account PDA.  Shares the `arena.next_battle_id`
+// counter with 1v1 battles, so the same numeric id maps to EITHER
+// `battle(id)` OR `royale(id)` but never both.
+export const royale = (id: number | bigint | BN) => {
+  const idBn = BN.isBN(id) ? id : new BN(id.toString());
+  return PublicKey.findProgramAddressSync(
+    [enc("royale"), idBn.toArrayLike(Buffer, "le", 8)],
+    BATTLE_ARENA_PROGRAM,
+  )[0];
+};

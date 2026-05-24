@@ -68,3 +68,15 @@ export const DEFAULT_MINT_PRICE_SOL = [0.02, 0.1, 0.4, 1, 4];
 // Same name conventions as EVM
 export const BATTLE_STATUS = { 0: "WAITING", 1: "ROLLING", 2: "DECIDED", 3: "SETTLED", 4: "CANCELLED" } as const;
 export const RESOLUTION    = { 0: "NONE",    1: "PAID",    2: "FORFEITED", 3: "EXPIRED" } as const;
+
+// SEC-22 — Battle Royale.  The on-chain BattleRoyale account allocates
+// fixed-size [pubkey;8] arrays for players + chips, so MAX_PLAYERS is
+// hard-capped at 8 by the program; sizes below 2 are rejected too
+// ("InvalidMaxPlayers" — error 6023).
+export const BR_MAX_PLAYERS_CAP = 8;
+export const BR_MIN_PLAYERS     = 2;
+// Standard lobby sizes the UI offers — players can fight at any of
+// these sizes; the on-chain ix accepts any value in [2, BR_MAX_PLAYERS_CAP].
+export const BR_PLAYER_OPTIONS = [4, 6, 8] as const;
+// Reason byte emitted by `BattleRoyaleCancelled` for UI labels.
+export const BR_CANCEL_REASON = { 0: "JOIN_TIMEOUT", 1: "VRF_TIMEOUT" } as const;

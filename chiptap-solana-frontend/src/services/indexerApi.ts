@@ -35,6 +35,32 @@ export interface IndexedBattle {
   settled_at:      string | null;
 }
 
+// SEC-22 — Battle Royale row shape, mirrors `battle_royales` table.
+// `players` is the JSONB array — slot is 0-indexed and matches the
+// on-chain seating order, so `winner_idx` indexes directly.
+export interface IndexedBattleRoyale {
+  id:                 number;
+  creator:            string;
+  pool_tier:          number;
+  max_players:        number;
+  pool_lamports:      number;
+  status:             number;        // 0=waiting 1=rolling 2=decided 3=settled 4=cancelled
+  num_joined:         number;
+  players:            { slot: number; player: string; chip: string }[];
+  winner:             string | null;
+  winner_idx:         number | null;
+  random_seed:        string | null;
+  payment_amount:     number;        // SOL
+  fee_amount:         number;        // SOL
+  cancel_reason:      number | null;
+  vrf_method:         string | null;
+  randomness_account: string | null;
+  created_at:         string;
+  rolling_at:         string | null;
+  decided_at:         string | null;
+  settled_at:         string | null;
+}
+
 export interface IndexedChip {
   asset:        string;
   token_id:     number;
@@ -86,8 +112,30 @@ export const indexerApi = {
   getStats: () =>
     get<{
       battles: { total: number; open: number; settled: number };
+      battleRoyales?: { total: number; open: number; settled: number };
       totalChips: number;
       activePlayers: number;
-      volume?: { total_volume: number; total_fees: number };
+      volume?:   { total_volume: number; total_fees: number };
+      brVolume?: { total_volume: number; total_fees: number };
     }>("/stats"),
+
+  // ----- SEC-22 — Battle Royale --------------------------------
+  getOpenBattleRoyales: () =>
+    get<{ battleRoyales: IndexedBattleRoyale[] }>("/battle-royales/open"),
+  getLiveBattleRoyales: () =>
+    get<{ battleRoyales: IndexedBattleRoyale[] }>("/battle-royales/live"),
+  getBattleRoyale: (id: number) =>
+    get<{ battleRoyale: IndexedBattleRoyale }>(`/battle-royales/${id}`),
+  getBattleRoyales: (p?: {
+    status?: number; player?: string; pool_tier?: number;
+    limit?: number; offset?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (p?.status    !== undefined) q.set("status",    String(p.status));
+    if (p?.player)                  q.set("player",    p.player);
+    if (p?.pool_tier !== undefined) q.set("pool_tier", String(p.pool_tier));
+    if (p?.limit)                   q.set("limit",     String(p.limit));
+    if (p?.offset)                  q.set("offset",    String(p.offset));
+    return get<{ battleRoyales: IndexedBattleRoyale[]; total: number }>(`/battle-royales?${q}`);
+  },
 };

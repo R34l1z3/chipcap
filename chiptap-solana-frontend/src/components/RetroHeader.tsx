@@ -5,7 +5,7 @@
 import React from "react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
-type Tab = "mint" | "inventory" | "battle" | "history" | "leaderboard" | "profile";
+type Tab = "mint" | "inventory" | "battle" | "royale" | "history" | "leaderboard" | "profile";
 
 export default function RetroHeader({
   tab, setTab,
@@ -17,6 +17,7 @@ export default function RetroHeader({
     { id: "mint",        label: "MINT",     icon: "+", short: "MINT" },
     { id: "inventory",   label: "MY CHIPS", icon: "#", short: "CHIPS" },
     { id: "battle",      label: "BATTLE",   icon: "!", short: "PVP" },
+    { id: "royale",      label: "ROYALE",   icon: "%", short: "BR" },
     { id: "leaderboard", label: "TOP",      icon: "*", short: "TOP" },
     { id: "profile",     label: "ME",       icon: "@", short: "ME" },
     { id: "history",     label: "HISTORY",  icon: "?", short: "LOG" },
