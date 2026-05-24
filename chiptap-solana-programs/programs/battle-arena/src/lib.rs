@@ -47,6 +47,13 @@ pub const TIMEOUT_DECISION: u8 = 0;
 pub const TIMEOUT_JOIN:     u8 = 1;
 pub const TIMEOUT_VRF:      u8 = 2;
 
+// SEC-22 — Battle Royale.  Fixed-cap multiplayer mode where N players
+// pool their entry fee, one is drawn via Switchboard VRF, takes
+// (pool − fee).  Chips are escrowed for the duration but always
+// returned to their owners after settle (chips are membership tokens
+// here, not stakes).
+pub const BR_MAX_PLAYERS: usize = 8;
+
 #[program]
 pub mod battle_arena {
     use super::*;
@@ -664,6 +671,274 @@ pub mod battle_arena {
         emit!(BattleCancelled { battle_id: b.id, player_a: b.player_a });
         Ok(())
     }
+
+    // ============================================================
+    //                BATTLE ROYALE (SEC-22)
+    // ============================================================
+
+    /// Create an empty BR slot.  Anyone can create; caller pays
+    /// the BattleRoyale PDA rent.  Players join until full.
+    pub fn create_battle_royale(
+        ctx:         Context<CreateBattleRoyale>,
+        pool_tier:   u8,
+        max_players: u8,
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, ArenaError::Paused);
+        require!((pool_tier as usize) < N_TIERS, ArenaError::InvalidTier);
+        require!(
+            max_players >= 2 && (max_players as usize) <= BR_MAX_PLAYERS,
+            ArenaError::InvalidMaxPlayers
+        );
+
+        // Reserve an id from the shared counter so 1v1 and BR ids are
+        // strictly monotonic + unique across the whole arena.
+        let cfg = &mut ctx.accounts.config;
+        let id = cfg.next_battle_id;
+        cfg.next_battle_id = cfg.next_battle_id.checked_add(1).ok_or(ArenaError::MathOverflow)?;
+
+        let r = &mut ctx.accounts.royale;
+        r.id           = id;
+        r.status       = STATUS_WAITING;            // (reusing 1v1's "OPEN" semantics)
+        r.pool_tier    = pool_tier;
+        r.max_players  = max_players;
+        r.num_joined   = 0;
+        r.creator      = ctx.accounts.creator.key();
+        r.players      = [Pubkey::default(); BR_MAX_PLAYERS];
+        r.chips        = [Pubkey::default(); BR_MAX_PLAYERS];
+        let now = Clock::get()?.unix_timestamp;
+        r.created_at   = now;
+        r.bump         = ctx.bumps.royale;
+
+        emit!(BattleRoyaleCreated {
+            id, pool_tier, max_players, creator: r.creator,
+        });
+        Ok(())
+    }
+
+    /// Player joins.  Escrows chip + debits internal balance by
+    /// pool_tier amount.  When the Nth player joins, status auto-
+    /// transitions to ROLLING and a Switchboard cycle is expected.
+    pub fn join_battle_royale(ctx: Context<JoinBattleRoyale>) -> Result<()> {
+        require!(!ctx.accounts.config.paused, ArenaError::Paused);
+
+        let r = &mut ctx.accounts.royale;
+        require!(r.status == STATUS_WAITING, ArenaError::WrongStatus);
+        require!(r.num_joined < r.max_players, ArenaError::BattleRoyaleFull);
+
+        // Reject double-join from the same player.
+        let player = ctx.accounts.player.key();
+        for i in 0..(r.num_joined as usize) {
+            require!(r.players[i] != player, ArenaError::AlreadyJoined);
+        }
+
+        // Debit internal balance by the pool-tier amount.
+        let stake = ctx.accounts.config.pool_amounts[r.pool_tier as usize];
+        require!(ctx.accounts.player_user.balance >= stake, ArenaError::InsufficientBalance);
+        ctx.accounts.player_user.balance = ctx.accounts.player_user.balance
+            .checked_sub(stake).ok_or(ArenaError::MathOverflow)?;
+
+        // Escrow chip → chip_authority PDA.
+        TransferV1CpiBuilder::new(&ctx.accounts.mpl_core.to_account_info())
+            .asset(&ctx.accounts.chip.to_account_info())
+            .collection(None)
+            .payer(&ctx.accounts.player.to_account_info())
+            .authority(Some(&ctx.accounts.player.to_account_info()))
+            .new_owner(&ctx.accounts.chip_authority.to_account_info())
+            .system_program(Some(&ctx.accounts.system_program.to_account_info()))
+            .invoke()?;
+
+        let slot = r.num_joined as usize;
+        r.players[slot] = player;
+        r.chips[slot]   = ctx.accounts.chip.key();
+        r.num_joined   += 1;
+        r.pool_amount  = r.pool_amount.checked_add(stake).ok_or(ArenaError::MathOverflow)?;
+
+        if r.num_joined == r.max_players {
+            r.status     = STATUS_ROLLING;
+            r.rolling_at = Clock::get()?.unix_timestamp;
+            emit!(BattleRoyaleRolling { id: r.id, pool_amount: r.pool_amount });
+        }
+
+        emit!(BattleRoyaleJoined {
+            id: r.id,
+            player,
+            chip: ctx.accounts.chip.key(),
+            slot: slot as u8,
+            num_joined: r.num_joined,
+        });
+        Ok(())
+    }
+
+    /// Switchboard On-Demand fulfill for Battle Royale.
+    /// Same layout parsing as `fulfill_random_words_switchboard` for 1v1.
+    pub fn fulfill_random_words_br_switchboard(
+        ctx: Context<FulfillBattleRoyaleSwitchboard>,
+    ) -> Result<()> {
+        require_keys_eq!(
+            *ctx.accounts.randomness_account.owner,
+            ctx.accounts.config.vrf_program,
+            ArenaError::WrongVrfProgram
+        );
+        require!(
+            ctx.accounts.config.vrf_program != Pubkey::default(),
+            ArenaError::SwitchboardDisabled
+        );
+
+        let r = &mut ctx.accounts.royale;
+        require!(r.status == STATUS_ROLLING, ArenaError::WrongStatus);
+
+        let data = ctx.accounts.randomness_account.try_borrow_data()?;
+        require!(data.len() >= 184, ArenaError::MalformedRandomnessAccount);
+        const DISC: [u8; 8] = [10, 66, 229, 135, 220, 239, 217, 114];
+        require!(data[0..8] == DISC, ArenaError::MalformedRandomnessAccount);
+
+        let seed_slot   = u64::from_le_bytes(data[104..112].try_into().unwrap());
+        let reveal_slot = u64::from_le_bytes(data[144..152].try_into().unwrap());
+        require!(reveal_slot > seed_slot, ArenaError::RandomnessNotRevealed);
+
+        let seed = u64::from_le_bytes(data[152..160].try_into().unwrap());
+        drop(data);
+
+        // Pick winner from [0, max_players).  2^64 % 8 == 0 and
+        // 2^64 % 4 == 0 → unbiased for those caps.
+        let winner_idx = (seed % r.max_players as u64) as usize;
+        r.winner             = r.players[winner_idx];
+        r.random_seed        = seed;
+        r.randomness_account = ctx.accounts.randomness_account.key();
+
+        // Compute treasury fee + winner payout.
+        let fee = (r.pool_amount as u128 * ctx.accounts.config.fee_bps as u128 / 10_000u128) as u64;
+        r.fee_amount = fee;
+
+        r.status     = STATUS_DECIDED;
+        r.decided_at = Clock::get()?.unix_timestamp;
+
+        emit!(BattleRoyaleDecided {
+            id:          r.id,
+            winner:      r.winner,
+            winner_idx:  winner_idx as u8,
+            random_seed: seed,
+            pool_amount: r.pool_amount,
+            fee_amount:  fee,
+        });
+        emit!(SwitchboardVerified {
+            battle_id:          r.id,
+            randomness_account: ctx.accounts.randomness_account.key(),
+        });
+        Ok(())
+    }
+
+    /// Any player claims their chip back after DECIDED.  Winner uses
+    /// the same ix; their prize is separately credited via
+    /// `claim_winnings_br`.
+    pub fn claim_chip_br(ctx: Context<ClaimChipBattleRoyale>) -> Result<()> {
+        let r = &mut ctx.accounts.royale;
+        require!(
+            r.status == STATUS_DECIDED || r.status == STATUS_SETTLED,
+            ArenaError::WrongStatus
+        );
+
+        // Find caller in players[] + verify chip matches their slot.
+        let caller     = ctx.accounts.player.key();
+        let chip_key   = ctx.accounts.chip.key();
+        let mut slot   = usize::MAX;
+        for i in 0..(r.num_joined as usize) {
+            if r.players[i] == caller {
+                require_keys_eq!(chip_key, r.chips[i], ArenaError::WrongChip);
+                slot = i;
+                break;
+            }
+        }
+        require!(slot != usize::MAX, ArenaError::NotAParticipant);
+
+        // Prevent double-claim.
+        let bit = 1u16 << (slot as u16);
+        require!((r.chips_claimed_mask & bit) == 0, ArenaError::ChipAlreadyClaimed);
+        r.chips_claimed_mask |= bit;
+
+        let auth_bump = ctx.accounts.config.chip_authority_bump;
+        return_chip_to(
+            &ctx.accounts.mpl_core,
+            &ctx.accounts.chip,
+            &ctx.accounts.player.to_account_info(),
+            &ctx.accounts.chip_authority,
+            &ctx.accounts.system_program,
+            auth_bump,
+        )?;
+
+        try_settle_br(r, Clock::get()?.unix_timestamp);
+        Ok(())
+    }
+
+    /// Winner pulls their winnings to internal balance + treasury
+    /// fee CPI'd to treasury program.  Idempotent: rejects second call.
+    pub fn claim_winnings_br(ctx: Context<ClaimWinningsBattleRoyale>) -> Result<()> {
+        let r = &mut ctx.accounts.royale;
+        require!(
+            r.status == STATUS_DECIDED || r.status == STATUS_SETTLED,
+            ArenaError::WrongStatus
+        );
+        require_keys_eq!(ctx.accounts.winner.key(), r.winner, ArenaError::NotWinner);
+        require!(!r.prize_claimed, ArenaError::PrizeAlreadyClaimed);
+
+        let payout = r.pool_amount.checked_sub(r.fee_amount).ok_or(ArenaError::MathOverflow)?;
+
+        // Credit winner's internal balance.
+        ctx.accounts.winner_user.balance = ctx.accounts.winner_user.balance
+            .checked_add(payout).ok_or(ArenaError::MathOverflow)?;
+
+        // SOL movement for the fee: arena_vault → treasury_vault.
+        let vault_bump = ctx.accounts.config.vault_bump;
+        forward_fee_to_treasury(
+            &ctx.accounts.treasury_program,
+            &ctx.accounts.treasury_config,
+            &ctx.accounts.treasury_vault,
+            &ctx.accounts.vault,
+            &ctx.accounts.system_program,
+            vault_bump,
+            r.fee_amount,
+        )?;
+
+        r.prize_claimed = true;
+        try_settle_br(r, Clock::get()?.unix_timestamp);
+
+        emit!(BattleRoyaleSettledPaid {
+            id:      r.id,
+            winner:  r.winner,
+            payout,
+            fee:     r.fee_amount,
+        });
+        Ok(())
+    }
+
+    /// Anyone can cancel an OPEN BR after `join_timeout` elapsed
+    /// without filling.  Refunds all joined players' internal balance.
+    pub fn expire_battle_royale_join(ctx: Context<CancelBattleRoyale>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let r = &mut ctx.accounts.royale;
+        require!(r.status == STATUS_WAITING, ArenaError::WrongStatus);
+        require!(
+            now > r.created_at + ctx.accounts.config.join_timeout,
+            ArenaError::JoinPeriodNotExpired
+        );
+        cancel_br(r, now);
+        Ok(())
+    }
+
+    /// Anyone can cancel a stuck ROLLING BR after `vrf_timeout`.
+    /// Refunds all internal-balance stakes; chips still need to be
+    /// claimed individually via claim_chip_br.
+    pub fn force_resolve_battle_royale(ctx: Context<CancelBattleRoyale>) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let r = &mut ctx.accounts.royale;
+        require!(r.status == STATUS_ROLLING, ArenaError::WrongStatus);
+        require!(
+            now > r.rolling_at + ctx.accounts.config.vrf_timeout,
+            ArenaError::VrfNotTimedOut
+        );
+        cancel_br(r, now);
+        Ok(())
+    }
 }
 
 // ============================================================
@@ -728,6 +1003,28 @@ fn return_chip_to<'info>(
 // indexer authoritatively computes win/loss ratios from settle events,
 // so on-chain shadow counters were strictly worse than nothing — they
 // invariably read as 0 and tempted UI code to use them.
+
+/// SEC-22 — transition a BR to SETTLED when all chips claimed AND
+/// prize claimed.  Called from the tail of every claim ix.
+#[inline(never)]
+fn try_settle_br(r: &mut BattleRoyale, now: i64) {
+    if r.status != STATUS_DECIDED { return; }
+    let full_mask: u16 = (1u16 << (r.num_joined as u16)) - 1;
+    if (r.chips_claimed_mask & full_mask) == full_mask && r.prize_claimed {
+        r.status     = STATUS_SETTLED;
+        r.settled_at = now;
+    }
+}
+
+/// SEC-22 — mark a BR as CANCELLED.  Refunds of the per-player
+/// stake from arena_vault → UserAccount are handled by a separate
+/// `claim_stake_refund_br` ix (one tx per player) since iterating 8
+/// UserAccount PDAs in a single ix would explode the BPF stack.
+#[inline(never)]
+fn cancel_br(r: &mut BattleRoyale, now: i64) {
+    r.status     = STATUS_CANCELLED;
+    r.settled_at = now;
+}
 
 #[allow(clippy::too_many_arguments)]
 #[inline(never)]
@@ -867,6 +1164,74 @@ pub struct Battle {
 impl Battle {
     pub const SPACE: usize =
         8 + 8 + 32 + 32 + 32 + 32 + 1 + 1 + 32 + 32 + 8 + 1 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 1;
+}
+
+// SEC-22 — Battle Royale: N players, single Switchboard VRF, winner
+// takes the pool (minus treasury fee).  Chips are membership tokens
+// only — returned to every player after settle.
+#[account]
+pub struct BattleRoyale {
+    pub id:                 u64,
+    pub status:             u8,                          // OPEN/ROLLING/DECIDED/SETTLED/CANCELLED
+    pub pool_tier:          u8,                          // 0..N_TIERS
+    pub max_players:        u8,                          // 4 or 8 (caller-chosen)
+    pub num_joined:         u8,
+    pub creator:            Pubkey,
+    pub players:            [Pubkey; BR_MAX_PLAYERS],    // padded; first num_joined are valid
+    pub chips:              [Pubkey; BR_MAX_PLAYERS],
+    pub winner:             Pubkey,                      // set on DECIDED
+    pub random_seed:        u64,
+    pub randomness_account: Pubkey,                      // Switchboard PDA (audit)
+    pub pool_amount:        u64,                         // pool_tier_amount * max_players
+    pub fee_amount:         u64,
+    pub created_at:         i64,
+    pub rolling_at:         i64,
+    pub decided_at:         i64,
+    pub settled_at:         i64,
+    // Per-player chip-claim tracking — bit i set iff players[i] called
+    // claim_chip_br.  When all bits up to num_joined are set AND prize
+    // is claimed, status auto-transitions to SETTLED.
+    pub chips_claimed_mask: u16,
+    pub prize_claimed:      bool,
+    pub bump:               u8,
+    pub _reserved:          [u8; 64],
+}
+
+impl Default for BattleRoyale {
+    fn default() -> Self {
+        Self {
+            id:                 0,
+            status:             0,
+            pool_tier:          0,
+            max_players:        0,
+            num_joined:         0,
+            creator:            Pubkey::default(),
+            players:            [Pubkey::default(); BR_MAX_PLAYERS],
+            chips:              [Pubkey::default(); BR_MAX_PLAYERS],
+            winner:             Pubkey::default(),
+            random_seed:        0,
+            randomness_account: Pubkey::default(),
+            pool_amount:        0,
+            fee_amount:         0,
+            created_at:         0,
+            rolling_at:         0,
+            decided_at:         0,
+            settled_at:         0,
+            chips_claimed_mask: 0,
+            prize_claimed:      false,
+            bump:               0,
+            _reserved:          [0u8; 64],
+        }
+    }
+}
+
+impl BattleRoyale {
+    // 8 discr + 8 + 1 + 1 + 1 + 1 + 32 + 32*8 + 32*8 + 32 + 8 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 2 + 1 + 1 + 64
+    // = 8 + 8 + 4 + 32 + 256 + 256 + 32 + 8 + 32 + 8 + 8 + 8*4 + 2 + 1 + 1 + 64
+    // = 758
+    pub const SPACE: usize =
+        8 + 8 + 1 + 1 + 1 + 1 + 32 + (32 * BR_MAX_PLAYERS) + (32 * BR_MAX_PLAYERS) +
+        32 + 8 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 2 + 1 + 1 + 64;
 }
 
 // ============================================================
@@ -1462,6 +1827,219 @@ pub struct ForceResolve<'info> {
 }
 
 // ============================================================
+//                    BATTLE ROYALE ACCOUNTS (SEC-22)
+// ============================================================
+
+#[derive(Accounts)]
+#[instruction(pool_tier: u8, max_players: u8)]
+pub struct CreateBattleRoyale<'info> {
+    #[account(
+        mut,
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    #[account(
+        init,
+        payer = creator,
+        space = BattleRoyale::SPACE,
+        seeds = [b"royale".as_ref(), config.next_battle_id.to_le_bytes().as_ref()],
+        bump,
+    )]
+    pub royale: Account<'info, BattleRoyale>,
+
+    #[account(mut)]
+    pub creator: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct JoinBattleRoyale<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"royale".as_ref(), royale.id.to_le_bytes().as_ref()],
+        bump  = royale.bump,
+    )]
+    pub royale: Account<'info, BattleRoyale>,
+
+    /// CHECK: chip authority PDA.
+    #[account(
+        seeds = [b"arena".as_ref(), b"chip_authority".as_ref()],
+        bump  = config.chip_authority_bump,
+    )]
+    pub chip_authority: AccountInfo<'info>,
+
+    /// CHECK: chip asset, validated by mpl-core CPI.
+    #[account(mut)]
+    pub chip: AccountInfo<'info>,
+
+    // Internal-balance ledger entry — debited pool_tier amount on join.
+    #[account(
+        mut,
+        seeds = [b"user".as_ref(), player.key().as_ref()],
+        bump  = player_user.bump,
+        has_one = authority @ ArenaError::NotOwner,
+    )]
+    pub player_user: Account<'info, UserAccount>,
+
+    /// CHECK: must match player_user.authority — Anchor enforces via has_one.
+    pub authority: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub player: Signer<'info>,
+
+    /// CHECK: address-checked.
+    #[account(address = MPL_CORE_ID)]
+    pub mpl_core: AccountInfo<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// SEC-22 — Switchboard fulfill for battle royale (Option B).
+#[derive(Accounts)]
+pub struct FulfillBattleRoyaleSwitchboard<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"royale".as_ref(), royale.id.to_le_bytes().as_ref()],
+        bump  = royale.bump,
+    )]
+    pub royale: Account<'info, BattleRoyale>,
+
+    /// CHECK: parsed manually — owner must equal config.vrf_program.
+    pub randomness_account: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub caller: Signer<'info>,
+}
+
+/// Player claims their chip back after settle (every BR player gets
+/// chip back regardless of win/loss — chip is membership, not stake).
+#[derive(Accounts)]
+pub struct ClaimChipBattleRoyale<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"royale".as_ref(), royale.id.to_le_bytes().as_ref()],
+        bump  = royale.bump,
+    )]
+    pub royale: Account<'info, BattleRoyale>,
+
+    /// CHECK: chip authority PDA.
+    #[account(
+        seeds = [b"arena".as_ref(), b"chip_authority".as_ref()],
+        bump  = config.chip_authority_bump,
+    )]
+    pub chip_authority: AccountInfo<'info>,
+
+    /// CHECK: validated by mpl-core CPI.
+    #[account(mut)]
+    pub chip: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub player: Signer<'info>,
+
+    /// CHECK: address-checked.
+    #[account(address = MPL_CORE_ID)]
+    pub mpl_core: AccountInfo<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// Winner claims the prize pool credit on their internal balance.
+/// Treasury fee CPI'd to treasury_program in the same tx.
+#[derive(Accounts)]
+pub struct ClaimWinningsBattleRoyale<'info> {
+    #[account(
+        mut,
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"royale".as_ref(), royale.id.to_le_bytes().as_ref()],
+        bump  = royale.bump,
+    )]
+    pub royale: Account<'info, BattleRoyale>,
+
+    /// CHECK: arena vault PDA — signs treasury fee CPI.
+    #[account(
+        mut,
+        seeds = [b"arena".as_ref(), b"vault".as_ref()],
+        bump  = config.vault_bump,
+    )]
+    pub vault: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"user".as_ref(), winner.key().as_ref()],
+        bump  = winner_user.bump,
+    )]
+    pub winner_user: Account<'info, UserAccount>,
+
+    /// CHECK: address-bound to royale.winner via require_keys_eq! in handler.
+    #[account(mut)]
+    pub winner: AccountInfo<'info>,
+
+    /// CHECK: treasury config PDA.
+    #[account(mut)]
+    pub treasury_config: AccountInfo<'info>,
+
+    /// CHECK: treasury vault PDA.
+    #[account(mut)]
+    pub treasury_vault: AccountInfo<'info>,
+
+    /// CHECK: treasury program ID.
+    pub treasury_program: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub caller: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// Refund-all path: timeout while OPEN (never filled) OR VRF timeout.
+#[derive(Accounts)]
+pub struct CancelBattleRoyale<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"royale".as_ref(), royale.id.to_le_bytes().as_ref()],
+        bump  = royale.bump,
+    )]
+    pub royale: Account<'info, BattleRoyale>,
+
+    /// Anyone can call.
+    #[account(mut)]
+    pub caller: Signer<'info>,
+}
+
+// ============================================================
 //                          EVENTS
 // ============================================================
 
@@ -1518,6 +2096,43 @@ pub struct ForceResolve<'info> {
     pub randomness_account: Pubkey,
 }
 
+// SEC-22 — Battle Royale events.
+#[event] pub struct BattleRoyaleCreated {
+    pub id:          u64,
+    pub pool_tier:   u8,
+    pub max_players: u8,
+    pub creator:     Pubkey,
+}
+#[event] pub struct BattleRoyaleJoined {
+    pub id:          u64,
+    pub player:      Pubkey,
+    pub chip:        Pubkey,
+    pub slot:        u8,
+    pub num_joined:  u8,
+}
+#[event] pub struct BattleRoyaleRolling {
+    pub id:          u64,
+    pub pool_amount: u64,
+}
+#[event] pub struct BattleRoyaleDecided {
+    pub id:          u64,
+    pub winner:      Pubkey,
+    pub winner_idx:  u8,
+    pub random_seed: u64,
+    pub pool_amount: u64,
+    pub fee_amount:  u64,
+}
+#[event] pub struct BattleRoyaleSettledPaid {
+    pub id:          u64,
+    pub winner:      Pubkey,
+    pub payout:      u64,
+    pub fee:         u64,
+}
+#[event] pub struct BattleRoyaleCancelled {
+    pub id:          u64,
+    pub reason:      u8,   // 0 = join timeout, 1 = vrf timeout
+}
+
 // ============================================================
 //                          ERRORS
 // ============================================================
@@ -1570,6 +2185,19 @@ pub enum ArenaError {
     MalformedRandomnessAccount,
     #[msg("Switchboard randomness has not been revealed yet (value_slot <= seed_slot)")]
     RandomnessNotRevealed,
+    // SEC-22 — Battle Royale specific
+    #[msg("max_players must be between 2 and BR_MAX_PLAYERS")]
+    InvalidMaxPlayers,
+    #[msg("Battle Royale already full")]
+    BattleRoyaleFull,
+    #[msg("Player has already joined this Battle Royale")]
+    AlreadyJoined,
+    #[msg("Caller is not a participant of this Battle Royale")]
+    NotAParticipant,
+    #[msg("Chip already claimed for this Battle Royale slot")]
+    ChipAlreadyClaimed,
+    #[msg("Prize already claimed for this Battle Royale")]
+    PrizeAlreadyClaimed,
     #[msg("Arithmetic overflow")]
     MathOverflow,
 }

@@ -18,7 +18,8 @@
     "@metaplex-foundation/umi": "^0.9.2",
     "@metaplex-foundation/umi-bundle-defaults": "^0.9.2",
     "@solana/spl-token": "^0.4.8",
-    "@solana/web3.js": "^1.95.3"
+    "@solana/web3.js": "^1.95.3",
+    "@switchboard-xyz/on-demand": "^3.10.2"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.5",

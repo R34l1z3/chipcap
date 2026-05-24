@@ -901,6 +901,284 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "create_battle_royale",
+      "discriminator": [
+        166,
+        60,
+        205,
+        63,
+        147,
+        229,
+        3,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "royale",
+          "writable": true
+        },
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pool_tier",
+          "type": "u8"
+        },
+        {
+          "name": "max_players",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "join_battle_royale",
+      "discriminator": [
+        250,
+        149,
+        101,
+        113,
+        179,
+        48,
+        247,
+        145
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "royale",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip",
+          "writable": true
+        },
+        {
+          "name": "player_user",
+          "writable": true
+        },
+        {
+          "name": "authority"
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "fulfill_random_words_br_switchboard",
+      "discriminator": [
+        97,
+        192,
+        253,
+        141,
+        120,
+        235,
+        172,
+        23
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "royale",
+          "writable": true
+        },
+        {
+          "name": "randomness_account"
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_chip_br",
+      "discriminator": [
+        88,
+        137,
+        16,
+        170,
+        40,
+        119,
+        189,
+        138
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "royale",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip",
+          "writable": true
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_winnings_br",
+      "discriminator": [
+        113,
+        237,
+        235,
+        97,
+        149,
+        16,
+        31,
+        216
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "royale",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "winner_user",
+          "writable": true
+        },
+        {
+          "name": "winner",
+          "writable": true
+        },
+        {
+          "name": "treasury_config",
+          "writable": true
+        },
+        {
+          "name": "treasury_vault",
+          "writable": true
+        },
+        {
+          "name": "treasury_program"
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "expire_battle_royale_join",
+      "discriminator": [
+        227,
+        199,
+        250,
+        30,
+        136,
+        7,
+        244,
+        52
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "royale",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "force_resolve_battle_royale",
+      "discriminator": [
+        100,
+        9,
+        75,
+        134,
+        52,
+        75,
+        234,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "royale",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -941,6 +1219,19 @@
         166,
         116,
         24
+      ]
+    },
+    {
+      "name": "BattleRoyale",
+      "discriminator": [
+        236,
+        95,
+        128,
+        245,
+        19,
+        52,
+        28,
+        163
       ]
     }
   ],
@@ -1178,6 +1469,84 @@
         163,
         71
       ]
+    },
+    {
+      "name": "BattleRoyaleCreated",
+      "discriminator": [
+        209,
+        77,
+        95,
+        128,
+        11,
+        253,
+        225,
+        35
+      ]
+    },
+    {
+      "name": "BattleRoyaleJoined",
+      "discriminator": [
+        106,
+        167,
+        98,
+        150,
+        166,
+        64,
+        173,
+        89
+      ]
+    },
+    {
+      "name": "BattleRoyaleRolling",
+      "discriminator": [
+        8,
+        201,
+        24,
+        215,
+        8,
+        50,
+        239,
+        249
+      ]
+    },
+    {
+      "name": "BattleRoyaleDecided",
+      "discriminator": [
+        21,
+        224,
+        36,
+        4,
+        128,
+        183,
+        51,
+        53
+      ]
+    },
+    {
+      "name": "BattleRoyaleSettledPaid",
+      "discriminator": [
+        62,
+        250,
+        13,
+        192,
+        213,
+        205,
+        4,
+        241
+      ]
+    },
+    {
+      "name": "BattleRoyaleCancelled",
+      "discriminator": [
+        168,
+        44,
+        244,
+        162,
+        255,
+        45,
+        154,
+        15
+      ]
     }
   ],
   "errors": [
@@ -1298,6 +1667,36 @@
     },
     {
       "code": 6023,
+      "name": "InvalidMaxPlayers",
+      "msg": "max_players must be between 2 and BR_MAX_PLAYERS"
+    },
+    {
+      "code": 6024,
+      "name": "BattleRoyaleFull",
+      "msg": "Battle Royale already full"
+    },
+    {
+      "code": 6025,
+      "name": "AlreadyJoined",
+      "msg": "Player has already joined this Battle Royale"
+    },
+    {
+      "code": 6026,
+      "name": "NotAParticipant",
+      "msg": "Caller is not a participant of this Battle Royale"
+    },
+    {
+      "code": 6027,
+      "name": "ChipAlreadyClaimed",
+      "msg": "Chip already claimed for this Battle Royale slot"
+    },
+    {
+      "code": 6028,
+      "name": "PrizeAlreadyClaimed",
+      "msg": "Prize already claimed for this Battle Royale"
+    },
+    {
+      "code": 6029,
       "name": "MathOverflow",
       "msg": "Arithmetic overflow"
     }
@@ -1489,6 +1888,113 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleRoyale",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "pool_tier",
+            "type": "u8"
+          },
+          {
+            "name": "max_players",
+            "type": "u8"
+          },
+          {
+            "name": "num_joined",
+            "type": "u8"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "players",
+            "type": {
+              "array": [
+                "pubkey",
+                8
+              ]
+            }
+          },
+          {
+            "name": "chips",
+            "type": {
+              "array": [
+                "pubkey",
+                8
+              ]
+            }
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "random_seed",
+            "type": "u64"
+          },
+          {
+            "name": "randomness_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool_amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "rolling_at",
+            "type": "i64"
+          },
+          {
+            "name": "decided_at",
+            "type": "i64"
+          },
+          {
+            "name": "settled_at",
+            "type": "i64"
+          },
+          {
+            "name": "chips_claimed_mask",
+            "type": "u16"
+          },
+          {
+            "name": "prize_claimed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           }
         ]
       }
@@ -1801,6 +2307,146 @@
           {
             "name": "randomness_account",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleRoyaleCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "pool_tier",
+            "type": "u8"
+          },
+          {
+            "name": "max_players",
+            "type": "u8"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleRoyaleJoined",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u8"
+          },
+          {
+            "name": "num_joined",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleRoyaleRolling",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "pool_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleRoyaleDecided",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "winner_idx",
+            "type": "u8"
+          },
+          {
+            "name": "random_seed",
+            "type": "u64"
+          },
+          {
+            "name": "pool_amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleRoyaleSettledPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "payout",
+            "type": "u64"
+          },
+          {
+            "name": "fee",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BattleRoyaleCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "reason",
+            "type": "u8"
           }
         ]
       }

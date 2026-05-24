@@ -395,9 +395,76 @@ const arenaIdl = {
       MPL,
       SP,
     ]),
+
+    // ============================================================
+    // SEC-22 — Battle Royale (N-player single-VRF mode)
+    // ============================================================
+    ix("create_battle_royale", [
+      W ("config"),
+      W ("royale"),
+      WS("creator"),
+      SP,
+    ], [
+      { name: "pool_tier",   type: "u8" },
+      { name: "max_players", type: "u8" },
+    ]),
+
+    ix("join_battle_royale", [
+      A ("config"),
+      W ("royale"),
+      A ("chip_authority"),
+      W ("chip"),
+      W ("player_user"),
+      A ("authority"),
+      WS("player"),
+      MPL,
+      SP,
+    ]),
+
+    ix("fulfill_random_words_br_switchboard", [
+      A ("config"),
+      W ("royale"),
+      A ("randomness_account"),
+      WS("caller"),
+    ]),
+
+    ix("claim_chip_br", [
+      A ("config"),
+      W ("royale"),
+      A ("chip_authority"),
+      W ("chip"),
+      WS("player"),
+      MPL,
+      SP,
+    ]),
+
+    ix("claim_winnings_br", [
+      W ("config"),
+      W ("royale"),
+      W ("vault"),
+      W ("winner_user"),
+      W ("winner"),
+      W ("treasury_config"),
+      W ("treasury_vault"),
+      A ("treasury_program"),
+      WS("caller"),
+      SP,
+    ]),
+
+    ix("expire_battle_royale_join", [
+      A ("config"),
+      W ("royale"),
+      WS("caller"),
+    ]),
+
+    ix("force_resolve_battle_royale", [
+      A ("config"),
+      W ("royale"),
+      WS("caller"),
+    ]),
   ],
 
-  accounts: [acc("ArenaConfig"), acc("UserAccount"), acc("Battle")],
+  accounts: [acc("ArenaConfig"), acc("UserAccount"), acc("Battle"), acc("BattleRoyale")],
 
   events: [
     ev("ArenaInitialized"),
@@ -420,6 +487,13 @@ const arenaIdl = {
     // SEC-21
     ev("VrfProgramUpdated"),
     ev("SwitchboardVerified"),
+    // SEC-22 — Battle Royale
+    ev("BattleRoyaleCreated"),
+    ev("BattleRoyaleJoined"),
+    ev("BattleRoyaleRolling"),
+    ev("BattleRoyaleDecided"),
+    ev("BattleRoyaleSettledPaid"),
+    ev("BattleRoyaleCancelled"),
   ],
 
   errors: [
@@ -447,7 +521,14 @@ const arenaIdl = {
     { code: 6020, name: "SwitchboardDisabled",         msg: "Switchboard VRF disabled (vrf_program is zero) — call set_vrf_program first" },
     { code: 6021, name: "MalformedRandomnessAccount",  msg: "Switchboard randomness account is malformed (wrong size or discriminator)" },
     { code: 6022, name: "RandomnessNotRevealed",       msg: "Switchboard randomness has not been revealed yet (value_slot <= seed_slot)" },
-    { code: 6023, name: "MathOverflow",                msg: "Arithmetic overflow" },
+    // SEC-22 — Battle Royale (NB: these shift MathOverflow's code from 6023 → 6029)
+    { code: 6023, name: "InvalidMaxPlayers",           msg: "max_players must be between 2 and BR_MAX_PLAYERS" },
+    { code: 6024, name: "BattleRoyaleFull",            msg: "Battle Royale already full" },
+    { code: 6025, name: "AlreadyJoined",               msg: "Player has already joined this Battle Royale" },
+    { code: 6026, name: "NotAParticipant",             msg: "Caller is not a participant of this Battle Royale" },
+    { code: 6027, name: "ChipAlreadyClaimed",          msg: "Chip already claimed for this Battle Royale slot" },
+    { code: 6028, name: "PrizeAlreadyClaimed",         msg: "Prize already claimed for this Battle Royale" },
+    { code: 6029, name: "MathOverflow",                msg: "Arithmetic overflow" },
   ],
 
   types: [
@@ -505,6 +586,33 @@ const arenaIdl = {
         { name: "rolling_at",      type: "i64" },
         { name: "vrf_request_id",  type: "u64" },
         { name: "bump",            type: "u8" },
+      ]},
+    },
+    {
+      // SEC-22 — BR_MAX_PLAYERS=8 in the program
+      name: "BattleRoyale",
+      type: { kind: "struct", fields: [
+        { name: "id",                 type: "u64" },
+        { name: "status",             type: "u8" },
+        { name: "pool_tier",          type: "u8" },
+        { name: "max_players",        type: "u8" },
+        { name: "num_joined",         type: "u8" },
+        { name: "creator",            type: PUBKEY },
+        { name: "players",            type: arr(PUBKEY, 8) },
+        { name: "chips",              type: arr(PUBKEY, 8) },
+        { name: "winner",             type: PUBKEY },
+        { name: "random_seed",        type: "u64" },
+        { name: "randomness_account", type: PUBKEY },
+        { name: "pool_amount",        type: "u64" },
+        { name: "fee_amount",         type: "u64" },
+        { name: "created_at",         type: "i64" },
+        { name: "rolling_at",         type: "i64" },
+        { name: "decided_at",         type: "i64" },
+        { name: "settled_at",         type: "i64" },
+        { name: "chips_claimed_mask", type: "u16" },
+        { name: "prize_claimed",      type: "bool" },
+        { name: "bump",               type: "u8" },
+        { name: "_reserved",          type: arr("u8", 64) },
       ]},
     },
     { name: "ArenaInitialized",       type: { kind: "struct", fields: [
@@ -574,6 +682,31 @@ const arenaIdl = {
     { name: "SwitchboardVerified", type: { kind: "struct", fields: [
       { name: "battle_id",          type: "u64" },
       { name: "randomness_account", type: PUBKEY },
+    ]}},
+    // SEC-22 — Battle Royale events
+    { name: "BattleRoyaleCreated",     type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "pool_tier", type: "u8" },
+      { name: "max_players", type: "u8" }, { name: "creator", type: PUBKEY },
+    ]}},
+    { name: "BattleRoyaleJoined",      type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "player", type: PUBKEY },
+      { name: "chip", type: PUBKEY }, { name: "slot", type: "u8" },
+      { name: "num_joined", type: "u8" },
+    ]}},
+    { name: "BattleRoyaleRolling",     type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "pool_amount", type: "u64" },
+    ]}},
+    { name: "BattleRoyaleDecided",     type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "winner", type: PUBKEY },
+      { name: "winner_idx", type: "u8" }, { name: "random_seed", type: "u64" },
+      { name: "pool_amount", type: "u64" }, { name: "fee_amount", type: "u64" },
+    ]}},
+    { name: "BattleRoyaleSettledPaid", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "winner", type: PUBKEY },
+      { name: "payout", type: "u64" }, { name: "fee", type: "u64" },
+    ]}},
+    { name: "BattleRoyaleCancelled",   type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "reason", type: "u8" },
     ]}},
   ],
 };
