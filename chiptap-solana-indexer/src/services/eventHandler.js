@@ -150,21 +150,35 @@ export async function handleBattleDecided(data, ctx) {
   broadcastToPlayers("battle:decided", { id, winner, loser, status: 2 }, [winner, loser]);
 }
 
-// SEC-21 — emitted alongside BattleDecided when fulfilment goes
-// through `fulfill_random_words_switchboard`.  Upgrades the battle's
-// vrf_method and records the randomness account for audit.
+// SEC-21 / SEC-22 — emitted alongside BattleDecided (1v1) AND
+// BattleRoyaleDecided (BR) when fulfilment goes through the
+// `*_switchboard` ix.  Upgrades the row's vrf_method and records the
+// randomness account for audit.
+//
+// The program reuses ONE event (`SwitchboardVerified { battle_id }`)
+// for both modes — but `battle_id` is drawn from the shared
+// `arena.next_battle_id` counter, so any given id lives in exactly
+// one table.  We UPDATE both; the wrong one is a no-op.
 export async function handleSwitchboardVerified(data, ctx) {
   const id                = asNum(data.battleId ?? data.battle_id);
   const randomnessAccount = asPubkey(data.randomnessAccount ?? data.randomness_account);
 
   if (!await claimEvent("SwitchboardVerified", ctx, { id, randomnessAccount })) return;
 
-  await db.query(
-    `UPDATE battles
-       SET vrf_method = 'switchboard', randomness_account = $1
-     WHERE id = $2`,
-    [randomnessAccount, id],
-  );
+  await Promise.all([
+    db.query(
+      `UPDATE battles
+         SET vrf_method = 'switchboard', randomness_account = $1
+       WHERE id = $2`,
+      [randomnessAccount, id],
+    ),
+    db.query(
+      `UPDATE battle_royales
+         SET vrf_method = 'switchboard', randomness_account = $1
+       WHERE id = $2`,
+      [randomnessAccount, id],
+    ),
+  ]);
 
   broadcastToPlayers(
     "battle:vrf_verified",
@@ -321,6 +335,230 @@ export async function handleVrfTimedOut(data, ctx) {
   );
 }
 
+// ============================================================
+//  SEC-22 — BATTLE ROYALE
+// ============================================================
+// 8-player single-VRF mode.  See `battle-arena/src/lib.rs` Battle
+// Royale section for state machine.  We mirror that on the DB:
+//
+//   0 WAITING  → created, lobby filling
+//   1 ROLLING  → full, VRF in flight
+//   2 DECIDED  → seed in, winner known, chips still locked
+//   3 SETTLED  → winner claimed prize (chips might still be unclaimed
+//                 — front-end can read `players` + chips_claimed_mask
+//                 from chain if it cares)
+//   4 CANCELLED → join timeout OR vrf timeout
+//
+// `players` jsonb holds the seating array; we keep it sorted by slot
+// so winner_idx matches array index.
+
+export async function handleBattleRoyaleCreated(data, ctx) {
+  const id          = asNum(data.id);
+  const creator     = asPubkey(data.creator);
+  const tier        = asNum(data.poolTier   ?? data.pool_tier);
+  const maxPlayers  = asNum(data.maxPlayers ?? data.max_players);
+
+  if (!await claimEvent("BattleRoyaleCreated", ctx, { id, creator, tier, maxPlayers })) return;
+
+  await db.query(
+    `INSERT INTO battle_royales (id, creator, pool_tier, max_players, status,
+                                 created_at, create_tx)
+     VALUES ($1,$2,$3,$4,0,NOW(),$5)
+     ON CONFLICT (id) DO UPDATE SET
+       creator = $2, pool_tier = $3, max_players = $4,
+       status = 0, create_tx = $5`,
+    [id, creator, tier, maxPlayers, ctx.signature],
+  );
+
+  await upsertPlayer(creator);
+  broadcast("br:created", { id, creator, poolTier: tier, maxPlayers });
+}
+
+export async function handleBattleRoyaleJoined(data, ctx) {
+  const id        = asNum(data.id);
+  const player    = asPubkey(data.player);
+  const chip      = asPubkey(data.chip);
+  const slot      = asNum(data.slot);
+  const numJoined = asNum(data.numJoined ?? data.num_joined);
+
+  if (!await claimEvent("BattleRoyaleJoined", ctx, { id, player, chip, slot, numJoined })) return;
+
+  // Append the seat to `players` jsonb, idempotent on (id, slot).
+  // We rebuild the array sorted by slot so winner_idx always maps to
+  // array index.  jsonb_path_query_array would be cleaner but is 16+
+  // — keep it portable with a CTE.
+  const client = await db.getClient();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      "SELECT players FROM battle_royales WHERE id = $1 FOR UPDATE", [id],
+    );
+    const existing = Array.isArray(rows[0]?.players) ? rows[0].players : [];
+    // De-dup by slot — replay safety beyond the claimEvent gate.
+    const filtered = existing.filter((p) => p.slot !== slot);
+    filtered.push({ slot, player, chip });
+    filtered.sort((a, b) => a.slot - b.slot);
+    await client.query(
+      `UPDATE battle_royales SET players = $1::jsonb, num_joined = $2
+       WHERE id = $3`,
+      [JSON.stringify(filtered), numJoined, id],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  await upsertPlayer(player);
+
+  // Notify the joiner immediately; lobby-wide subscribers get the
+  // generic broadcast for the live BR list.
+  broadcast("br:joined", { id, player, slot, numJoined });
+}
+
+// Emitted on the LAST join (when num_joined == max_players).  Mainly
+// useful for UI to flip the lobby into "rolling…" mode and for the
+// relayer to know it's time to fulfill VRF.
+export async function handleBattleRoyaleRolling(data, ctx) {
+  const id         = asNum(data.id);
+  const poolAmount = lamportsToSol(data.poolAmount ?? data.pool_amount);
+  const poolLamports = (data.poolAmount ?? data.pool_amount)?.toString?.() ?? "0";
+
+  if (!await claimEvent("BattleRoyaleRolling", ctx, { id, poolAmount })) return;
+
+  await db.query(
+    `UPDATE battle_royales
+       SET status = 1, pool_lamports = $1, rolling_at = NOW(), rolling_tx = $2
+     WHERE id = $3`,
+    [poolLamports, ctx.signature, id],
+  );
+
+  broadcast("br:rolling", { id, poolAmount });
+}
+
+// Switchboard fulfill landed.  `vrf_method` defaults to 'slothash' to
+// stay consistent with 1v1 (even though BR currently has no slothash
+// path — future-proofing).  COALESCE prevents downgrade from a
+// SwitchboardVerified event that may arrive in the same tx.
+export async function handleBattleRoyaleDecided(data, ctx) {
+  const id         = asNum(data.id);
+  const winner     = asPubkey(data.winner);
+  const winnerIdx  = asNum(data.winnerIdx  ?? data.winner_idx);
+  const seed       = (data.randomSeed ?? data.random_seed)?.toString?.() ?? null;
+  const poolAmount = lamportsToSol(data.poolAmount ?? data.pool_amount);
+  const feeAmount  = lamportsToSol(data.feeAmount  ?? data.fee_amount);
+
+  if (!await claimEvent("BattleRoyaleDecided", ctx, { id, winner, winnerIdx, seed })) return;
+
+  await db.query(
+    `UPDATE battle_royales
+       SET status = 2, winner = $1, winner_idx = $2, random_seed = $3,
+           payment_amount = $4, fee_amount = $5,
+           decided_at = NOW(), decide_tx = $6,
+           vrf_method = COALESCE(vrf_method, 'slothash')
+     WHERE id = $7`,
+    [winner, winnerIdx, seed, poolAmount, feeAmount, ctx.signature, id],
+  );
+
+  // Broadcast to all participants (not just the winner) so every
+  // player's UI flips from "rolling" to the result screen at once.
+  const { rows } = await db.query("SELECT players FROM battle_royales WHERE id = $1", [id]);
+  const participants = (rows[0]?.players ?? []).map((p) => p.player).filter(Boolean);
+  broadcastToPlayers("br:decided", { id, winner, winnerIdx, status: 2 }, participants);
+}
+
+// Winner pulled their prize → BR is SETTLED.  This is when we credit
+// player_stats: winner gets win + earned, everyone else gets a loss +
+// `pool_tier` SOL paid.  Chips are NOT lost in BR (membership only).
+export async function handleBattleRoyaleSettledPaid(data, ctx) {
+  const id      = asNum(data.id);
+  const winner  = asPubkey(data.winner);
+  const payout  = lamportsToSol(data.payout);
+  const fee     = lamportsToSol(data.fee);
+
+  if (!await claimEvent("BattleRoyaleSettledPaid", ctx, { id, winner, payout, fee })) return;
+
+  const client = await db.getClient();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `UPDATE battle_royales
+         SET status = 3, settled_at = NOW(), settle_tx = $1,
+             payment_amount = $2, fee_amount = $3
+       WHERE id = $4`,
+      [ctx.signature, payout, fee, id],
+    );
+
+    // Pull players + pool_tier so we can credit losers.  Read inside
+    // the same tx to avoid a race with a hypothetical reset.
+    const { rows } = await client.query(
+      "SELECT players, pool_tier, pool_lamports FROM battle_royales WHERE id = $1",
+      [id],
+    );
+    const row = rows[0];
+    if (row) {
+      const players = Array.isArray(row.players) ? row.players : [];
+      const stakeSol = POOL_LAMPORTS[row.pool_tier]
+        ? POOL_LAMPORTS[row.pool_tier] / 1e9
+        : 0;
+
+      // Winner stats — they earned (payout - fee) net.
+      await client.query(
+        `UPDATE player_stats SET
+           total_battles = total_battles + 1, wins = wins + 1,
+           total_earned = total_earned + $1, updated_at = NOW()
+         WHERE address = $2`,
+        [payout - fee, winner],
+      );
+
+      // Losers — everyone except the winner forfeits their stake.
+      for (const p of players) {
+        if (!p.player || p.player === winner) continue;
+        await client.query(
+          `UPDATE player_stats SET
+             total_battles = total_battles + 1, losses = losses + 1,
+             total_paid = total_paid + $1, updated_at = NOW()
+           WHERE address = $2`,
+          [stakeSol, p.player],
+        );
+      }
+    }
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  broadcast("br:settled", { id, winner, payout, fee });
+}
+
+// Cancellation — either the join window expired (reason=0) or VRF
+// timed out (reason=1).  In both cases every player gets their stake
+// back via the on-chain `cancel_br` helper, so we don't touch
+// player_stats here.  Chips are returned by separate claim_chip_br
+// calls which don't emit events.
+export async function handleBattleRoyaleCancelled(data, ctx) {
+  const id     = asNum(data.id);
+  const reason = asNum(data.reason);
+
+  if (!await claimEvent("BattleRoyaleCancelled", ctx, { id, reason })) return;
+
+  await db.query(
+    `UPDATE battle_royales
+       SET status = 4, cancel_reason = $1, settled_at = NOW(), cancel_tx = $2
+     WHERE id = $3`,
+    [reason, ctx.signature, id],
+  );
+
+  const { rows } = await db.query("SELECT players FROM battle_royales WHERE id = $1", [id]);
+  const participants = (rows[0]?.players ?? []).map((p) => p.player).filter(Boolean);
+  broadcastToPlayers("br:cancelled", { id, reason }, participants);
+}
+
 export async function handleDeposited(data, ctx) {
   const user    = asPubkey(data.user);
   const amount  = lamportsToSol(data.amount);
@@ -350,18 +588,25 @@ export async function handleWithdrawnUser(data, ctx) {
 // ============================================================
 
 const DISPATCH = {
-  ChipMinted:             handleChipMinted,
-  BattleCreated:          handleBattleCreated,
-  BattleJoined:           handleBattleJoined,
-  BattleDecided:          handleBattleDecided,
-  BattleSettledPaid:      handleBattleSettledPaid,
-  BattleSettledForfeited: handleBattleSettledForfeited,
-  BattleCancelled:        handleBattleCancelled,
-  BattleExpired:          handleBattleExpired,
-  VrfTimedOut:            handleVrfTimedOut,
-  Deposited:              handleDeposited,
-  Withdrawn:              handleWithdrawnUser,
-  SwitchboardVerified:    handleSwitchboardVerified,
+  ChipMinted:               handleChipMinted,
+  BattleCreated:            handleBattleCreated,
+  BattleJoined:             handleBattleJoined,
+  BattleDecided:            handleBattleDecided,
+  BattleSettledPaid:        handleBattleSettledPaid,
+  BattleSettledForfeited:   handleBattleSettledForfeited,
+  BattleCancelled:          handleBattleCancelled,
+  BattleExpired:            handleBattleExpired,
+  VrfTimedOut:              handleVrfTimedOut,
+  Deposited:                handleDeposited,
+  Withdrawn:                handleWithdrawnUser,
+  SwitchboardVerified:      handleSwitchboardVerified,
+  // SEC-22 — Battle Royale
+  BattleRoyaleCreated:      handleBattleRoyaleCreated,
+  BattleRoyaleJoined:       handleBattleRoyaleJoined,
+  BattleRoyaleRolling:      handleBattleRoyaleRolling,
+  BattleRoyaleDecided:      handleBattleRoyaleDecided,
+  BattleRoyaleSettledPaid:  handleBattleRoyaleSettledPaid,
+  BattleRoyaleCancelled:    handleBattleRoyaleCancelled,
 };
 
 export async function dispatchEvent(event, data, ctx) {

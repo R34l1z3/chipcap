@@ -69,6 +69,53 @@ ALTER TABLE battles ADD COLUMN IF NOT EXISTS vrf_method        VARCHAR(16);
 ALTER TABLE battles ADD COLUMN IF NOT EXISTS randomness_account VARCHAR(44);
 
 -- ============================================================
+-- SEC-22: Battle Royale (8-player single-VRF mode)
+-- ============================================================
+-- IDs come from the same arena.next_battle_id counter as 1v1 battles,
+-- so a given numeric id is either in battles OR battle_royales, never
+-- both.  players is a denormalised JSONB array of {slot, player, chip}
+-- objects -- only mutated by BattleRoyaleJoined handlers and written
+-- once per join, so we accept the rewrite cost in exchange for not
+-- needing a join table for the <= 8 rows per BR.
+CREATE TABLE IF NOT EXISTS battle_royales (
+  id                 BIGINT       PRIMARY KEY,
+  creator            VARCHAR(44)  NOT NULL,
+  pool_tier          SMALLINT     NOT NULL,
+  max_players        SMALLINT     NOT NULL,
+  pool_lamports      BIGINT       NOT NULL DEFAULT 0,    -- pool_amount once locked in
+  status             SMALLINT     NOT NULL DEFAULT 0,    -- 0=waiting 1=rolling 2=decided 3=settled 4=cancelled
+  num_joined         SMALLINT     NOT NULL DEFAULT 0,
+  players            JSONB        NOT NULL DEFAULT '[]'::jsonb,   -- [{slot, player, chip}]
+  winner             VARCHAR(44),
+  winner_idx         SMALLINT,
+  random_seed        TEXT,
+  payment_amount     NUMERIC      DEFAULT 0,             -- SOL
+  fee_amount         NUMERIC      DEFAULT 0,             -- SOL
+  cancel_reason      SMALLINT,                           -- mirrors program's reason byte
+  vrf_method         VARCHAR(16),                        -- 'switchboard' once SwitchboardVerified arrives
+  randomness_account VARCHAR(44),
+  created_at         TIMESTAMPTZ,
+  rolling_at         TIMESTAMPTZ,
+  decided_at         TIMESTAMPTZ,
+  settled_at         TIMESTAMPTZ,
+  create_tx          VARCHAR(88),
+  rolling_tx         VARCHAR(88),
+  decide_tx          VARCHAR(88),
+  settle_tx          VARCHAR(88),
+  cancel_tx          VARCHAR(88),
+  indexed_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_br_status   ON battle_royales(status);
+CREATE INDEX IF NOT EXISTS idx_br_creator  ON battle_royales(creator);
+CREATE INDEX IF NOT EXISTS idx_br_winner   ON battle_royales(winner);
+CREATE INDEX IF NOT EXISTS idx_br_created  ON battle_royales(created_at DESC);
+-- For "battles a player participated in" queries -- GIN on the jsonb
+-- array of player objects lets us answer  players @> [{"player":"X"}]
+-- in O(log n) without a sidecar table.
+CREATE INDEX IF NOT EXISTS idx_br_players  ON battle_royales USING gin (players jsonb_path_ops);
+
+-- ============================================================
 -- Player stats (aggregated)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS player_stats (
