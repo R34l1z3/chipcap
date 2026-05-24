@@ -1,9 +1,12 @@
 // ============================================================
 // chiptap-solana-relayer / src/index.js
 //
-// One responsibility: watch battle_arena for `BattleJoined` events,
-// and call `fulfill_random_words(seed)` as the registered
-// vrf_authority shortly after.
+// Two responsibilities:
+//   1. Watch battle_arena for `BattleJoined` events → fulfill 1v1 VRF
+//      (SEC-21 Switchboard Option B, or legacy slothash Option A).
+//   2. (SEC-22 Phase 2) Watch for `BattleRoyaleRolling` events →
+//      fulfill Battle Royale VRF via the same Switchboard pipeline
+//      (BR is Switchboard-only — there is no slothash fallback ix).
 //
 // Subscription strategy:
 //   • Primary: connection.onLogs(programId) — live stream
@@ -12,10 +15,12 @@
 //     hiccup.  Same pattern as the indexer (SEC-11 watchdog).
 //
 // Idempotency:
-//   • If two BattleJoined events arrive for the same battle_id (replay,
-//     reorg, etc.), the program rejects the second `fulfill_random_words`
-//     with WrongStatus (battle is already DECIDED).  Relayer treats that
-//     as success.
+//   • If two BattleJoined / BattleRoyaleRolling events arrive for the
+//     same id (replay, reorg, etc.), the program rejects the second
+//     `fulfill_random_words*` with WrongStatus (already DECIDED).
+//     Relayer treats that as success.
+//   • Plus in-process `completed` Set short-circuits before we even
+//     burn a Switchboard cycle on the dupe.
 // ============================================================
 
 import "dotenv/config";
@@ -81,6 +86,11 @@ const arenaConfig = pda([enc("arena")]);
 // Battle PDA seeds in the program are [b"battle", id.le8].
 const battleSeed = (id) =>
   pda([enc("battle"), new BN(id).toArrayLike(Buffer, "le", 8)]);
+// SEC-22 — Battle Royale PDA seeds are [b"royale", id.le8].
+// Royale ID is drawn from the same `arena.next_battle_id` counter,
+// so 1v1 and BR cannot collide on the same numeric id.
+const royaleSeed = (id) =>
+  pda([enc("royale"), new BN(id).toArrayLike(Buffer, "le", 8)]);
 
 const eventCoder = new BorshEventCoder(arenaIdl);
 
@@ -122,12 +132,18 @@ async function fulfill(battleId) {
       log(`[fulfill #${battleId}] starting Switchboard cycle (queue=${queue.toBase58().slice(0,8)}…)`);
       const { randomnessAccount, fulfillSig } = await runSwitchboardCycle({
         connection,
-        payer:           wallet.payer,
-        arenaProgram:    arena,
-        battleId,
-        battlePda:       bPda,
-        arenaConfigPda:  arenaConfig,
-        queuePubkey:     queue,
+        payer:        wallet.payer,
+        queuePubkey:  queue,
+        buildFulfillIx: (randomnessAccountPk) =>
+          arena.methods
+            .fulfillRandomWordsSwitchboard()
+            .accounts({
+              config:            arenaConfig,
+              battle:            bPda,
+              randomnessAccount: randomnessAccountPk,
+              caller:            wallet.publicKey,
+            })
+            .instruction(),
       });
       log(`[fulfill #${battleId}] OK (Switchboard)  randomness=${randomnessAccount.toBase58().slice(0,8)}…  tx=${fulfillSig.slice(0,16)}…`);
       completed.add(key);
@@ -163,11 +179,92 @@ async function fulfill(battleId) {
   }
 }
 
+// ---- SEC-22 — Battle Royale fulfill ------------------------------
+const brInflight  = new Set();
+const brCompleted = new Set();
+
+async function fulfillBr(royaleId) {
+  const key = String(royaleId);
+  if (brInflight.has(key) || brCompleted.has(key)) {
+    dbg(`royale ${royaleId} already in-flight / done — skipping`);
+    return;
+  }
+  brInflight.add(key);
+  try {
+    // Brief pause so on-chain state has time to commit join_battle_royale's
+    // last write (status transitions to ROLLING on the 8th join).
+    await new Promise((r) => setTimeout(r, cfg.fulfillDelayMs));
+
+    const rPda = royaleSeed(royaleId);
+
+    // Re-read to confirm it's actually ROLLING.  Race: another caller
+    // (e.g. a player invoked fulfill via UI) may have already fulfilled.
+    let r;
+    try { r = await arena.account.battleRoyale.fetch(rPda); }
+    catch (e) { log(`[fulfillBr #${royaleId}] not on chain (${e.message}) — skipping`); return; }
+    if (r.status !== 1) {
+      log(`[fulfillBr #${royaleId}] status=${r.status} (not ROLLING) — skipping`);
+      brCompleted.add(key);
+      return;
+    }
+
+    // BR has no slothash path — it was introduced post SEC-21 and
+    // only the Switchboard ix exists.  If RANDOMNESS_SOURCE != switchboard,
+    // we simply don't auto-fulfill; an admin can run force_resolve.
+    if (cfg.randomnessSource !== "switchboard") {
+      log(`[fulfillBr #${royaleId}] RANDOMNESS_SOURCE=${cfg.randomnessSource} — BR requires switchboard, skipping`);
+      brCompleted.add(key);
+      return;
+    }
+
+    const { queue } = switchboardEndpoints(
+      cfg.rpcHttp.includes("mainnet") ? "mainnet" : "devnet",
+    );
+    log(`[fulfillBr #${royaleId}] starting Switchboard cycle (queue=${queue.toBase58().slice(0,8)}…)`);
+    const { randomnessAccount, fulfillSig } = await runSwitchboardCycle({
+      connection,
+      payer:        wallet.payer,
+      queuePubkey:  queue,
+      buildFulfillIx: (randomnessAccountPk) =>
+        arena.methods
+          .fulfillRandomWordsBrSwitchboard()
+          .accounts({
+            config:            arenaConfig,
+            royale:            rPda,
+            randomnessAccount: randomnessAccountPk,
+            caller:            wallet.publicKey,
+          })
+          .instruction(),
+    });
+    log(`[fulfillBr #${royaleId}] OK  randomness=${randomnessAccount.toBase58().slice(0,8)}…  tx=${fulfillSig.slice(0,16)}…`);
+    brCompleted.add(key);
+  } catch (e) {
+    // WrongStatus = already DECIDED — benign race lost.
+    if (/WrongStatus/.test(e.message) || /6002/.test(e.message)) {
+      dbg(`[fulfillBr #${royaleId}] already decided — fine`);
+      brCompleted.add(key);
+    } else {
+      log(`[fulfillBr #${royaleId}] FAILED:`, e.message);
+    }
+  } finally {
+    brInflight.delete(key);
+  }
+}
+
 // ---- event decoder ------------------------------------------------
 const PROGRAM_DATA_PREFIX = "Program data: ";
 
-function extractBattleJoinedIds(logs) {
-  const ids = [];
+/**
+ * Walk a tx's log lines and return:
+ *   { battleIds: u64[], royaleIds: u64[] }
+ * for the events we care about (BattleJoined / BattleRoyaleRolling).
+ * Other events are silently ignored — we don't fail-open on the
+ * presence of unknown event names, mirroring SEC-12's `startsWith`
+ * discipline (`indexOf` would false-positive on `msg!()` logs).
+ */
+function extractFulfillCandidates(logs) {
+  const battleIds = [];
+  const royaleIds = [];
   for (const line of logs || []) {
     if (typeof line !== "string") continue;
     if (!line.startsWith(PROGRAM_DATA_PREFIX)) continue;
@@ -175,12 +272,17 @@ function extractBattleJoinedIds(logs) {
     if (!b64) continue;
     try {
       const decoded = eventCoder.decode(b64);
-      if (decoded?.name === "BattleJoined") {
-        ids.push(decoded.data.battle_id ?? decoded.data.battleId);
+      if (!decoded) continue;
+      if (decoded.name === "BattleJoined") {
+        battleIds.push(decoded.data.battle_id ?? decoded.data.battleId);
+      } else if (decoded.name === "BattleRoyaleRolling") {
+        // SEC-22 — BR transitions to ROLLING only on the LAST join
+        // (when max_players is reached).  That's the signal to roll VRF.
+        royaleIds.push(decoded.data.id);
       }
     } catch { /* not our event, ignore */ }
   }
-  return ids;
+  return { battleIds, royaleIds };
 }
 
 // ---- live subscription -------------------------------------------
@@ -191,10 +293,14 @@ async function startLive() {
     cfg.programId,
     (logsResult) => {
       if (logsResult.err) return;
-      const ids = extractBattleJoinedIds(logsResult.logs);
-      for (const id of ids) {
+      const { battleIds, royaleIds } = extractFulfillCandidates(logsResult.logs);
+      for (const id of battleIds) {
         log(`[live] BattleJoined #${id} in sig=${logsResult.signature.slice(0,16)}…`);
         fulfill(id);
+      }
+      for (const id of royaleIds) {
+        log(`[live] BattleRoyaleRolling #${id} in sig=${logsResult.signature.slice(0,16)}…`);
+        fulfillBr(id);
       }
     },
     "confirmed",
@@ -225,10 +331,14 @@ async function pollForMissed() {
         maxSupportedTransactionVersion: 0,
       });
       if (!tx?.meta?.logMessages) continue;
-      const ids = extractBattleJoinedIds(tx.meta.logMessages);
-      for (const id of ids) {
+      const { battleIds, royaleIds } = extractFulfillCandidates(tx.meta.logMessages);
+      for (const id of battleIds) {
         log(`[poll] BattleJoined #${id} in sig=${s.signature.slice(0,16)}…`);
         fulfill(id);
+      }
+      for (const id of royaleIds) {
+        log(`[poll] BattleRoyaleRolling #${id} in sig=${s.signature.slice(0,16)}…`);
+        fulfillBr(id);
       }
     }
   } catch (e) {
@@ -260,6 +370,9 @@ async function main() {
   log(`[boot] connected to ${cfg.rpcHttp}, slot=${slot}`);
   log(`[boot] watching program ${cfg.programId.toBase58()}`);
   log(`[boot] randomness source: ${cfg.randomnessSource}`);
+  log(`[boot] dispatch table:`);
+  log(`[boot]   BattleJoined           → fulfill_random_words${cfg.randomnessSource === "switchboard" ? "_switchboard" : "(seed)"}`);
+  log(`[boot]   BattleRoyaleRolling    → fulfill_random_words_br_switchboard${cfg.randomnessSource === "switchboard" ? "" : " (DISABLED — needs RANDOMNESS_SOURCE=switchboard)"}`);
 
   await startLive();
   setInterval(pollForMissed, cfg.pollIntervalMs);

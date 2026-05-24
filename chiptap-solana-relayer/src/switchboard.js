@@ -1,17 +1,23 @@
 // ============================================================
-// src/switchboard.js — SEC-21 Option B: Switchboard On-Demand VRF
+// src/switchboard.js — SEC-21 / SEC-22 Option B: Switchboard On-Demand VRF
 //
 // Manual driver — sdk's `commitAndReveal` has a bug where it
 // builds a v0 tx without specifying the payer; we replicate the
 // logic ourselves with proper signers.
 //
-// Flow per battle:
+// Flow per VRF request (1v1 battle OR Battle Royale):
 //   1. createAndCommitIxs → tx with [createIx, commitIx], signed by
 //      payer + the freshly-generated randomnessKp
 //   2. wait queue's reveal-delay (~10s)
 //   3. revealIx() — SDK fetches the oracle's signed reveal payload
 //      and returns an ix that consumes it
 //   4. tx2 = [revealIx, ourFulfillIx] signed by payer, atomic
+//
+// `runSwitchboardCycle` is now ix-agnostic — the caller passes a
+// `buildFulfillIx(randomnessAccountPubkey) => Promise<TxIx>` callback,
+// so the same driver serves 1v1 (`fulfill_random_words_switchboard`,
+// SEC-21) AND Battle Royale (`fulfill_random_words_br_switchboard`,
+// SEC-22).  No code duplication.
 // ============================================================
 
 import sb from "@switchboard-xyz/on-demand";
@@ -28,8 +34,21 @@ export function switchboardEndpoints(cluster) {
   return { programId: ON_DEMAND_DEVNET_PID, queue: ON_DEMAND_DEVNET_QUEUE };
 }
 
+/**
+ * Run the full Switchboard On-Demand commit→reveal→fulfill cycle.
+ *
+ * @param {object} args
+ * @param {Connection} args.connection
+ * @param {Keypair}    args.payer       — pays SOL + signs all txs
+ * @param {PublicKey}  args.queuePubkey — Switchboard queue (devnet vs mainnet)
+ * @param {(randomnessAccount: PublicKey) => Promise<TransactionInstruction>}
+ *                      args.buildFulfillIx — our program's "consume the
+ *                      revealed seed" ix.  Receives the randomness account
+ *                      pubkey so it can wire it as an account.
+ * @returns {Promise<{ randomnessAccount: PublicKey, fulfillSig: string }>}
+ */
 export async function runSwitchboardCycle({
-  connection, payer, arenaProgram, battlePda, arenaConfigPda, queuePubkey,
+  connection, payer, queuePubkey, buildFulfillIx,
 }) {
   // Use a provider that knows our payer wallet (otherwise SDK helpers
   // can't sign / resolve the authority).
@@ -70,15 +89,9 @@ export async function runSwitchboardCycle({
       // gateway is ready (~5-30 s on a healthy queue).
       const revealIx = await randomness.revealIx(payer.publicKey);
 
-      const fulfillIx = await arenaProgram.methods
-        .fulfillRandomWordsSwitchboard()
-        .accounts({
-          config:             arenaConfigPda,
-          battle:             battlePda,
-          randomnessAccount:  accountKeypair.publicKey,
-          caller:             payer.publicKey,
-        })
-        .instruction();
+      // Our program-specific ix that consumes the seed.  The caller
+      // decides whether this is 1v1 or BR; we don't care here.
+      const fulfillIx = await buildFulfillIx(accountKeypair.publicKey);
 
       const tx2 = new Transaction().add(cuPrice, cuLimit, revealIx, fulfillIx);
       tx2.feePayer = payer.publicKey;
