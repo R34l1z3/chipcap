@@ -51,6 +51,10 @@ const S = (name, opts = {}) => ({ name, signer: true, ...opts });
 const WS = (name, opts = {}) => ({ name, writable: true, signer: true, ...opts });
 const SP = { name: "system_program", address: "11111111111111111111111111111111" };
 const MPL = { name: "mpl_core", address: "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d" };
+// SEC-23 — SPL ticket plumbing
+const TOKEN_PROGRAM  = { name: "token_program",            address: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" };
+const ATOKEN_PROGRAM = { name: "associated_token_program", address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" };
+const RENT           = { name: "rent",                     address: "SysvarRent111111111111111111111111111111111"  };
 
 // ============================================================
 //                         TREASURY
@@ -462,9 +466,116 @@ const arenaIdl = {
       W ("royale"),
       WS("caller"),
     ]),
+
+    // ============================================================
+    // SEC-23 — Tournament (8-player single-elim + 3rd-place)
+    // ============================================================
+    ix("init_ticket_mint", [
+      W ("config"),
+      W ("ticket_mint"),
+      A ("ticket_authority"),
+      WS("owner"),
+      TOKEN_PROGRAM,
+      SP,
+      RENT,
+    ]),
+
+    ix("buy_ticket", [
+      A ("config"),
+      W ("vault"),
+      W ("ticket_mint"),
+      A ("ticket_authority"),
+      W ("buyer_ata"),
+      WS("buyer"),
+      TOKEN_PROGRAM,
+      ATOKEN_PROGRAM,
+      SP,
+    ], [
+      { name: "amount", type: "u64" },
+    ]),
+
+    ix("create_tournament", [
+      W ("config"),
+      W ("tournament"),
+      WS("creator"),
+      SP,
+    ], [
+      { name: "entry_fee_lamports", type: "u64" },
+    ]),
+
+    ix("register_for_tournament", [
+      A ("config"),
+      W ("tournament"),
+      A ("chip_authority"),
+      W ("chip"),
+      W ("ticket_mint"),
+      W ("player_ata"),
+      W ("player_user"),
+      A ("authority"),
+      WS("player"),
+      MPL,
+      TOKEN_PROGRAM,
+      SP,
+    ]),
+
+    ix("start_tournament", [
+      A ("config"),
+      W ("tournament"),
+      WS("caller"),
+    ]),
+
+    ix("advance_match_switchboard", [
+      A ("config"),
+      W ("tournament"),
+      A ("randomness_account"),
+      WS("caller"),
+    ], [
+      { name: "match_idx", type: "u8" },
+    ]),
+
+    ix("claim_tournament_prize", [
+      W ("config"),
+      W ("tournament"),
+      W ("vault"),
+      W ("winner_user"),
+      W ("winner"),
+      W ("treasury_config"),
+      W ("treasury_vault"),
+      A ("treasury_program"),
+      WS("caller"),
+      SP,
+    ], [
+      { name: "rank", type: "u8" },
+    ]),
+
+    ix("claim_tournament_chip", [
+      A ("config"),
+      W ("tournament"),
+      A ("chip_authority"),
+      W ("chip"),
+      WS("player"),
+      MPL,
+      SP,
+    ]),
+
+    ix("expire_tournament_registration", [
+      A ("config"),
+      W ("tournament"),
+      WS("caller"),
+    ]),
+
+    ix("force_resolve_tournament", [
+      A ("config"),
+      W ("tournament"),
+      WS("caller"),
+    ]),
   ],
 
-  accounts: [acc("ArenaConfig"), acc("UserAccount"), acc("Battle"), acc("BattleRoyale")],
+  accounts: [
+    acc("ArenaConfig"), acc("UserAccount"), acc("Battle"),
+    acc("BattleRoyale"),
+    acc("Tournament"),
+  ],
 
   events: [
     ev("ArenaInitialized"),
@@ -494,6 +605,18 @@ const arenaIdl = {
     ev("BattleRoyaleDecided"),
     ev("BattleRoyaleSettledPaid"),
     ev("BattleRoyaleCancelled"),
+    // SEC-23 — Tournament
+    ev("TicketMintInitialized"),
+    ev("TicketsPurchased"),
+    ev("TournamentCreated"),
+    ev("TournamentRegistered"),
+    ev("TournamentStarted"),
+    ev("TournamentMatchRolling"),
+    ev("TournamentMatchDecided"),
+    ev("TournamentCompleted"),
+    ev("TournamentPrizeClaimed"),
+    ev("TournamentChipClaimed"),
+    ev("TournamentCancelled"),
   ],
 
   errors: [
@@ -521,14 +644,23 @@ const arenaIdl = {
     { code: 6020, name: "SwitchboardDisabled",         msg: "Switchboard VRF disabled (vrf_program is zero) — call set_vrf_program first" },
     { code: 6021, name: "MalformedRandomnessAccount",  msg: "Switchboard randomness account is malformed (wrong size or discriminator)" },
     { code: 6022, name: "RandomnessNotRevealed",       msg: "Switchboard randomness has not been revealed yet (value_slot <= seed_slot)" },
-    // SEC-22 — Battle Royale (NB: these shift MathOverflow's code from 6023 → 6029)
+    // SEC-22 — Battle Royale
     { code: 6023, name: "InvalidMaxPlayers",           msg: "max_players must be between 2 and BR_MAX_PLAYERS" },
     { code: 6024, name: "BattleRoyaleFull",            msg: "Battle Royale already full" },
     { code: 6025, name: "AlreadyJoined",               msg: "Player has already joined this Battle Royale" },
     { code: 6026, name: "NotAParticipant",             msg: "Caller is not a participant of this Battle Royale" },
     { code: 6027, name: "ChipAlreadyClaimed",          msg: "Chip already claimed for this Battle Royale slot" },
     { code: 6028, name: "PrizeAlreadyClaimed",         msg: "Prize already claimed for this Battle Royale" },
-    { code: 6029, name: "MathOverflow",                msg: "Arithmetic overflow" },
+    // SEC-23 — Tournament (NB: shifts MathOverflow from 6029 → 6037)
+    { code: 6029, name: "TicketMintAlreadyInitialized", msg: "Ticket SPL mint already initialised — init_ticket_mint is one-shot" },
+    { code: 6030, name: "WrongTicketMint",              msg: "Provided ticket mint does not match config.ticket_mint" },
+    { code: 6031, name: "TournamentRegistrationClosed", msg: "Tournament registration period closed or full" },
+    { code: 6032, name: "TournamentNotReady",           msg: "Tournament lobby not full — cannot start yet" },
+    { code: 6033, name: "TournamentMatchNotPending",    msg: "Match is not in PENDING state" },
+    { code: 6034, name: "WrongTournamentRound",         msg: "Match does not belong to the current round" },
+    { code: 6035, name: "TournamentNotComplete",        msg: "Tournament has not completed — prize unavailable" },
+    { code: 6036, name: "WrongPrizeRank",               msg: "Prize rank must be 0 (1st), 1 (2nd), or 2 (3rd)" },
+    { code: 6037, name: "MathOverflow",                msg: "Arithmetic overflow" },
   ],
 
   types: [
@@ -551,8 +683,12 @@ const arenaIdl = {
         { name: "chip_authority_bump",  type: "u8" },
         // SEC-21 — Switchboard On-Demand program registration.
         { name: "vrf_program",          type: PUBKEY },
-        // SEC-20 forward-compat padding (was 64, shrunk to 32 by SEC-21)
-        { name: "_reserved",            type: arr("u8", 32) },
+        // SEC-23 — SPL ticket mint for tournaments (carved from the
+        // remaining 32 bytes of _reserved after SEC-21).
+        { name: "ticket_mint",          type: PUBKEY },
+        // SEC-20 padding fully consumed (was 64 → 32 → 0).  Any future
+        // field needs a realloc! migration ix on the config PDA.
+        { name: "_reserved",            type: arr("u8", 0) },
       ]},
     },
     {
@@ -706,6 +842,105 @@ const arenaIdl = {
       { name: "payout", type: "u64" }, { name: "fee", type: "u64" },
     ]}},
     { name: "BattleRoyaleCancelled",   type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "reason", type: "u8" },
+    ]}},
+
+    // ---- SEC-23 — Tournament account + nested sub-struct ----
+    {
+      name: "TMatch",
+      type: { kind: "struct", fields: [
+        { name: "status",              type: "u8"   },
+        { name: "round",               type: "u8"   },
+        { name: "slot_a",              type: "u8"   },
+        { name: "slot_b",              type: "u8"   },
+        { name: "winner_slot",         type: "u8"   },
+        { name: "seed",                type: "u64"  },
+        { name: "randomness_account",  type: PUBKEY },
+        { name: "decided_at",          type: "i64"  },
+      ]},
+    },
+    {
+      // Fixed 8-player single-elimination + 3rd-place match.
+      // matches[0..4] = R0 quarters; [4..6] = R1 semis;
+      // matches[6]    = final; matches[7] = 3rd-place play-off.
+      name: "Tournament",
+      type: { kind: "struct", fields: [
+        { name: "id",                 type: "u64" },
+        { name: "status",             type: "u8" },
+        { name: "bracket_size",       type: "u8" },
+        { name: "registered",         type: "u8" },
+        { name: "current_round",      type: "u8" },
+        { name: "creator",            type: PUBKEY },
+        { name: "players",            type: arr(PUBKEY,    8) },
+        { name: "chips",              type: arr(PUBKEY,    8) },
+        { name: "matches",            type: arr(def("TMatch"), 8) },
+        { name: "eliminated_mask",    type: "u16" },
+        { name: "winner_1st_slot",    type: "u8"  },
+        { name: "winner_2nd_slot",    type: "u8"  },
+        { name: "winner_3rd_slot",    type: "u8"  },
+        { name: "entry_fee",          type: "u64" },
+        { name: "pool_amount",        type: "u64" },
+        { name: "fee_amount",         type: "u64" },
+        { name: "prize_1st",          type: "u64" },
+        { name: "prize_2nd",          type: "u64" },
+        { name: "prize_3rd",          type: "u64" },
+        { name: "created_at",         type: "i64" },
+        { name: "started_at",         type: "i64" },
+        { name: "completed_at",       type: "i64" },
+        { name: "prize_claimed_mask", type: "u8"  },
+        { name: "chips_claimed_mask", type: "u16" },
+        { name: "bump",               type: "u8"  },
+        { name: "_reserved",          type: arr("u8", 64) },
+      ]},
+    },
+
+    // ---- SEC-23 — Tournament events ----
+    { name: "TicketMintInitialized", type: { kind: "struct", fields: [
+      { name: "ticket_mint", type: PUBKEY }, { name: "authority", type: PUBKEY },
+    ]}},
+    { name: "TicketsPurchased", type: { kind: "struct", fields: [
+      { name: "buyer", type: PUBKEY }, { name: "amount", type: "u64" },
+      { name: "paid_lamports", type: "u64" },
+    ]}},
+    { name: "TournamentCreated", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "bracket_size", type: "u8" },
+      { name: "entry_fee", type: "u64" }, { name: "creator", type: PUBKEY },
+    ]}},
+    { name: "TournamentRegistered", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "player", type: PUBKEY },
+      { name: "chip", type: PUBKEY }, { name: "slot", type: "u8" },
+      { name: "registered", type: "u8" },
+    ]}},
+    { name: "TournamentStarted", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "pool_amount", type: "u64" },
+      { name: "fee_amount", type: "u64" },
+      { name: "prize_1st", type: "u64" },
+      { name: "prize_2nd", type: "u64" },
+      { name: "prize_3rd", type: "u64" },
+    ]}},
+    { name: "TournamentMatchRolling", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "round", type: "u8" },
+      { name: "match_idx", type: "u8" },
+      { name: "slot_a", type: "u8" }, { name: "slot_b", type: "u8" },
+    ]}},
+    { name: "TournamentMatchDecided", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "round", type: "u8" },
+      { name: "match_idx", type: "u8" },
+      { name: "winner_slot", type: "u8" }, { name: "seed", type: "u64" },
+    ]}},
+    { name: "TournamentCompleted", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "winner_1st", type: PUBKEY },
+      { name: "winner_2nd", type: PUBKEY }, { name: "winner_3rd", type: PUBKEY },
+    ]}},
+    { name: "TournamentPrizeClaimed", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "winner", type: PUBKEY },
+      { name: "rank", type: "u8" }, { name: "amount", type: "u64" },
+    ]}},
+    { name: "TournamentChipClaimed", type: { kind: "struct", fields: [
+      { name: "id", type: "u64" }, { name: "player", type: PUBKEY },
+      { name: "slot", type: "u8" },
+    ]}},
+    { name: "TournamentCancelled", type: { kind: "struct", fields: [
       { name: "id", type: "u64" }, { name: "reason", type: "u8" },
     ]}},
   ],

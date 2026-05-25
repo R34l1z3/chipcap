@@ -1179,6 +1179,430 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "init_ticket_mint",
+      "discriminator": [
+        4,
+        27,
+        49,
+        239,
+        213,
+        125,
+        241,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "ticket_mint",
+          "writable": true
+        },
+        {
+          "name": "ticket_authority"
+        },
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "buy_ticket",
+      "discriminator": [
+        11,
+        24,
+        17,
+        193,
+        168,
+        116,
+        164,
+        169
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "ticket_mint",
+          "writable": true
+        },
+        {
+          "name": "ticket_authority"
+        },
+        {
+          "name": "buyer_ata",
+          "writable": true
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "create_tournament",
+      "discriminator": [
+        158,
+        137,
+        233,
+        231,
+        73,
+        132,
+        191,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "tournament",
+          "writable": true
+        },
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "entry_fee_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "register_for_tournament",
+      "discriminator": [
+        85,
+        48,
+        1,
+        248,
+        51,
+        117,
+        2,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "tournament",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip",
+          "writable": true
+        },
+        {
+          "name": "ticket_mint",
+          "writable": true
+        },
+        {
+          "name": "player_ata",
+          "writable": true
+        },
+        {
+          "name": "player_user",
+          "writable": true
+        },
+        {
+          "name": "authority"
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "start_tournament",
+      "discriminator": [
+        164,
+        168,
+        208,
+        157,
+        43,
+        10,
+        220,
+        241
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "tournament",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "advance_match_switchboard",
+      "discriminator": [
+        165,
+        75,
+        3,
+        4,
+        201,
+        50,
+        205,
+        76
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "tournament",
+          "writable": true
+        },
+        {
+          "name": "randomness_account"
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "match_idx",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "claim_tournament_prize",
+      "discriminator": [
+        219,
+        207,
+        183,
+        94,
+        201,
+        32,
+        78,
+        193
+      ],
+      "accounts": [
+        {
+          "name": "config",
+          "writable": true
+        },
+        {
+          "name": "tournament",
+          "writable": true
+        },
+        {
+          "name": "vault",
+          "writable": true
+        },
+        {
+          "name": "winner_user",
+          "writable": true
+        },
+        {
+          "name": "winner",
+          "writable": true
+        },
+        {
+          "name": "treasury_config",
+          "writable": true
+        },
+        {
+          "name": "treasury_vault",
+          "writable": true
+        },
+        {
+          "name": "treasury_program"
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "rank",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "claim_tournament_chip",
+      "discriminator": [
+        79,
+        246,
+        148,
+        16,
+        231,
+        106,
+        245,
+        3
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "tournament",
+          "writable": true
+        },
+        {
+          "name": "chip_authority"
+        },
+        {
+          "name": "chip",
+          "writable": true
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "mpl_core",
+          "address": "CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "expire_tournament_registration",
+      "discriminator": [
+        96,
+        30,
+        26,
+        196,
+        253,
+        15,
+        154,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "tournament",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "force_resolve_tournament",
+      "discriminator": [
+        122,
+        194,
+        89,
+        108,
+        233,
+        51,
+        59,
+        23
+      ],
+      "accounts": [
+        {
+          "name": "config"
+        },
+        {
+          "name": "tournament",
+          "writable": true
+        },
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -1232,6 +1656,19 @@
         52,
         28,
         163
+      ]
+    },
+    {
+      "name": "Tournament",
+      "discriminator": [
+        175,
+        139,
+        119,
+        242,
+        115,
+        194,
+        57,
+        92
       ]
     }
   ],
@@ -1547,6 +1984,149 @@
         154,
         15
       ]
+    },
+    {
+      "name": "TicketMintInitialized",
+      "discriminator": [
+        247,
+        111,
+        123,
+        121,
+        55,
+        253,
+        158,
+        245
+      ]
+    },
+    {
+      "name": "TicketsPurchased",
+      "discriminator": [
+        185,
+        114,
+        111,
+        225,
+        124,
+        92,
+        18,
+        143
+      ]
+    },
+    {
+      "name": "TournamentCreated",
+      "discriminator": [
+        102,
+        32,
+        240,
+        45,
+        52,
+        64,
+        97,
+        0
+      ]
+    },
+    {
+      "name": "TournamentRegistered",
+      "discriminator": [
+        41,
+        209,
+        160,
+        19,
+        165,
+        60,
+        177,
+        126
+      ]
+    },
+    {
+      "name": "TournamentStarted",
+      "discriminator": [
+        200,
+        157,
+        174,
+        194,
+        174,
+        219,
+        107,
+        44
+      ]
+    },
+    {
+      "name": "TournamentMatchRolling",
+      "discriminator": [
+        230,
+        53,
+        254,
+        84,
+        40,
+        214,
+        48,
+        57
+      ]
+    },
+    {
+      "name": "TournamentMatchDecided",
+      "discriminator": [
+        120,
+        221,
+        135,
+        191,
+        54,
+        127,
+        74,
+        35
+      ]
+    },
+    {
+      "name": "TournamentCompleted",
+      "discriminator": [
+        67,
+        47,
+        75,
+        4,
+        191,
+        61,
+        1,
+        150
+      ]
+    },
+    {
+      "name": "TournamentPrizeClaimed",
+      "discriminator": [
+        154,
+        237,
+        249,
+        4,
+        72,
+        239,
+        196,
+        101
+      ]
+    },
+    {
+      "name": "TournamentChipClaimed",
+      "discriminator": [
+        240,
+        42,
+        158,
+        15,
+        90,
+        68,
+        152,
+        194
+      ]
+    },
+    {
+      "name": "TournamentCancelled",
+      "discriminator": [
+        118,
+        92,
+        146,
+        131,
+        165,
+        72,
+        81,
+        120
+      ]
     }
   ],
   "errors": [
@@ -1697,6 +2277,46 @@
     },
     {
       "code": 6029,
+      "name": "TicketMintAlreadyInitialized",
+      "msg": "Ticket SPL mint already initialised — init_ticket_mint is one-shot"
+    },
+    {
+      "code": 6030,
+      "name": "WrongTicketMint",
+      "msg": "Provided ticket mint does not match config.ticket_mint"
+    },
+    {
+      "code": 6031,
+      "name": "TournamentRegistrationClosed",
+      "msg": "Tournament registration period closed or full"
+    },
+    {
+      "code": 6032,
+      "name": "TournamentNotReady",
+      "msg": "Tournament lobby not full — cannot start yet"
+    },
+    {
+      "code": 6033,
+      "name": "TournamentMatchNotPending",
+      "msg": "Match is not in PENDING state"
+    },
+    {
+      "code": 6034,
+      "name": "WrongTournamentRound",
+      "msg": "Match does not belong to the current round"
+    },
+    {
+      "code": 6035,
+      "name": "TournamentNotComplete",
+      "msg": "Tournament has not completed — prize unavailable"
+    },
+    {
+      "code": 6036,
+      "name": "WrongPrizeRank",
+      "msg": "Prize rank must be 0 (1st), 1 (2nd), or 2 (3rd)"
+    },
+    {
+      "code": 6037,
       "name": "MathOverflow",
       "msg": "Arithmetic overflow"
     }
@@ -1773,11 +2393,15 @@
             "type": "pubkey"
           },
           {
+            "name": "ticket_mint",
+            "type": "pubkey"
+          },
+          {
             "name": "_reserved",
             "type": {
               "array": [
                 "u8",
-                32
+                0
               ]
             }
           }
@@ -2437,6 +3061,442 @@
     },
     {
       "name": "BattleRoyaleCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "reason",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TMatch",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "round",
+            "type": "u8"
+          },
+          {
+            "name": "slot_a",
+            "type": "u8"
+          },
+          {
+            "name": "slot_b",
+            "type": "u8"
+          },
+          {
+            "name": "winner_slot",
+            "type": "u8"
+          },
+          {
+            "name": "seed",
+            "type": "u64"
+          },
+          {
+            "name": "randomness_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "decided_at",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tournament",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": "u8"
+          },
+          {
+            "name": "bracket_size",
+            "type": "u8"
+          },
+          {
+            "name": "registered",
+            "type": "u8"
+          },
+          {
+            "name": "current_round",
+            "type": "u8"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "players",
+            "type": {
+              "array": [
+                "pubkey",
+                8
+              ]
+            }
+          },
+          {
+            "name": "chips",
+            "type": {
+              "array": [
+                "pubkey",
+                8
+              ]
+            }
+          },
+          {
+            "name": "matches",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "TMatch"
+                  }
+                },
+                8
+              ]
+            }
+          },
+          {
+            "name": "eliminated_mask",
+            "type": "u16"
+          },
+          {
+            "name": "winner_1st_slot",
+            "type": "u8"
+          },
+          {
+            "name": "winner_2nd_slot",
+            "type": "u8"
+          },
+          {
+            "name": "winner_3rd_slot",
+            "type": "u8"
+          },
+          {
+            "name": "entry_fee",
+            "type": "u64"
+          },
+          {
+            "name": "pool_amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          },
+          {
+            "name": "prize_1st",
+            "type": "u64"
+          },
+          {
+            "name": "prize_2nd",
+            "type": "u64"
+          },
+          {
+            "name": "prize_3rd",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "started_at",
+            "type": "i64"
+          },
+          {
+            "name": "completed_at",
+            "type": "i64"
+          },
+          {
+            "name": "prize_claimed_mask",
+            "type": "u8"
+          },
+          {
+            "name": "chips_claimed_mask",
+            "type": "u16"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "_reserved",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicketMintInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ticket_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicketsPurchased",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "buyer",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "paid_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "bracket_size",
+            "type": "u8"
+          },
+          {
+            "name": "entry_fee",
+            "type": "u64"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "chip",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u8"
+          },
+          {
+            "name": "registered",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentStarted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "pool_amount",
+            "type": "u64"
+          },
+          {
+            "name": "fee_amount",
+            "type": "u64"
+          },
+          {
+            "name": "prize_1st",
+            "type": "u64"
+          },
+          {
+            "name": "prize_2nd",
+            "type": "u64"
+          },
+          {
+            "name": "prize_3rd",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentMatchRolling",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "round",
+            "type": "u8"
+          },
+          {
+            "name": "match_idx",
+            "type": "u8"
+          },
+          {
+            "name": "slot_a",
+            "type": "u8"
+          },
+          {
+            "name": "slot_b",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentMatchDecided",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "round",
+            "type": "u8"
+          },
+          {
+            "name": "match_idx",
+            "type": "u8"
+          },
+          {
+            "name": "winner_slot",
+            "type": "u8"
+          },
+          {
+            "name": "seed",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentCompleted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "winner_1st",
+            "type": "pubkey"
+          },
+          {
+            "name": "winner_2nd",
+            "type": "pubkey"
+          },
+          {
+            "name": "winner_3rd",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentPrizeClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "rank",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentChipClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "player",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TournamentCancelled",
       "type": {
         "kind": "struct",
         "fields": [

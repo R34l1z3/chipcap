@@ -20,6 +20,10 @@
 
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
+use anchor_spl::{
+    token::{self, Mint, Token, TokenAccount, MintTo, Burn},
+    associated_token::AssociatedToken,
+};
 use mpl_core::{
     instructions::TransferV1CpiBuilder,
     ID as MPL_CORE_ID,
@@ -53,6 +57,47 @@ pub const TIMEOUT_VRF:      u8 = 2;
 // returned to their owners after settle (chips are membership tokens
 // here, not stakes).
 pub const BR_MAX_PLAYERS: usize = 8;
+
+// ============================================================
+// SEC-23 — Tournament mode (8-player single-elimination + 3rd-place)
+// ============================================================
+// Bracket layout (slot indices below are positions in tournament.players[]):
+//   Round 0 (matches[0..4]) — quarters: (0v1) (2v3) (4v5) (6v7)
+//   Round 1 (matches[4..6]) — semis:    (winner[0] v winner[1]) (winner[2] v winner[3])
+//   Round 2 (matches[6..8]) — final + 3rd-place:
+//                              matches[6] = winner[4] v winner[5]   (final)
+//                              matches[7] = loser[4]  v loser[5]    (3rd place)
+//
+// Each match consumes a separate Switchboard On-Demand cycle —
+// sequential VRF, bracket fills in progressively.  Total cost on
+// devnet: ~7 × 0.001 SOL = ~0.007 SOL per tournament (paid by relayer).
+pub const T_PLAYERS: usize = 8;
+pub const T_MATCHES: usize = 8;             // 4 + 2 + 1 + 1 (with 3rd-place)
+pub const T_ROUNDS:  u8    = 3;             // R0 quarters, R1 semis, R2 (final + 3rd)
+
+// Hardcoded prize split (sums to 10_000 bps = 100% of pool).  Not
+// configurable via fee_bps — tournaments have their own economy.
+pub const T_PRIZE_1ST_BPS: u16 = 6000;      // 60%
+pub const T_PRIZE_2ND_BPS: u16 = 2500;      // 25%
+pub const T_PRIZE_3RD_BPS: u16 = 1000;      // 10%
+pub const T_FEE_BPS:       u16 =  500;      //  5%
+
+// Tournament status (separate state machine from 1v1/BR — narrower).
+pub const T_STATUS_REGISTERING: u8 = 0;
+pub const T_STATUS_ACTIVE:      u8 = 1;
+pub const T_STATUS_COMPLETED:   u8 = 2;
+pub const T_STATUS_CANCELLED:   u8 = 3;
+
+// Per-match state.
+pub const T_MATCH_PENDING: u8 = 0;
+pub const T_MATCH_DECIDED: u8 = 2;
+
+// Sentinel: "no slot yet known" in winner_*_slot fields.
+pub const T_SLOT_UNSET: u8 = 0xFF;
+
+// Cancellation reason byte (mirrors BR's reason field semantics).
+pub const T_CANCEL_REGISTER_TIMEOUT: u8 = 0;
+pub const T_CANCEL_VRF_TIMEOUT:      u8 = 1;
 
 #[program]
 pub mod battle_arena {
@@ -939,6 +984,450 @@ pub mod battle_arena {
         cancel_br(r, now);
         Ok(())
     }
+
+    // ============================================================
+    // SEC-23 — TOURNAMENT MODE
+    // ============================================================
+
+    /// One-shot admin ix: create the SPL ticket mint with `ticket_authority`
+    /// PDA as both mint+freeze authority.  Idempotent guard via
+    /// config.ticket_mint zero-check.  Decimals=0 → tickets are whole-units
+    /// only.
+    pub fn init_ticket_mint(ctx: Context<InitTicketMint>) -> Result<()> {
+        let cfg = &mut ctx.accounts.config;
+        require_keys_eq!(cfg.owner, ctx.accounts.owner.key(), ArenaError::NotOwner);
+        require!(cfg.ticket_mint == Pubkey::default(), ArenaError::TicketMintAlreadyInitialized);
+
+        cfg.ticket_mint = ctx.accounts.ticket_mint.key();
+        emit!(TicketMintInitialized {
+            ticket_mint: ctx.accounts.ticket_mint.key(),
+            authority:   ctx.accounts.ticket_authority.key(),
+        });
+        Ok(())
+    }
+
+    /// Player buys N tickets paying `ticket_price * N` SOL into arena_vault.
+    /// We mint N tokens to their ATA, payable in `system_program` SOL.
+    /// Price hardcoded for MVP — could be made configurable later via setter.
+    pub fn buy_ticket(ctx: Context<BuyTicket>, amount: u64) -> Result<()> {
+        require!(!ctx.accounts.config.paused, ArenaError::Paused);
+        require!(amount > 0, ArenaError::ZeroAmount);
+
+        // MVP: 0.01 SOL per ticket.  Easy to tune later as a config field.
+        const TICKET_PRICE_LAMPORTS: u64 = 10_000_000; // 0.01 SOL
+        let total_cost = TICKET_PRICE_LAMPORTS
+            .checked_mul(amount).ok_or(ArenaError::MathOverflow)?;
+
+        // Transfer SOL: buyer → arena_vault.
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            system_program::Transfer {
+                from: ctx.accounts.buyer.to_account_info(),
+                to:   ctx.accounts.vault.to_account_info(),
+            },
+        );
+        system_program::transfer(cpi_ctx, total_cost)?;
+
+        // Mint `amount` tokens to buyer's ATA.  PDA-signed.
+        let auth_bump = ctx.bumps.ticket_authority;
+        let seeds: &[&[u8]] = &[b"ticket_authority", core::slice::from_ref(&auth_bump)];
+        let signer_seeds: &[&[&[u8]]] = &[seeds];
+        let mint_to_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            MintTo {
+                mint:      ctx.accounts.ticket_mint.to_account_info(),
+                to:        ctx.accounts.buyer_ata.to_account_info(),
+                authority: ctx.accounts.ticket_authority.to_account_info(),
+            },
+            signer_seeds,
+        );
+        token::mint_to(mint_to_ctx, amount)?;
+
+        emit!(TicketsPurchased {
+            buyer:          ctx.accounts.buyer.key(),
+            amount,
+            paid_lamports:  total_cost,
+        });
+        Ok(())
+    }
+
+    /// Creator opens a new 8-player tournament with a fixed entry fee.
+    /// `entry_fee_lamports` is locked in at creation — protects players
+    /// against a mid-tournament tier change by admin.
+    pub fn create_tournament(
+        ctx: Context<CreateTournament>,
+        entry_fee_lamports: u64,
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.paused, ArenaError::Paused);
+        require!(entry_fee_lamports > 0, ArenaError::ZeroAmount);
+
+        let id = ctx.accounts.config.next_battle_id;
+        ctx.accounts.config.next_battle_id += 1;
+
+        let t = &mut ctx.accounts.tournament;
+        t.id            = id;
+        t.status        = T_STATUS_REGISTERING;
+        t.bracket_size  = T_PLAYERS as u8;
+        t.registered    = 0;
+        t.current_round = 0;
+        t.creator       = ctx.accounts.creator.key();
+        t.players       = [Pubkey::default(); T_PLAYERS];
+        t.chips         = [Pubkey::default(); T_PLAYERS];
+        t.matches       = [TMatch::default(); T_MATCHES];
+        t.winner_1st_slot = T_SLOT_UNSET;
+        t.winner_2nd_slot = T_SLOT_UNSET;
+        t.winner_3rd_slot = T_SLOT_UNSET;
+        t.entry_fee     = entry_fee_lamports;
+        t.created_at    = Clock::get()?.unix_timestamp;
+        t.bump          = ctx.bumps.tournament;
+
+        emit!(TournamentCreated {
+            id,
+            bracket_size: T_PLAYERS as u8,
+            entry_fee:    entry_fee_lamports,
+            creator:      t.creator,
+        });
+        Ok(())
+    }
+
+    /// Burn 1 ticket + escrow chip + deduct entry_fee from internal balance.
+    /// When the lobby reaches T_PLAYERS, the next caller must invoke
+    /// `start_tournament` to seed round 0.
+    pub fn register_for_tournament(ctx: Context<RegisterForTournament>) -> Result<()> {
+        require!(!ctx.accounts.config.paused, ArenaError::Paused);
+        let t = &mut ctx.accounts.tournament;
+        require!(t.status == T_STATUS_REGISTERING, ArenaError::TournamentRegistrationClosed);
+        require!((t.registered as usize) < T_PLAYERS, ArenaError::TournamentRegistrationClosed);
+
+        let player = ctx.accounts.player.key();
+        for i in 0..(t.registered as usize) {
+            require!(t.players[i] != player, ArenaError::AlreadyJoined);
+        }
+
+        // Burn 1 ticket from the player's ATA.
+        let burn_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            Burn {
+                mint:      ctx.accounts.ticket_mint.to_account_info(),
+                from:      ctx.accounts.player_ata.to_account_info(),
+                authority: ctx.accounts.player.to_account_info(),
+            },
+        );
+        token::burn(burn_ctx, 1)?;
+
+        // Debit entry fee from internal balance.
+        require!(
+            ctx.accounts.player_user.balance >= t.entry_fee,
+            ArenaError::InsufficientBalance,
+        );
+        ctx.accounts.player_user.balance = ctx.accounts.player_user.balance
+            .checked_sub(t.entry_fee).ok_or(ArenaError::MathOverflow)?;
+
+        // Escrow chip → chip_authority PDA.
+        TransferV1CpiBuilder::new(&ctx.accounts.mpl_core.to_account_info())
+            .asset(&ctx.accounts.chip.to_account_info())
+            .collection(None)
+            .payer(&ctx.accounts.player.to_account_info())
+            .authority(Some(&ctx.accounts.player.to_account_info()))
+            .new_owner(&ctx.accounts.chip_authority.to_account_info())
+            .system_program(Some(&ctx.accounts.system_program.to_account_info()))
+            .invoke()?;
+
+        let slot = t.registered as usize;
+        t.players[slot] = player;
+        t.chips[slot]   = ctx.accounts.chip.key();
+        t.registered   += 1;
+        t.pool_amount   = t.pool_amount.checked_add(t.entry_fee).ok_or(ArenaError::MathOverflow)?;
+
+        emit!(TournamentRegistered {
+            id:         t.id,
+            player,
+            chip:       ctx.accounts.chip.key(),
+            slot:       slot as u8,
+            registered: t.registered,
+        });
+        Ok(())
+    }
+
+    /// Lock prizes + seed round 0 + emit MatchRolling for 4 quarter-finals.
+    /// Open to any caller once the lobby is full — they pay the slim tx
+    /// cost.  Idempotent: rejects second call by status check.
+    pub fn start_tournament(ctx: Context<StartTournament>) -> Result<()> {
+        let t = &mut ctx.accounts.tournament;
+        require!(t.status == T_STATUS_REGISTERING, ArenaError::WrongStatus);
+        require!((t.registered as usize) == T_PLAYERS, ArenaError::TournamentNotReady);
+
+        // Compute prize split (hardcoded percentages — see T_PRIZE_*_BPS).
+        let pool = t.pool_amount;
+        let fee  = (pool as u128 * T_FEE_BPS       as u128 / 10_000u128) as u64;
+        let p1   = (pool as u128 * T_PRIZE_1ST_BPS as u128 / 10_000u128) as u64;
+        let p2   = (pool as u128 * T_PRIZE_2ND_BPS as u128 / 10_000u128) as u64;
+        let p3   = (pool as u128 * T_PRIZE_3RD_BPS as u128 / 10_000u128) as u64;
+        t.fee_amount = fee;
+        t.prize_1st  = p1;
+        t.prize_2nd  = p2;
+        t.prize_3rd  = p3;
+
+        t_seed_round_zero(t);
+        t.status      = T_STATUS_ACTIVE;
+        t.started_at  = Clock::get()?.unix_timestamp;
+        t.current_round = 0;
+
+        emit!(TournamentStarted {
+            id:         t.id,
+            pool_amount: pool,
+            fee_amount: fee,
+            prize_1st:  p1,
+            prize_2nd:  p2,
+            prize_3rd:  p3,
+        });
+        // Emit 4 MatchRolling events for round-0 quarters.  Relayer picks
+        // them up via onLogs.
+        for i in 0..4u8 {
+            let m = &t.matches[i as usize];
+            emit!(TournamentMatchRolling {
+                id:        t.id,
+                round:     0,
+                match_idx: i,
+                slot_a:    m.slot_a,
+                slot_b:    m.slot_b,
+            });
+        }
+        Ok(())
+    }
+
+    /// Switchboard On-Demand fulfill for ONE bracket cell.  Mirrors the
+    /// 1v1/BR layout parser.  When all matches in current round are
+    /// decided, auto-advances to next round (emits more MatchRolling
+    /// events) — or transitions to COMPLETED at end of R2.
+    pub fn advance_match_switchboard(
+        ctx: Context<AdvanceMatchSwitchboard>,
+        match_idx: u8,
+    ) -> Result<()> {
+        require_keys_eq!(
+            *ctx.accounts.randomness_account.owner,
+            ctx.accounts.config.vrf_program,
+            ArenaError::WrongVrfProgram
+        );
+        require!(
+            ctx.accounts.config.vrf_program != Pubkey::default(),
+            ArenaError::SwitchboardDisabled
+        );
+
+        let t = &mut ctx.accounts.tournament;
+        require!(t.status == T_STATUS_ACTIVE, ArenaError::WrongStatus);
+        require!((match_idx as usize) < T_MATCHES, ArenaError::WrongPrizeRank);
+
+        // Match must belong to current round + still pending.
+        let m_ref = &t.matches[match_idx as usize];
+        require!(m_ref.round == t.current_round, ArenaError::WrongTournamentRound);
+        require!(m_ref.status == T_MATCH_PENDING, ArenaError::TournamentMatchNotPending);
+
+        // Parse Switchboard randomness account.
+        let data = ctx.accounts.randomness_account.try_borrow_data()?;
+        require!(data.len() >= 184, ArenaError::MalformedRandomnessAccount);
+        const DISC: [u8; 8] = [10, 66, 229, 135, 220, 239, 217, 114];
+        require!(data[0..8] == DISC, ArenaError::MalformedRandomnessAccount);
+        let seed_slot   = u64::from_le_bytes(data[104..112].try_into().unwrap());
+        let reveal_slot = u64::from_le_bytes(data[144..152].try_into().unwrap());
+        require!(reveal_slot > seed_slot, ArenaError::RandomnessNotRevealed);
+        let seed = u64::from_le_bytes(data[152..160].try_into().unwrap());
+        drop(data);
+
+        // Pick winner.  seed even → slot_a, odd → slot_b.  Same algorithm
+        // as 1v1 — unbiased modulo since 2^64 % 2 == 0.
+        let m = &mut t.matches[match_idx as usize];
+        let winner_slot = if seed & 1 == 0 { m.slot_a } else { m.slot_b };
+        let loser_slot  = if winner_slot == m.slot_a { m.slot_b } else { m.slot_a };
+        m.status              = T_MATCH_DECIDED;
+        m.winner_slot         = winner_slot;
+        m.seed                = seed;
+        m.randomness_account  = ctx.accounts.randomness_account.key();
+        m.decided_at          = Clock::get()?.unix_timestamp;
+        t.eliminated_mask    |= 1u16 << (loser_slot as u16);
+
+        emit!(TournamentMatchDecided {
+            id:        t.id,
+            round:     t.current_round,
+            match_idx,
+            winner_slot,
+            seed,
+        });
+        emit!(SwitchboardVerified {
+            battle_id:          t.id,
+            randomness_account: ctx.accounts.randomness_account.key(),
+        });
+
+        // Check round completion.  We iterate the current-round slice
+        // and confirm every match is DECIDED — if so, advance.
+        let cur = t.current_round;
+        let off = T_ROUND_OFFSETS[cur as usize] as usize;
+        let cnt = t_round_match_count(cur) as usize;
+        let all_done = (off..off + cnt).all(|i| t.matches[i].status == T_MATCH_DECIDED);
+
+        if all_done {
+            let now = Clock::get()?.unix_timestamp;
+            if let Some((next_round, next_off, next_cnt)) = t_advance_round(t, now) {
+                for i in 0..next_cnt {
+                    let m_next = &t.matches[(next_off + i) as usize];
+                    emit!(TournamentMatchRolling {
+                        id:        t.id,
+                        round:     next_round,
+                        match_idx: next_off + i,
+                        slot_a:    m_next.slot_a,
+                        slot_b:    m_next.slot_b,
+                    });
+                }
+            } else {
+                // Final round done — t_advance_round already set status =
+                // COMPLETED and populated winner_*_slot.  Emit the cap event.
+                emit!(TournamentCompleted {
+                    id:         t.id,
+                    winner_1st: t.players[t.winner_1st_slot as usize],
+                    winner_2nd: t.players[t.winner_2nd_slot as usize],
+                    winner_3rd: t.players[t.winner_3rd_slot as usize],
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 1st / 2nd / 3rd-place finisher pulls their prize to internal
+    /// balance.  `rank` ∈ {0, 1, 2}.  Fee CPI to treasury only on the
+    /// FIRST claim (we send the whole pool's fee once, regardless of
+    /// who claims first — economics simpler than splitting).
+    pub fn claim_tournament_prize(
+        ctx: Context<ClaimTournamentPrize>,
+        rank: u8,
+    ) -> Result<()> {
+        let t = &mut ctx.accounts.tournament;
+        require!(t.status == T_STATUS_COMPLETED, ArenaError::TournamentNotComplete);
+        require!(rank < 3, ArenaError::WrongPrizeRank);
+
+        let bit = 1u8 << rank;
+        require!((t.prize_claimed_mask & bit) == 0, ArenaError::PrizeAlreadyClaimed);
+
+        let (claimer_slot, amount) = match rank {
+            0 => (t.winner_1st_slot, t.prize_1st),
+            1 => (t.winner_2nd_slot, t.prize_2nd),
+            _ => (t.winner_3rd_slot, t.prize_3rd),
+        };
+        require!(claimer_slot != T_SLOT_UNSET, ArenaError::TournamentNotComplete);
+        let expected_pubkey = t.players[claimer_slot as usize];
+        require_keys_eq!(ctx.accounts.winner.key(), expected_pubkey, ArenaError::NotWinner);
+
+        // Credit internal balance.
+        ctx.accounts.winner_user.balance = ctx.accounts.winner_user.balance
+            .checked_add(amount).ok_or(ArenaError::MathOverflow)?;
+
+        // Treasury fee CPI — fire only on the first claim (idempotent),
+        // mirrors BR's approach.
+        if t.prize_claimed_mask == 0 {
+            let vault_bump = ctx.accounts.config.vault_bump;
+            forward_fee_to_treasury(
+                &ctx.accounts.treasury_program,
+                &ctx.accounts.treasury_config,
+                &ctx.accounts.treasury_vault,
+                &ctx.accounts.vault,
+                &ctx.accounts.system_program,
+                vault_bump,
+                t.fee_amount,
+            )?;
+        }
+
+        t.prize_claimed_mask |= bit;
+
+        emit!(TournamentPrizeClaimed {
+            id:     t.id,
+            winner: expected_pubkey,
+            rank,
+            amount,
+        });
+        Ok(())
+    }
+
+    /// Any participant reclaims their chip — chips are membership tokens
+    /// (always returned, regardless of placement).  Mirrors claim_chip_br.
+    pub fn claim_tournament_chip(ctx: Context<ClaimTournamentChip>) -> Result<()> {
+        let t = &mut ctx.accounts.tournament;
+        require!(
+            t.status == T_STATUS_COMPLETED || t.status == T_STATUS_CANCELLED,
+            ArenaError::WrongStatus
+        );
+
+        let caller   = ctx.accounts.player.key();
+        let chip_key = ctx.accounts.chip.key();
+        let mut slot = usize::MAX;
+        for i in 0..(t.registered as usize) {
+            if t.players[i] == caller {
+                require_keys_eq!(chip_key, t.chips[i], ArenaError::WrongChip);
+                slot = i;
+                break;
+            }
+        }
+        require!(slot != usize::MAX, ArenaError::NotAParticipant);
+
+        let bit = 1u16 << (slot as u16);
+        require!((t.chips_claimed_mask & bit) == 0, ArenaError::ChipAlreadyClaimed);
+        t.chips_claimed_mask |= bit;
+
+        let auth_bump = ctx.accounts.config.chip_authority_bump;
+        return_chip_to(
+            &ctx.accounts.mpl_core,
+            &ctx.accounts.chip,
+            &ctx.accounts.player.to_account_info(),
+            &ctx.accounts.chip_authority,
+            &ctx.accounts.system_program,
+            auth_bump,
+        )?;
+
+        emit!(TournamentChipClaimed {
+            id:     t.id,
+            player: caller,
+            slot:   slot as u8,
+        });
+        Ok(())
+    }
+
+    /// Cancel a still-REGISTERING tournament after join_timeout elapsed.
+    /// Sets status=CANCELLED; participants reclaim chips via
+    /// claim_tournament_chip.  Stake refunds: TODO out of scope for MVP
+    /// (entry fees stay in pool_amount until status flips → for now
+    /// admin can do a manual refund script post-cancel).
+    pub fn expire_tournament_registration(
+        ctx: Context<CancelTournament>,
+    ) -> Result<()> {
+        let now = Clock::get()?.unix_timestamp;
+        let t = &mut ctx.accounts.tournament;
+        require!(t.status == T_STATUS_REGISTERING, ArenaError::WrongStatus);
+        require!(
+            now > t.created_at + ctx.accounts.config.join_timeout,
+            ArenaError::JoinPeriodNotExpired
+        );
+        cancel_tournament(t, now);
+        emit!(TournamentCancelled { id: t.id, reason: T_CANCEL_REGISTER_TIMEOUT });
+        Ok(())
+    }
+
+    /// Admin escape: tournament stuck in ACTIVE state (Switchboard reveal
+    /// hung).  Owner-only.  Marks CANCELLED — participants reclaim chips.
+    pub fn force_resolve_tournament(ctx: Context<CancelTournament>) -> Result<()> {
+        require_keys_eq!(
+            ctx.accounts.caller.key(), ctx.accounts.config.owner,
+            ArenaError::NotOwner
+        );
+        let now = Clock::get()?.unix_timestamp;
+        let t = &mut ctx.accounts.tournament;
+        require!(t.status == T_STATUS_ACTIVE, ArenaError::WrongStatus);
+        require!(
+            now > t.started_at + ctx.accounts.config.vrf_timeout,
+            ArenaError::VrfNotTimedOut
+        );
+        cancel_tournament(t, now);
+        emit!(TournamentCancelled { id: t.id, reason: T_CANCEL_VRF_TIMEOUT });
+        Ok(())
+    }
 }
 
 // ============================================================
@@ -1026,6 +1515,142 @@ fn cancel_br(r: &mut BattleRoyale, now: i64) {
     r.settled_at = now;
 }
 
+// ============================================================
+// SEC-23 — Tournament bracket logic
+// ============================================================
+
+/// Index of the first match in `tournament.matches[]` for a given round.
+///   Round 0 → 0 (4 quarter-final matches at 0..4)
+///   Round 1 → 4 (2 semi-final matches at 4..6)
+///   Round 2 → 6 (final at 6, 3rd-place at 7)
+const T_ROUND_OFFSETS: [u8; 4] = [0, 4, 6, 8];
+
+#[inline(always)]
+fn t_round_match_count(round: u8) -> u8 {
+    // 4 quarters, 2 semis, 2 in last round (final + 3rd-place).
+    match round { 0 => 4, 1 => 2, 2 => 2, _ => 0 }
+}
+
+/// Fill round 0 of the bracket with the seating: (0,1) (2,3) (4,5) (6,7).
+/// Called from `start_tournament` after the lobby is full.
+#[inline(never)]
+fn t_seed_round_zero(t: &mut Tournament) {
+    for i in 0..4u8 {
+        t.matches[i as usize] = TMatch {
+            status:             T_MATCH_PENDING,
+            round:              0,
+            slot_a:             i * 2,
+            slot_b:             i * 2 + 1,
+            winner_slot:        T_SLOT_UNSET,
+            seed:               0,
+            randomness_account: Pubkey::default(),
+            decided_at:         0,
+        };
+    }
+}
+
+/// After every match in the current round is DECIDED, populate the
+/// next round's match cells (winners advance for the main bracket;
+/// LOSERS advance for the 3rd-place match in the final round).
+///
+/// When called for the last round (R2 done), populates `winner_*_slot`
+/// fields and transitions status to COMPLETED.
+///
+/// Returns Some(round_indices) where round_indices are the just-seeded
+/// matches in the new round (used by the caller to emit MatchRolling
+/// events so the relayer picks them up).  Returns None if no more
+/// rounds (tournament complete).
+fn t_advance_round(t: &mut Tournament, now: i64) -> Option<(u8, u8, u8)> {
+    let r = t.current_round;
+    if r == 2 {
+        // Final round done — populate podium.
+        // matches[6] is the final, matches[7] is the 3rd-place.
+        let final_match  = &t.matches[6];
+        let third_match  = &t.matches[7];
+        t.winner_1st_slot = final_match.winner_slot;
+        t.winner_2nd_slot = if final_match.winner_slot == final_match.slot_a {
+            final_match.slot_b
+        } else {
+            final_match.slot_a
+        };
+        t.winner_3rd_slot = third_match.winner_slot;
+        t.status          = T_STATUS_COMPLETED;
+        t.completed_at    = now;
+        return None;
+    }
+
+    // Seed next round.
+    let next_round   = r + 1;
+    let cur_off      = T_ROUND_OFFSETS[r as usize] as usize;
+    let next_off     = T_ROUND_OFFSETS[next_round as usize] as usize;
+    let next_count   = t_round_match_count(next_round) as usize;
+
+    if next_round == 2 {
+        // SEC-23 — R2 has TWO matches that BOTH draw from the same pair
+        // of R1 semis (matches[cur_off + 0] and [cur_off + 1]):
+        //   matches[6] (final)     = winners of both semis
+        //   matches[7] (3rd-place) = losers  of both semis
+        //
+        // Previous loop indexed cur_off + j*2 for "a_match", which for
+        // j=1 read matches[cur_off+2] = matches[6] (the just-written
+        // final, not a semi) and matches[7] (still default-zero) —
+        // producing slot_b = 0xFF and hanging the bracket.  Copying via
+        // stack-local TMatch (it's Copy) sidesteps &/&mut aliasing on
+        // the matches array.
+        let semi1 = t.matches[cur_off];
+        let semi2 = t.matches[cur_off + 1];
+        let l1 = if semi1.winner_slot == semi1.slot_a { semi1.slot_b } else { semi1.slot_a };
+        let l2 = if semi2.winner_slot == semi2.slot_a { semi2.slot_b } else { semi2.slot_a };
+
+        t.matches[next_off] = TMatch {
+            status: T_MATCH_PENDING, round: next_round,
+            slot_a: semi1.winner_slot, slot_b: semi2.winner_slot,
+            winner_slot: T_SLOT_UNSET, seed: 0,
+            randomness_account: Pubkey::default(), decided_at: 0,
+        };
+        t.matches[next_off + 1] = TMatch {
+            status: T_MATCH_PENDING, round: next_round,
+            slot_a: l1, slot_b: l2,
+            winner_slot: T_SLOT_UNSET, seed: 0,
+            randomness_account: Pubkey::default(), decided_at: 0,
+        };
+    } else {
+        // R0→R1 standard pair advance: matches[off+0..2] → next.slot_a/b.
+        for j in 0..next_count {
+            let a_match = t.matches[cur_off + j * 2];
+            let b_match = t.matches[cur_off + j * 2 + 1];
+            t.matches[next_off + j] = TMatch {
+                status: T_MATCH_PENDING, round: next_round,
+                slot_a: a_match.winner_slot, slot_b: b_match.winner_slot,
+                winner_slot: T_SLOT_UNSET, seed: 0,
+                randomness_account: Pubkey::default(), decided_at: 0,
+            };
+        }
+    }
+
+    t.current_round = next_round;
+    // Return (round, first_match_idx, count) — caller emits MatchRolling
+    // for each [first..first+count).
+    Some((next_round, next_off as u8, next_count as u8))
+}
+
+/// True once status==COMPLETED AND all 3 prizes are claimed AND all 8
+/// chips reclaimed.  No state change here — purely a read.  We rely on
+/// the COMPLETED transition + per-claim ix to update masks; the lifecycle
+/// concept of "fully settled" is just (status, masks).
+#[inline(always)]
+fn t_is_fully_settled(t: &Tournament) -> bool {
+    t.status == T_STATUS_COMPLETED
+        && t.prize_claimed_mask == 0b111
+        && t.chips_claimed_mask == 0xFF
+}
+
+#[inline(never)]
+fn cancel_tournament(t: &mut Tournament, now: i64) {
+    t.status       = T_STATUS_CANCELLED;
+    t.completed_at = now;
+}
+
 #[allow(clippy::too_many_arguments)]
 #[inline(never)]
 fn execute_forfeit<'info>(
@@ -1092,7 +1717,14 @@ pub struct ArenaConfig {
     // become this field, which was zeroed at init = Pubkey::default()
     // = Switchboard path disabled until owner calls set_vrf_program.
     pub vrf_program:         Pubkey,
-    pub _reserved:           [u8; 32],
+    // SEC-23 — Ticket SPL mint pubkey (deterministic PDA `[b"ticket_mint"]`).
+    // Zero (Pubkey::default()) until owner calls `init_ticket_mint`.
+    // The 32 bytes for this field are carved out of the leading 32 bytes
+    // of the old _reserved padding (which SEC-21 already shrunk to 32).
+    // Result: total SPACE unchanged, no realloc needed for upgrades from
+    // pre-SEC-23 deployments.
+    pub ticket_mint:         Pubkey,
+    pub _reserved:           [u8; 0],
 }
 
 impl Default for ArenaConfig {
@@ -1113,15 +1745,16 @@ impl Default for ArenaConfig {
             vault_bump:          0,
             chip_authority_bump: 0,
             vrf_program:         Pubkey::default(),
-            _reserved:           [0u8; 32],
+            ticket_mint:         Pubkey::default(),
+            _reserved:           [],
         }
     }
 }
 
 impl ArenaConfig {
-    // 8 + 32*4 + 8 + 6*8 + 2 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 64 = 284
+    // 8 + 32*4 + 8 + 6*8 + 2 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 32 (vrf_program) + 32 (ticket_mint) + 0 = 284
     pub const SPACE: usize =
-        8 + (32 * 4) + 8 + (8 * N_TIERS) + 2 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 64;
+        8 + (32 * 4) + 8 + (8 * N_TIERS) + 2 + 8 + 8 + 8 + 1 + 1 + 1 + 1 + 32 + 32;
 }
 
 #[account]
@@ -1232,6 +1865,120 @@ impl BattleRoyale {
     pub const SPACE: usize =
         8 + 8 + 1 + 1 + 1 + 1 + 32 + (32 * BR_MAX_PLAYERS) + (32 * BR_MAX_PLAYERS) +
         32 + 8 + 32 + 8 + 8 + 8 + 8 + 8 + 8 + 2 + 1 + 1 + 64;
+}
+
+// ============================================================
+// SEC-23 — Tournament account + inline TMatch sub-struct
+// ============================================================
+
+/// One bracket cell.  Inlined in Tournament.matches[T_MATCHES] so the
+/// whole bracket lives on one account — no per-match PDAs to create.
+/// Borsh serialises this as a flat 53-byte run (no padding inside a
+/// custom Anchor-derived struct).
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+pub struct TMatch {
+    pub status:             u8,         // PENDING / DECIDED
+    pub round:              u8,         // 0..2
+    pub slot_a:             u8,         // index into Tournament.players[]
+    pub slot_b:             u8,
+    pub winner_slot:        u8,         // valid only when status == DECIDED; 0xFF otherwise
+    pub seed:               u64,
+    pub randomness_account: Pubkey,     // Switchboard PDA for audit
+    pub decided_at:         i64,
+}
+// = 1+1+1+1+1 + 8 + 32 + 8 = 53 bytes
+
+impl Default for TMatch {
+    fn default() -> Self {
+        Self {
+            status:             T_MATCH_PENDING,
+            round:              0,
+            slot_a:             T_SLOT_UNSET,
+            slot_b:             T_SLOT_UNSET,
+            winner_slot:        T_SLOT_UNSET,
+            seed:               0,
+            randomness_account: Pubkey::default(),
+            decided_at:         0,
+        }
+    }
+}
+
+#[account]
+pub struct Tournament {
+    pub id:                 u64,
+    pub status:             u8,                          // T_STATUS_*
+    pub bracket_size:       u8,                          // pinned to T_PLAYERS = 8 in MVP
+    pub registered:         u8,                          // 0..bracket_size
+    pub current_round:      u8,                          // 0..T_ROUNDS
+    pub creator:            Pubkey,
+    pub players:            [Pubkey; T_PLAYERS],
+    pub chips:              [Pubkey; T_PLAYERS],
+    pub matches:            [TMatch; T_MATCHES],
+    pub eliminated_mask:    u16,                         // bit i set iff players[i] knocked out
+    pub winner_1st_slot:    u8,                          // populated on COMPLETED; 0xFF otherwise
+    pub winner_2nd_slot:    u8,
+    pub winner_3rd_slot:    u8,
+    pub entry_fee:          u64,                         // lamports staked per player (locked at create)
+    pub pool_amount:        u64,                         // entry_fee × bracket_size after full
+    pub fee_amount:         u64,                         // 5% to treasury
+    pub prize_1st:          u64,                         // 60% of pool
+    pub prize_2nd:          u64,                         // 25% of pool
+    pub prize_3rd:          u64,                         // 10% of pool
+    pub created_at:         i64,
+    pub started_at:         i64,
+    pub completed_at:       i64,
+    pub prize_claimed_mask: u8,                          // bit 0=1st, 1=2nd, 2=3rd
+    pub chips_claimed_mask: u16,                         // bit i=players[i] reclaimed chip
+    pub bump:               u8,
+    pub _reserved:          [u8; 64],
+}
+
+impl Default for Tournament {
+    fn default() -> Self {
+        Self {
+            id:                 0,
+            status:             T_STATUS_REGISTERING,
+            bracket_size:       0,
+            registered:         0,
+            current_round:      0,
+            creator:            Pubkey::default(),
+            players:            [Pubkey::default(); T_PLAYERS],
+            chips:              [Pubkey::default(); T_PLAYERS],
+            matches:            [TMatch::default(); T_MATCHES],
+            eliminated_mask:    0,
+            winner_1st_slot:    T_SLOT_UNSET,
+            winner_2nd_slot:    T_SLOT_UNSET,
+            winner_3rd_slot:    T_SLOT_UNSET,
+            entry_fee:          0,
+            pool_amount:        0,
+            fee_amount:         0,
+            prize_1st:          0,
+            prize_2nd:          0,
+            prize_3rd:          0,
+            created_at:         0,
+            started_at:         0,
+            completed_at:       0,
+            prize_claimed_mask: 0,
+            chips_claimed_mask: 0,
+            bump:               0,
+            _reserved:          [0u8; 64],
+        }
+    }
+}
+
+impl Tournament {
+    // Layout (borsh, flat):
+    // 8 discr + 8 + 1 + 1 + 1 + 1 + 32 + 32*8 + 32*8 + 53*8 + 2 + 1 + 1 + 1 +
+    // 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 1 + 2 + 1 + 64
+    // = 8 + 8 + 4 + 32 + 256 + 256 + 424 + 5 + 72 + 1 + 2 + 1 + 64 = 1133
+    pub const SPACE: usize =
+        8 + 8 + 1 + 1 + 1 + 1 + 32 +
+        (32 * T_PLAYERS) + (32 * T_PLAYERS) +
+        (53 * T_MATCHES) +
+        2 + 1 + 1 + 1 +
+        8 + 8 + 8 + 8 + 8 + 8 +
+        8 + 8 + 8 +
+        1 + 2 + 1 + 64;
 }
 
 // ============================================================
@@ -2040,6 +2787,345 @@ pub struct CancelBattleRoyale<'info> {
 }
 
 // ============================================================
+// SEC-23 — TOURNAMENT ACCOUNTS
+// ============================================================
+
+/// One-shot admin ix: create the global SPL ticket mint.  After this,
+/// `config.ticket_mint` is set and subsequent calls fail with
+/// TicketMintAlreadyInitialized.
+#[derive(Accounts)]
+pub struct InitTicketMint<'info> {
+    #[account(
+        mut,
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    /// PDA mint with decimals=0; ticket_authority PDA owns mint+freeze.
+    #[account(
+        init,
+        payer = owner,
+        seeds = [b"ticket_mint".as_ref()],
+        bump,
+        mint::decimals = 0,
+        mint::authority = ticket_authority,
+        mint::freeze_authority = ticket_authority,
+    )]
+    pub ticket_mint: Account<'info, Mint>,
+
+    /// CHECK: PDA-only signer for mint_to/burn — derived, never carries
+    /// any data of its own.
+    #[account(
+        seeds = [b"ticket_authority".as_ref()],
+        bump,
+    )]
+    pub ticket_authority: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub owner: Signer<'info>,
+
+    pub token_program:     Program<'info, Token>,
+    pub system_program:    Program<'info, System>,
+    pub rent:              Sysvar<'info, Rent>,
+}
+
+#[derive(Accounts)]
+pub struct BuyTicket<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ArenaConfig>,
+
+    /// CHECK: arena_vault PDA receives the SOL payment.
+    #[account(
+        mut,
+        seeds = [b"arena".as_ref(), b"vault".as_ref()],
+        bump  = config.vault_bump,
+    )]
+    pub vault: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"ticket_mint".as_ref()],
+        bump,
+        constraint = ticket_mint.key() == config.ticket_mint @ ArenaError::WrongTicketMint,
+    )]
+    pub ticket_mint: Account<'info, Mint>,
+
+    /// CHECK: PDA-only signer for mint_to.
+    #[account(
+        seeds = [b"ticket_authority".as_ref()],
+        bump,
+    )]
+    pub ticket_authority: AccountInfo<'info>,
+
+    /// Buyer's ATA — created on first BUY (init_if_needed).  Payer is
+    /// the buyer themselves.
+    #[account(
+        init_if_needed,
+        payer = buyer,
+        associated_token::mint = ticket_mint,
+        associated_token::authority = buyer,
+    )]
+    pub buyer_ata: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub buyer: Signer<'info>,
+
+    pub token_program:            Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program:           Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(entry_fee_lamports: u64)]
+pub struct CreateTournament<'info> {
+    #[account(
+        mut,
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Box<Account<'info, ArenaConfig>>,
+
+    #[account(
+        init,
+        payer = creator,
+        space = Tournament::SPACE,
+        seeds = [b"tournament".as_ref(), config.next_battle_id.to_le_bytes().as_ref()],
+        bump,
+    )]
+    pub tournament: Box<Account<'info, Tournament>>,
+
+    #[account(mut)]
+    pub creator: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+// SEC-23 — BPF stack-frame fix: Tournament (1133 bytes) + ArenaConfig (286)
+// + Mint + TokenAccount + UserAccount overflowed try_accounts()'s 4 KB
+// stack budget by ~1.8 KB.  Box<Account<>> moves the deserialised data
+// to the heap; the Account wrapper itself becomes a single pointer on
+// stack.  Handler code accesses via auto-deref so no other changes.
+pub struct RegisterForTournament<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Box<Account<'info, ArenaConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"tournament".as_ref(), tournament.id.to_le_bytes().as_ref()],
+        bump  = tournament.bump,
+    )]
+    pub tournament: Box<Account<'info, Tournament>>,
+
+    /// CHECK: chip authority PDA.
+    #[account(
+        seeds = [b"arena".as_ref(), b"chip_authority".as_ref()],
+        bump  = config.chip_authority_bump,
+    )]
+    pub chip_authority: AccountInfo<'info>,
+
+    /// CHECK: validated by mpl-core CPI.
+    #[account(mut)]
+    pub chip: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        constraint = ticket_mint.key() == config.ticket_mint @ ArenaError::WrongTicketMint,
+    )]
+    pub ticket_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        mut,
+        associated_token::mint = ticket_mint,
+        associated_token::authority = player,
+    )]
+    pub player_ata: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        seeds = [b"user".as_ref(), player.key().as_ref()],
+        bump  = player_user.bump,
+        has_one = authority @ ArenaError::NotOwner,
+    )]
+    pub player_user: Box<Account<'info, UserAccount>>,
+
+    /// CHECK: has_one enforces player_user.authority == authority.
+    pub authority: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub player: Signer<'info>,
+
+    /// CHECK: address-checked.
+    #[account(address = MPL_CORE_ID)]
+    pub mpl_core: AccountInfo<'info>,
+
+    pub token_program:  Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct StartTournament<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Box<Account<'info, ArenaConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"tournament".as_ref(), tournament.id.to_le_bytes().as_ref()],
+        bump  = tournament.bump,
+    )]
+    pub tournament: Box<Account<'info, Tournament>>,
+
+    /// Anyone can poke.
+    #[account(mut)]
+    pub caller: Signer<'info>,
+}
+
+#[derive(Accounts)]
+#[instruction(match_idx: u8)]
+pub struct AdvanceMatchSwitchboard<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Box<Account<'info, ArenaConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"tournament".as_ref(), tournament.id.to_le_bytes().as_ref()],
+        bump  = tournament.bump,
+    )]
+    pub tournament: Box<Account<'info, Tournament>>,
+
+    /// CHECK: parsed manually — owner must equal config.vrf_program.
+    pub randomness_account: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub caller: Signer<'info>,
+}
+
+#[derive(Accounts)]
+#[instruction(rank: u8)]
+pub struct ClaimTournamentPrize<'info> {
+    #[account(
+        mut,
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Box<Account<'info, ArenaConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"tournament".as_ref(), tournament.id.to_le_bytes().as_ref()],
+        bump  = tournament.bump,
+    )]
+    pub tournament: Box<Account<'info, Tournament>>,
+
+    /// CHECK: arena_vault PDA signs the treasury fee CPI.
+    #[account(
+        mut,
+        seeds = [b"arena".as_ref(), b"vault".as_ref()],
+        bump  = config.vault_bump,
+    )]
+    pub vault: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"user".as_ref(), winner.key().as_ref()],
+        bump  = winner_user.bump,
+    )]
+    pub winner_user: Box<Account<'info, UserAccount>>,
+
+    /// CHECK: address-bound to expected_pubkey in handler.
+    #[account(mut)]
+    pub winner: AccountInfo<'info>,
+
+    /// CHECK: treasury config PDA, validated by treasury_program CPI.
+    #[account(mut)]
+    pub treasury_config: AccountInfo<'info>,
+
+    /// CHECK: treasury vault PDA.
+    #[account(mut)]
+    pub treasury_vault: AccountInfo<'info>,
+
+    /// CHECK: treasury program — address-checked.
+    #[account(address = config.treasury_program)]
+    pub treasury_program: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub caller: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimTournamentChip<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Box<Account<'info, ArenaConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"tournament".as_ref(), tournament.id.to_le_bytes().as_ref()],
+        bump  = tournament.bump,
+    )]
+    pub tournament: Box<Account<'info, Tournament>>,
+
+    /// CHECK: chip authority PDA.
+    #[account(
+        seeds = [b"arena".as_ref(), b"chip_authority".as_ref()],
+        bump  = config.chip_authority_bump,
+    )]
+    pub chip_authority: AccountInfo<'info>,
+
+    /// CHECK: validated by mpl-core CPI.
+    #[account(mut)]
+    pub chip: AccountInfo<'info>,
+
+    #[account(mut)]
+    pub player: Signer<'info>,
+
+    /// CHECK: address-checked.
+    #[account(address = MPL_CORE_ID)]
+    pub mpl_core: AccountInfo<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// Refund-or-admin cancel path for tournaments.  Re-used by both
+/// expire_tournament_registration (anyone, after join_timeout) and
+/// force_resolve_tournament (owner-only, after vrf_timeout).
+#[derive(Accounts)]
+pub struct CancelTournament<'info> {
+    #[account(
+        seeds = [b"arena".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Box<Account<'info, ArenaConfig>>,
+
+    #[account(
+        mut,
+        seeds = [b"tournament".as_ref(), tournament.id.to_le_bytes().as_ref()],
+        bump  = tournament.bump,
+    )]
+    pub tournament: Box<Account<'info, Tournament>>,
+
+    #[account(mut)]
+    pub caller: Signer<'info>,
+}
+
+// ============================================================
 //                          EVENTS
 // ============================================================
 
@@ -2133,6 +3219,73 @@ pub struct CancelBattleRoyale<'info> {
     pub reason:      u8,   // 0 = join timeout, 1 = vrf timeout
 }
 
+// ---- SEC-23 — Tournament events ------------------------------
+#[event] pub struct TicketMintInitialized {
+    pub ticket_mint: Pubkey,
+    pub authority:   Pubkey,
+}
+#[event] pub struct TicketsPurchased {
+    pub buyer:         Pubkey,
+    pub amount:        u64,
+    pub paid_lamports: u64,
+}
+#[event] pub struct TournamentCreated {
+    pub id:           u64,
+    pub bracket_size: u8,
+    pub entry_fee:    u64,
+    pub creator:      Pubkey,
+}
+#[event] pub struct TournamentRegistered {
+    pub id:         u64,
+    pub player:     Pubkey,
+    pub chip:       Pubkey,
+    pub slot:       u8,
+    pub registered: u8,
+}
+#[event] pub struct TournamentStarted {
+    pub id:          u64,
+    pub pool_amount: u64,
+    pub fee_amount:  u64,
+    pub prize_1st:   u64,
+    pub prize_2nd:   u64,
+    pub prize_3rd:   u64,
+}
+#[event] pub struct TournamentMatchRolling {
+    pub id:        u64,
+    pub round:     u8,
+    pub match_idx: u8,
+    pub slot_a:    u8,
+    pub slot_b:    u8,
+}
+#[event] pub struct TournamentMatchDecided {
+    pub id:          u64,
+    pub round:       u8,
+    pub match_idx:   u8,
+    pub winner_slot: u8,
+    pub seed:        u64,
+}
+#[event] pub struct TournamentCompleted {
+    pub id:         u64,
+    pub winner_1st: Pubkey,
+    pub winner_2nd: Pubkey,
+    pub winner_3rd: Pubkey,
+}
+#[event] pub struct TournamentPrizeClaimed {
+    pub id:     u64,
+    pub winner: Pubkey,
+    pub rank:   u8,    // 0=1st, 1=2nd, 2=3rd
+    pub amount: u64,
+}
+#[event] pub struct TournamentChipClaimed {
+    pub id:     u64,
+    pub player: Pubkey,
+    pub slot:   u8,
+}
+#[event] pub struct TournamentCancelled {
+    pub id:     u64,
+    pub reason: u8,    // 0 = registration timeout, 1 = vrf timeout
+}
+
 // ============================================================
 //                          ERRORS
 // ============================================================
@@ -2198,6 +3351,23 @@ pub enum ArenaError {
     ChipAlreadyClaimed,
     #[msg("Prize already claimed for this Battle Royale")]
     PrizeAlreadyClaimed,
+    // SEC-23 — Tournament specific
+    #[msg("Ticket SPL mint already initialised — init_ticket_mint is one-shot")]
+    TicketMintAlreadyInitialized,
+    #[msg("Provided ticket mint does not match config.ticket_mint")]
+    WrongTicketMint,
+    #[msg("Tournament registration period closed or full")]
+    TournamentRegistrationClosed,
+    #[msg("Tournament lobby not full — cannot start yet")]
+    TournamentNotReady,
+    #[msg("Match is not in PENDING state")]
+    TournamentMatchNotPending,
+    #[msg("Match does not belong to the current round")]
+    WrongTournamentRound,
+    #[msg("Tournament has not completed — prize unavailable")]
+    TournamentNotComplete,
+    #[msg("Prize rank must be 0 (1st), 1 (2nd), or 2 (3rd)")]
+    WrongPrizeRank,
     #[msg("Arithmetic overflow")]
     MathOverflow,
 }
