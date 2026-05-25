@@ -1,12 +1,17 @@
 // ============================================================
 // chiptap-solana-relayer / src/index.js
 //
-// Two responsibilities:
+// Three responsibilities:
 //   1. Watch battle_arena for `BattleJoined` events → fulfill 1v1 VRF
 //      (SEC-21 Switchboard Option B, or legacy slothash Option A).
 //   2. (SEC-22 Phase 2) Watch for `BattleRoyaleRolling` events →
 //      fulfill Battle Royale VRF via the same Switchboard pipeline
 //      (BR is Switchboard-only — there is no slothash fallback ix).
+//   3. (SEC-23 Phase 2) Watch for `TournamentMatchRolling` events →
+//      fulfill ONE bracket match via Switchboard.  start_tournament
+//      emits 4 events (R0 quarters) at once; advance_match emits 2 more
+//      for R1 semis and 2 for R2 (final + 3rd-place).  We fulfil each
+//      independently — 7 total Switchboard cycles per tournament.
 //
 // Subscription strategy:
 //   • Primary: connection.onLogs(programId) — live stream
@@ -15,12 +20,11 @@
 //     hiccup.  Same pattern as the indexer (SEC-11 watchdog).
 //
 // Idempotency:
-//   • If two BattleJoined / BattleRoyaleRolling events arrive for the
-//     same id (replay, reorg, etc.), the program rejects the second
-//     `fulfill_random_words*` with WrongStatus (already DECIDED).
-//     Relayer treats that as success.
-//   • Plus in-process `completed` Set short-circuits before we even
-//     burn a Switchboard cycle on the dupe.
+//   • If two events arrive for the same target (replay, reorg, etc.),
+//     the program rejects the second fulfil with WrongStatus or
+//     TournamentMatchNotPending.  Relayer treats both as success.
+//   • Plus per-target in-process `completed` Set short-circuits before
+//     we even burn a Switchboard cycle on the dupe.
 // ============================================================
 
 import "dotenv/config";
@@ -91,6 +95,9 @@ const battleSeed = (id) =>
 // so 1v1 and BR cannot collide on the same numeric id.
 const royaleSeed = (id) =>
   pda([enc("royale"), new BN(id).toArrayLike(Buffer, "le", 8)]);
+// SEC-23 — Tournament PDA seeds are [b"tournament", id.le8].
+const tournamentSeed = (id) =>
+  pda([enc("tournament"), new BN(id).toArrayLike(Buffer, "le", 8)]);
 
 const eventCoder = new BorshEventCoder(arenaIdl);
 
@@ -251,13 +258,89 @@ async function fulfillBr(royaleId) {
   }
 }
 
+// ---- SEC-23 — Tournament fulfill --------------------------------
+// Compound key "tournamentId:matchIdx" because a single tournament has
+// up to 8 matches and we want per-match inflight tracking.
+const tournamentInflight  = new Set();
+const tournamentCompleted = new Set();
+
+async function fulfillTournamentMatch(tournamentId, matchIdx) {
+  const key = `${tournamentId}:${matchIdx}`;
+  if (tournamentInflight.has(key) || tournamentCompleted.has(key)) {
+    dbg(`tournament ${tournamentId}/m${matchIdx} already in-flight / done — skipping`);
+    return;
+  }
+  tournamentInflight.add(key);
+  try {
+    await new Promise((r) => setTimeout(r, cfg.fulfillDelayMs));
+
+    const tPda = tournamentSeed(tournamentId);
+    let t;
+    try { t = await arena.account.tournament.fetch(tPda); }
+    catch (e) { log(`[fulfillT #${tournamentId}/m${matchIdx}] not on chain (${e.message}) — skipping`); return; }
+    if (t.status !== 1) {
+      log(`[fulfillT #${tournamentId}/m${matchIdx}] tournament status=${t.status} (not ACTIVE) — skipping`);
+      tournamentCompleted.add(key);
+      return;
+    }
+    const m = t.matches[matchIdx];
+    if (m.status !== 0) {
+      log(`[fulfillT #${tournamentId}/m${matchIdx}] match status=${m.status} (not PENDING) — skipping`);
+      tournamentCompleted.add(key);
+      return;
+    }
+    if (m.round !== t.currentRound) {
+      log(`[fulfillT #${tournamentId}/m${matchIdx}] not in current round (m.round=${m.round}, current=${t.currentRound}) — skipping`);
+      tournamentCompleted.add(key);
+      return;
+    }
+    if (cfg.randomnessSource !== "switchboard") {
+      log(`[fulfillT #${tournamentId}/m${matchIdx}] RANDOMNESS_SOURCE=${cfg.randomnessSource} — tournaments require switchboard, skipping`);
+      tournamentCompleted.add(key);
+      return;
+    }
+
+    const { queue } = switchboardEndpoints(
+      cfg.rpcHttp.includes("mainnet") ? "mainnet" : "devnet",
+    );
+    log(`[fulfillT #${tournamentId}/m${matchIdx}] starting Switchboard cycle (slots ${m.slotA}v${m.slotB})`);
+    const { randomnessAccount, fulfillSig } = await runSwitchboardCycle({
+      connection,
+      payer:        wallet.payer,
+      queuePubkey:  queue,
+      buildFulfillIx: (randomnessAccountPk) =>
+        arena.methods
+          .advanceMatchSwitchboard(matchIdx)
+          .accounts({
+            config:            arenaConfig,
+            tournament:        tPda,
+            randomnessAccount: randomnessAccountPk,
+            caller:            wallet.publicKey,
+          })
+          .instruction(),
+    });
+    log(`[fulfillT #${tournamentId}/m${matchIdx}] OK  randomness=${randomnessAccount.toBase58().slice(0,8)}…  tx=${fulfillSig.slice(0,16)}…`);
+    tournamentCompleted.add(key);
+  } catch (e) {
+    if (/WrongStatus|TournamentMatchNotPending|WrongTournamentRound/.test(e.message)
+        || /6002|6033|6034/.test(e.message)) {
+      dbg(`[fulfillT #${tournamentId}/m${matchIdx}] already decided / out of round — fine`);
+      tournamentCompleted.add(key);
+    } else {
+      log(`[fulfillT #${tournamentId}/m${matchIdx}] FAILED:`, e.message);
+    }
+  } finally {
+    tournamentInflight.delete(key);
+  }
+}
+
 // ---- event decoder ------------------------------------------------
 const PROGRAM_DATA_PREFIX = "Program data: ";
 
 /**
  * Walk a tx's log lines and return:
- *   { battleIds: u64[], royaleIds: u64[] }
- * for the events we care about (BattleJoined / BattleRoyaleRolling).
+ *   { battleIds: u64[], royaleIds: u64[], tournamentMatches: [tid, midx][] }
+ * for the events we care about.
  * Other events are silently ignored — we don't fail-open on the
  * presence of unknown event names, mirroring SEC-12's `startsWith`
  * discipline (`indexOf` would false-positive on `msg!()` logs).
@@ -265,6 +348,7 @@ const PROGRAM_DATA_PREFIX = "Program data: ";
 function extractFulfillCandidates(logs) {
   const battleIds = [];
   const royaleIds = [];
+  const tournamentMatches = [];
   for (const line of logs || []) {
     if (typeof line !== "string") continue;
     if (!line.startsWith(PROGRAM_DATA_PREFIX)) continue;
@@ -279,10 +363,17 @@ function extractFulfillCandidates(logs) {
         // SEC-22 — BR transitions to ROLLING only on the LAST join
         // (when max_players is reached).  That's the signal to roll VRF.
         royaleIds.push(decoded.data.id);
+      } else if (decoded.name === "TournamentMatchRolling") {
+        // SEC-23 — start_tournament emits 4 of these (R0 quarters);
+        // advance_match emits 2 more when R0→R1 completes, then 2 more
+        // for R1→R2.  Each one is a separate Switchboard cycle.
+        const tid = decoded.data.id;
+        const midx = decoded.data.match_idx ?? decoded.data.matchIdx;
+        tournamentMatches.push([tid, midx]);
       }
     } catch { /* not our event, ignore */ }
   }
-  return { battleIds, royaleIds };
+  return { battleIds, royaleIds, tournamentMatches };
 }
 
 // ---- live subscription -------------------------------------------
@@ -293,7 +384,8 @@ async function startLive() {
     cfg.programId,
     (logsResult) => {
       if (logsResult.err) return;
-      const { battleIds, royaleIds } = extractFulfillCandidates(logsResult.logs);
+      const { battleIds, royaleIds, tournamentMatches } =
+        extractFulfillCandidates(logsResult.logs);
       for (const id of battleIds) {
         log(`[live] BattleJoined #${id} in sig=${logsResult.signature.slice(0,16)}…`);
         fulfill(id);
@@ -301,6 +393,10 @@ async function startLive() {
       for (const id of royaleIds) {
         log(`[live] BattleRoyaleRolling #${id} in sig=${logsResult.signature.slice(0,16)}…`);
         fulfillBr(id);
+      }
+      for (const [tid, midx] of tournamentMatches) {
+        log(`[live] TournamentMatchRolling #${tid}/m${midx} in sig=${logsResult.signature.slice(0,16)}…`);
+        fulfillTournamentMatch(tid, midx);
       }
     },
     "confirmed",
@@ -331,7 +427,8 @@ async function pollForMissed() {
         maxSupportedTransactionVersion: 0,
       });
       if (!tx?.meta?.logMessages) continue;
-      const { battleIds, royaleIds } = extractFulfillCandidates(tx.meta.logMessages);
+      const { battleIds, royaleIds, tournamentMatches } =
+        extractFulfillCandidates(tx.meta.logMessages);
       for (const id of battleIds) {
         log(`[poll] BattleJoined #${id} in sig=${s.signature.slice(0,16)}…`);
         fulfill(id);
@@ -339,6 +436,10 @@ async function pollForMissed() {
       for (const id of royaleIds) {
         log(`[poll] BattleRoyaleRolling #${id} in sig=${s.signature.slice(0,16)}…`);
         fulfillBr(id);
+      }
+      for (const [tid, midx] of tournamentMatches) {
+        log(`[poll] TournamentMatchRolling #${tid}/m${midx} in sig=${s.signature.slice(0,16)}…`);
+        fulfillTournamentMatch(tid, midx);
       }
     }
   } catch (e) {
@@ -371,8 +472,9 @@ async function main() {
   log(`[boot] watching program ${cfg.programId.toBase58()}`);
   log(`[boot] randomness source: ${cfg.randomnessSource}`);
   log(`[boot] dispatch table:`);
-  log(`[boot]   BattleJoined           → fulfill_random_words${cfg.randomnessSource === "switchboard" ? "_switchboard" : "(seed)"}`);
-  log(`[boot]   BattleRoyaleRolling    → fulfill_random_words_br_switchboard${cfg.randomnessSource === "switchboard" ? "" : " (DISABLED — needs RANDOMNESS_SOURCE=switchboard)"}`);
+  log(`[boot]   BattleJoined            → fulfill_random_words${cfg.randomnessSource === "switchboard" ? "_switchboard" : "(seed)"}`);
+  log(`[boot]   BattleRoyaleRolling     → fulfill_random_words_br_switchboard${cfg.randomnessSource === "switchboard" ? "" : " (DISABLED — needs RANDOMNESS_SOURCE=switchboard)"}`);
+  log(`[boot]   TournamentMatchRolling  → advance_match_switchboard${cfg.randomnessSource === "switchboard" ? "" : " (DISABLED — needs RANDOMNESS_SOURCE=switchboard)"}`);
 
   await startLive();
   setInterval(pollForMissed, cfg.pollIntervalMs);
