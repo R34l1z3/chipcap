@@ -14,11 +14,12 @@ import MintPage from "./pages/MintPage";
 import InventoryPage from "./pages/InventoryPage";
 import BattlePage from "./pages/BattlePage";
 import BattleRoyalePage from "./pages/BattleRoyalePage";
+import TournamentPage from "./pages/TournamentPage";
 import HistoryPage from "./pages/HistoryPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import ProfilePage from "./pages/ProfilePage";
 
-type Tab = "mint" | "inventory" | "battle" | "royale" | "history" | "leaderboard" | "profile";
+type Tab = "mint" | "inventory" | "battle" | "royale" | "tournament" | "history" | "leaderboard" | "profile";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("mint");
@@ -28,6 +29,8 @@ export default function App() {
   const [watchBattleId, setWatchBattleId] = useState<number | null>(null);
   // SEC-22 — analogous deep-link for Battle Royale page.
   const [watchRoyaleId, setWatchRoyaleId] = useState<number | null>(null);
+  // SEC-23 — same for Tournaments.
+  const [watchTournamentId, setWatchTournamentId] = useState<number | null>(null);
 
   const openProfile = useCallback((address: string | null) => {
     setViewedPlayer(address);
@@ -45,9 +48,10 @@ export default function App() {
   }, []);
 
   const handleSetTab = useCallback((t: Tab) => {
-    if (t !== "profile") setViewedPlayer(null);
-    if (t !== "battle")  setWatchBattleId(null);
-    if (t !== "royale")  setWatchRoyaleId(null);
+    if (t !== "profile")    setViewedPlayer(null);
+    if (t !== "battle")     setWatchBattleId(null);
+    if (t !== "royale")     setWatchRoyaleId(null);
+    if (t !== "tournament") setWatchTournamentId(null);
     setTab(t);
   }, []);
 
@@ -60,6 +64,7 @@ export default function App() {
         {tab === "inventory"   && <InventoryPage />}
         {tab === "battle"      && <BattlePage initialWatchId={watchBattleId} />}
         {tab === "royale"      && <BattleRoyalePage initialWatchId={watchRoyaleId} />}
+        {tab === "tournament"  && <TournamentPage initialWatchId={watchTournamentId} />}
         {tab === "leaderboard" && <LeaderboardPage onViewPlayer={openProfile} />}
         {tab === "history"     && <HistoryPage onViewPlayer={openProfile} onWatchBattle={openBattle} />}
         {tab === "profile"     && (

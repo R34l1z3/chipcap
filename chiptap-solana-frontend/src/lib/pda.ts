@@ -53,3 +53,23 @@ export const royale = (id: number | bigint | BN) => {
     BATTLE_ARENA_PROGRAM,
   )[0];
 };
+
+// SEC-23 — Tournament account + ticket SPL plumbing.  Tournament shares
+// the next_battle_id counter, same convention as `royale` above.
+export const tournament = (id: number | bigint | BN) => {
+  const idBn = BN.isBN(id) ? id : new BN(id.toString());
+  return PublicKey.findProgramAddressSync(
+    [enc("tournament"), idBn.toArrayLike(Buffer, "le", 8)],
+    BATTLE_ARENA_PROGRAM,
+  )[0];
+};
+
+// Ticket SPL mint — deterministic PDA so the UI can derive it without
+// fetching ArenaConfig (which still validates the binding on-chain via
+// config.ticket_mint constraint).
+export const ticketMint = () =>
+  PublicKey.findProgramAddressSync([enc("ticket_mint")], BATTLE_ARENA_PROGRAM)[0];
+
+// Mint+freeze authority for the ticket SPL.  PDA-only; never holds data.
+export const ticketAuthority = () =>
+  PublicKey.findProgramAddressSync([enc("ticket_authority")], BATTLE_ARENA_PROGRAM)[0];

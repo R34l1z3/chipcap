@@ -61,6 +61,46 @@ export interface IndexedBattleRoyale {
   settled_at:         string | null;
 }
 
+// SEC-23 — Tournament row + match sub-shape.  Mirrors `tournaments`
+// table + the on-chain Tournament account (see indexer migrate.js).
+export interface IndexedTMatch {
+  status:              number;        // 0=PENDING 1=ROLLING 2=DECIDED
+  round:               number;
+  slot_a:              number;
+  slot_b:              number;
+  winner_slot:         number;
+  seed:                string | null;
+  randomness_account:  string | null;
+  decided_at:          string | null;
+}
+
+export interface IndexedTournament {
+  id:                  number;
+  creator:             string;
+  bracket_size:        number;
+  registered:          number;
+  current_round:       number;
+  status:              number;        // 0=REGISTERING 1=ACTIVE 2=COMPLETED 3=CANCELLED
+  entry_fee:           number;        // lamports
+  players:             { slot: number; player: string; chip: string }[];
+  matches:             IndexedTMatch[];
+  winner_1st_slot:     number | null;
+  winner_2nd_slot:     number | null;
+  winner_3rd_slot:     number | null;
+  pool_amount:         number;        // SOL
+  fee_amount:          number;        // SOL
+  prize_1st:           number;        // SOL
+  prize_2nd:           number;        // SOL
+  prize_3rd:           number;        // SOL
+  prize_claimed_mask:  number;
+  chips_claimed_mask:  number;
+  cancel_reason:       number | null;
+  vrf_method:          string | null;
+  created_at:          string;
+  started_at:          string | null;
+  completed_at:        string | null;
+}
+
 export interface IndexedChip {
   asset:        string;
   token_id:     number;
@@ -137,5 +177,19 @@ export const indexerApi = {
     if (p?.limit)                   q.set("limit",     String(p.limit));
     if (p?.offset)                  q.set("offset",    String(p.offset));
     return get<{ battleRoyales: IndexedBattleRoyale[]; total: number }>(`/battle-royales?${q}`);
+  },
+
+  // ----- SEC-23 — Tournament -----------------------------------
+  getOpenTournaments:   () => get<{ tournaments: IndexedTournament[] }>("/tournaments/open"),
+  getActiveTournaments: () => get<{ tournaments: IndexedTournament[] }>("/tournaments/active"),
+  getTournament:        (id: number) =>
+    get<{ tournament: IndexedTournament }>(`/tournaments/${id}`),
+  getTournaments: (p?: { status?: number; player?: string; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (p?.status !== undefined) q.set("status", String(p.status));
+    if (p?.player)               q.set("player", p.player);
+    if (p?.limit)                q.set("limit",  String(p.limit));
+    if (p?.offset)               q.set("offset", String(p.offset));
+    return get<{ tournaments: IndexedTournament[]; total: number }>(`/tournaments?${q}`);
   },
 };

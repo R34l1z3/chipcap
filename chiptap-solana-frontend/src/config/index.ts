@@ -80,3 +80,27 @@ export const BR_MIN_PLAYERS     = 2;
 export const BR_PLAYER_OPTIONS = [4, 6, 8] as const;
 // Reason byte emitted by `BattleRoyaleCancelled` for UI labels.
 export const BR_CANCEL_REASON = { 0: "JOIN_TIMEOUT", 1: "VRF_TIMEOUT" } as const;
+
+// SEC-23 — Tournament.  Fixed 8-player single-elimination + 3rd-place
+// playoff (= 8 matches total: 4 quarters + 2 semis + final + 3rd-place).
+export const T_BRACKET_SIZE      = 8;
+export const T_TOTAL_MATCHES     = 8;
+// Hardcoded in program (must match T_PRIZE_*_BPS in lib.rs); shown in UI.
+export const T_PRIZE_1ST_PCT     = 60;
+export const T_PRIZE_2ND_PCT     = 25;
+export const T_PRIZE_3RD_PCT     = 10;
+export const T_FEE_PCT           = 5;
+// Hardcoded ticket price in program (`buy_ticket` ix constant).
+// 0.01 SOL = 10_000_000 lamports.  If you change this in lib.rs, update here.
+export const TICKET_PRICE_SOL    = 0.01;
+export const TICKET_PRICE_LAMPORTS = 10_000_000;
+// Standard entry-fee options shown in Create UI.  Owner can deviate by
+// passing a custom u64 to create_tournament — UI just guides defaults.
+export const T_ENTRY_FEE_OPTIONS_SOL = [0.02, 0.05, 0.1, 0.25] as const;
+// Status labels
+export const T_STATUS = { 0: "REGISTERING", 1: "ACTIVE", 2: "COMPLETED", 3: "CANCELLED" } as const;
+// Per-match status (cell-level)
+export const T_MATCH_STATUS = { 0: "PENDING", 1: "ROLLING", 2: "DECIDED" } as const;
+// Per-round labels for the bracket UI
+export const T_ROUND_LABEL  = { 0: "QUARTERS", 1: "SEMIS", 2: "FINAL & 3RD" } as const;
+export const T_CANCEL_REASON = { 0: "REGISTER_TIMEOUT", 1: "VRF_TIMEOUT" } as const;
