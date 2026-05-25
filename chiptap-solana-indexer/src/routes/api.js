@@ -132,6 +132,67 @@ router.get("/battle-royales/:id", async (req, res, next) => {
 });
 
 // ============================================================
+//  SEC-23 — TOURNAMENTS
+// ============================================================
+//
+//   GET /tournaments            — paginated; filter status / player / etc.
+//   GET /tournaments/open       — status=0 (REGISTERING)
+//   GET /tournaments/active     — status=1 (ACTIVE — bracket rolling)
+//   GET /tournaments/:id        — full bracket payload incl. matches array
+//
+// Player filter uses the GIN index on `players` JSONB:
+//   players @> '[{"player":"X"}]'
+
+router.get("/tournaments", async (req, res, next) => {
+  try {
+    const { status, player, limit = 50, offset = 0 } = req.query;
+    const conds = []; const params = []; let i = 1;
+    if (status !== undefined) { conds.push(`status = $${i++}`); params.push(Number(status)); }
+    if (player) {
+      conds.push(`players @> $${i}::jsonb`);
+      params.push(JSON.stringify([{ player }]));
+      i++;
+    }
+    const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+    params.push(Math.min(Number(limit), 100));
+    params.push(Number(offset));
+    const { rows } = await db.query(
+      `SELECT * FROM tournaments ${where} ORDER BY id DESC LIMIT $${i++} OFFSET $${i}`,
+      params,
+    );
+    const { rows: countRows } = await db.query(
+      `SELECT COUNT(*) as total FROM tournaments ${where}`, params.slice(0, -2),
+    );
+    res.json({ tournaments: rows, total: countRows[0].total });
+  } catch (err) { next(err); }
+});
+
+router.get("/tournaments/open", async (_req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      "SELECT * FROM tournaments WHERE status = 0 ORDER BY created_at DESC LIMIT 50");
+    res.json({ tournaments: rows });
+  } catch (err) { next(err); }
+});
+
+router.get("/tournaments/active", async (_req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      "SELECT * FROM tournaments WHERE status = 1 ORDER BY id DESC LIMIT 50");
+    res.json({ tournaments: rows });
+  } catch (err) { next(err); }
+});
+
+router.get("/tournaments/:id", async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      "SELECT * FROM tournaments WHERE id = $1", [Number(req.params.id)]);
+    if (!rows.length) return res.status(404).json({ error: "Tournament not found" });
+    res.json({ tournament: rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 //  CHIPS
 // ============================================================
 

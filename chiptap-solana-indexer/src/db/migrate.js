@@ -116,6 +116,56 @@ CREATE INDEX IF NOT EXISTS idx_br_created  ON battle_royales(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_br_players  ON battle_royales USING gin (players jsonb_path_ops);
 
 -- ============================================================
+-- SEC-23: Tournaments (8-player single-elimination + 3rd-place)
+-- ============================================================
+-- Same id-space as battles + battle_royales (arena.next_battle_id).
+-- players[] is JSONB [{slot, player, chip}] — 8 entries when full.
+-- matches[] is JSONB [{round, slot_a, slot_b, winner_slot, seed,
+--                      randomness_account, decided_at, status}] — 8 entries:
+--   indices 0..4 = round 0 (quarters)
+--   indices 4..6 = round 1 (semis)
+--   indices 6..7 = round 2 (final + 3rd-place playoff)
+-- This mirrors the on-chain Tournament account layout exactly so the
+-- frontend can render the bracket without re-fetching from chain.
+CREATE TABLE IF NOT EXISTS tournaments (
+  id                 BIGINT       PRIMARY KEY,
+  creator            VARCHAR(44)  NOT NULL,
+  bracket_size       SMALLINT     NOT NULL,
+  registered         SMALLINT     NOT NULL DEFAULT 0,
+  current_round      SMALLINT     NOT NULL DEFAULT 0,
+  status             SMALLINT     NOT NULL DEFAULT 0,    -- 0=REGISTERING 1=ACTIVE 2=COMPLETED 3=CANCELLED
+  entry_fee          BIGINT       NOT NULL DEFAULT 0,    -- lamports per seat
+  players            JSONB        NOT NULL DEFAULT '[]'::jsonb,
+  matches            JSONB        NOT NULL DEFAULT '[]'::jsonb,
+  winner_1st_slot    SMALLINT,
+  winner_2nd_slot    SMALLINT,
+  winner_3rd_slot    SMALLINT,
+  pool_amount        NUMERIC      DEFAULT 0,             -- SOL
+  fee_amount         NUMERIC      DEFAULT 0,             -- SOL
+  prize_1st          NUMERIC      DEFAULT 0,
+  prize_2nd          NUMERIC      DEFAULT 0,
+  prize_3rd          NUMERIC      DEFAULT 0,
+  prize_claimed_mask SMALLINT     NOT NULL DEFAULT 0,    -- bit 0/1/2 for 1st/2nd/3rd
+  chips_claimed_mask SMALLINT     NOT NULL DEFAULT 0,
+  cancel_reason      SMALLINT,
+  vrf_method         VARCHAR(16),                        -- 'switchboard' once SwitchboardVerified arrives
+  created_at         TIMESTAMPTZ,
+  started_at         TIMESTAMPTZ,
+  completed_at       TIMESTAMPTZ,
+  create_tx          VARCHAR(88),
+  start_tx           VARCHAR(88),
+  complete_tx        VARCHAR(88),
+  cancel_tx          VARCHAR(88),
+  indexed_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_t_status   ON tournaments(status);
+CREATE INDEX IF NOT EXISTS idx_t_creator  ON tournaments(creator);
+CREATE INDEX IF NOT EXISTS idx_t_created  ON tournaments(created_at DESC);
+-- "tournaments I played in" via JSONB containment.
+CREATE INDEX IF NOT EXISTS idx_t_players  ON tournaments USING gin (players jsonb_path_ops);
+
+-- ============================================================
 -- Player stats (aggregated)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS player_stats (

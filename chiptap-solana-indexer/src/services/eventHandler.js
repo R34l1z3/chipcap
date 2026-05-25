@@ -178,6 +178,17 @@ export async function handleSwitchboardVerified(data, ctx) {
        WHERE id = $2`,
       [randomnessAccount, id],
     ),
+    // SEC-23 — Tournament reuses the same SwitchboardVerified event per
+    // match (battle_id field actually carries the tournament id since
+    // ids share arena.next_battle_id space).  We don't store per-match
+    // randomness here (that lives in matches[i].randomness_account on
+    // chain); just upgrade the tournament's vrf_method to 'switchboard'.
+    db.query(
+      `UPDATE tournaments
+         SET vrf_method = 'switchboard'
+       WHERE id = $1 AND vrf_method IS NULL`,
+      [id],
+    ),
   ]);
 
   broadcastToPlayers(
@@ -559,6 +570,300 @@ export async function handleBattleRoyaleCancelled(data, ctx) {
   broadcastToPlayers("br:cancelled", { id, reason }, participants);
 }
 
+// ============================================================
+//  SEC-23 — TOURNAMENT
+// ============================================================
+// 8-player single-elimination + 3rd-place playoff.  Bracket lives
+// entirely in the `matches` JSONB array (8 entries, indices laid out
+// per on-chain layout — see migrate.js comment).  Player array is
+// JSONB [{slot, player, chip}] populated on Registered events.
+
+// Helper — build an empty 8-cell matches array (used at Created time).
+function emptyTournamentMatches() {
+  return Array.from({ length: 8 }, () => ({
+    status: 0, round: 0, slot_a: 255, slot_b: 255, winner_slot: 255,
+    seed: null, randomness_account: null, decided_at: null,
+  }));
+}
+
+export async function handleTicketMintInitialized(data, ctx) {
+  const ticketMint = asPubkey(data.ticketMint ?? data.ticket_mint);
+  const authority  = asPubkey(data.authority);
+  if (!await claimEvent("TicketMintInitialized", ctx, { ticketMint, authority })) return;
+  // Just an audit-trail event — no row mutation.  UI fetches the mint
+  // pubkey from ArenaConfig directly.
+}
+
+export async function handleTicketsPurchased(data, ctx) {
+  const buyer        = asPubkey(data.buyer);
+  const amount       = asNum(data.amount);
+  const paidLamports = (data.paidLamports ?? data.paid_lamports)?.toString?.() ?? "0";
+  if (!await claimEvent("TicketsPurchased", ctx, { buyer, amount, paidLamports })) return;
+  await upsertPlayer(buyer);
+  broadcastToPlayers("ticket:purchased", { buyer, amount }, [buyer]);
+}
+
+export async function handleTournamentCreated(data, ctx) {
+  const id          = asNum(data.id);
+  const bracketSize = asNum(data.bracketSize ?? data.bracket_size);
+  const entryFee    = (data.entryFee ?? data.entry_fee)?.toString?.() ?? "0";
+  const creator     = asPubkey(data.creator);
+
+  if (!await claimEvent("TournamentCreated", ctx, { id, bracketSize, entryFee, creator })) return;
+
+  await db.query(
+    `INSERT INTO tournaments (id, creator, bracket_size, entry_fee, status,
+                              matches, created_at, create_tx)
+     VALUES ($1,$2,$3,$4,0,$5::jsonb,NOW(),$6)
+     ON CONFLICT (id) DO UPDATE SET
+       creator = $2, bracket_size = $3, entry_fee = $4, status = 0,
+       matches = $5::jsonb, create_tx = $6`,
+    [id, creator, bracketSize, entryFee, JSON.stringify(emptyTournamentMatches()), ctx.signature],
+  );
+
+  await upsertPlayer(creator);
+  broadcast("tournament:created", { id, creator, bracketSize, entryFee });
+}
+
+export async function handleTournamentRegistered(data, ctx) {
+  const id         = asNum(data.id);
+  const player     = asPubkey(data.player);
+  const chip       = asPubkey(data.chip);
+  const slot       = asNum(data.slot);
+  const registered = asNum(data.registered);
+
+  if (!await claimEvent("TournamentRegistered", ctx, { id, player, chip, slot, registered })) return;
+
+  const client = await db.getClient();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      "SELECT players FROM tournaments WHERE id = $1 FOR UPDATE", [id],
+    );
+    const existing = Array.isArray(rows[0]?.players) ? rows[0].players : [];
+    const filtered = existing.filter((p) => p.slot !== slot);
+    filtered.push({ slot, player, chip });
+    filtered.sort((a, b) => a.slot - b.slot);
+    await client.query(
+      `UPDATE tournaments SET players = $1::jsonb, registered = $2 WHERE id = $3`,
+      [JSON.stringify(filtered), registered, id],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  await upsertPlayer(player);
+  broadcast("tournament:registered", { id, player, slot, registered });
+}
+
+export async function handleTournamentStarted(data, ctx) {
+  const id        = asNum(data.id);
+  const poolAmt   = lamportsToSol(data.poolAmount ?? data.pool_amount);
+  const feeAmt    = lamportsToSol(data.feeAmount  ?? data.fee_amount);
+  const p1        = lamportsToSol(data.prize1st ?? data.prize_1st);
+  const p2        = lamportsToSol(data.prize2nd ?? data.prize_2nd);
+  const p3        = lamportsToSol(data.prize3rd ?? data.prize_3rd);
+
+  if (!await claimEvent("TournamentStarted", ctx, { id, poolAmt, feeAmt })) return;
+
+  // Pre-seed round-0 matches.  We rebuild the matches array using the
+  // on-chain bracket layout (slots 0v1, 2v3, 4v5, 6v7 in idx 0..4) so
+  // the UI can show the bracket BEFORE relayer fulfills the first VRF.
+  const m = emptyTournamentMatches();
+  for (let i = 0; i < 4; i++) {
+    m[i].round  = 0;
+    m[i].slot_a = i * 2;
+    m[i].slot_b = i * 2 + 1;
+  }
+
+  await db.query(
+    `UPDATE tournaments SET
+       status = 1, started_at = NOW(), start_tx = $1,
+       pool_amount = $2, fee_amount = $3,
+       prize_1st = $4, prize_2nd = $5, prize_3rd = $6,
+       matches = $7::jsonb,
+       current_round = 0
+     WHERE id = $8`,
+    [ctx.signature, poolAmt, feeAmt, p1, p2, p3, JSON.stringify(m), id],
+  );
+
+  broadcast("tournament:started", { id, poolAmount: poolAmt, prizes: [p1, p2, p3] });
+}
+
+// Per-match Rolling event (one per cell).  No DB mutation — relayer
+// consumes this signal to start a Switchboard cycle.  We still claim
+// the event to prevent re-broadcasting.
+export async function handleTournamentMatchRolling(data, ctx) {
+  const id        = asNum(data.id);
+  const round     = asNum(data.round);
+  const matchIdx  = asNum(data.matchIdx ?? data.match_idx);
+  const slotA     = asNum(data.slotA ?? data.slot_a);
+  const slotB     = asNum(data.slotB ?? data.slot_b);
+
+  if (!await claimEvent("TournamentMatchRolling", ctx, { id, round, matchIdx })) return;
+
+  // Mark the match as ROLLING (status=1) — UI uses this for the spinner.
+  await db.query(
+    `UPDATE tournaments SET
+       matches = jsonb_set(matches, ARRAY[$1::text, 'status'], '1'::jsonb)
+     WHERE id = $2`,
+    [matchIdx, id],
+  );
+
+  broadcast("tournament:match_rolling", { id, round, matchIdx, slotA, slotB });
+}
+
+export async function handleTournamentMatchDecided(data, ctx) {
+  const id          = asNum(data.id);
+  const round       = asNum(data.round);
+  const matchIdx    = asNum(data.matchIdx   ?? data.match_idx);
+  const winnerSlot  = asNum(data.winnerSlot ?? data.winner_slot);
+  const seed        = (data.seed)?.toString?.() ?? null;
+
+  if (!await claimEvent("TournamentMatchDecided", ctx, { id, round, matchIdx, winnerSlot })) return;
+
+  // Update the specific match cell: status=2, winner_slot, seed,
+  // decided_at, randomness_account (best-effort from ctx).
+  const client = await db.getClient();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query(
+      "SELECT matches FROM tournaments WHERE id = $1 FOR UPDATE", [id],
+    );
+    const matches = Array.isArray(rows[0]?.matches) ? rows[0].matches : [];
+    if (matches[matchIdx]) {
+      matches[matchIdx] = {
+        ...matches[matchIdx],
+        status: 2, round, winner_slot: winnerSlot, seed,
+        decided_at: new Date().toISOString(),
+      };
+    }
+    // If the just-decided match completed the current round, the
+    // on-chain code populates the NEXT round's match cells (slot_a/b).
+    // We don't try to mirror that here — handler TournamentMatchRolling
+    // for the new round's matches will arrive in the same tx and fill
+    // slot_a/b for the next-round entries.  See on-chain
+    // t_advance_round() for the cascade.
+    await client.query(
+      `UPDATE tournaments SET matches = $1::jsonb WHERE id = $2`,
+      [JSON.stringify(matches), id],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  broadcast("tournament:match_decided", { id, round, matchIdx, winnerSlot, seed });
+}
+
+export async function handleTournamentCompleted(data, ctx) {
+  const id         = asNum(data.id);
+  const winner1st  = asPubkey(data.winner1st ?? data.winner_1st);
+  const winner2nd  = asPubkey(data.winner2nd ?? data.winner_2nd);
+  const winner3rd  = asPubkey(data.winner3rd ?? data.winner_3rd);
+
+  if (!await claimEvent("TournamentCompleted", ctx, { id, winner1st, winner2nd, winner3rd })) return;
+
+  // Derive slot indices from the players array (avoids a Decoded round trip).
+  const { rows } = await db.query("SELECT players FROM tournaments WHERE id = $1", [id]);
+  const players  = Array.isArray(rows[0]?.players) ? rows[0].players : [];
+  const slotOf   = (pk) => players.find((p) => p.player === pk)?.slot ?? null;
+
+  await db.query(
+    `UPDATE tournaments SET
+       status = 2, completed_at = NOW(), complete_tx = $1,
+       winner_1st_slot = $2, winner_2nd_slot = $3, winner_3rd_slot = $4
+     WHERE id = $5`,
+    [ctx.signature, slotOf(winner1st), slotOf(winner2nd), slotOf(winner3rd), id],
+  );
+
+  const participants = players.map((p) => p.player).filter(Boolean);
+  broadcastToPlayers(
+    "tournament:completed",
+    { id, winner1st, winner2nd, winner3rd },
+    participants,
+  );
+}
+
+export async function handleTournamentPrizeClaimed(data, ctx) {
+  const id     = asNum(data.id);
+  const winner = asPubkey(data.winner);
+  const rank   = asNum(data.rank);
+  const amount = lamportsToSol(data.amount);
+
+  if (!await claimEvent("TournamentPrizeClaimed", ctx, { id, winner, rank, amount })) return;
+
+  const bit = 1 << rank;
+  const client = await db.getClient();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `UPDATE tournaments
+         SET prize_claimed_mask = prize_claimed_mask | $1
+       WHERE id = $2`,
+      [bit, id],
+    );
+    // Bump winner's earned stats.  Only rank 0 (1st) counts as a "win"
+    // for total_battles aggregation — 2nd/3rd still get earnings but
+    // not a win-count bump (would double-count losses otherwise).  We
+    // bump losses for non-winners in the Completed handler instead.
+    await client.query(
+      `UPDATE player_stats SET
+         total_earned = total_earned + $1, updated_at = NOW()
+       WHERE address = $2`,
+      [amount, winner],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  broadcast("tournament:prize_claimed", { id, winner, rank, amount });
+}
+
+export async function handleTournamentChipClaimed(data, ctx) {
+  const id     = asNum(data.id);
+  const player = asPubkey(data.player);
+  const slot   = asNum(data.slot);
+
+  if (!await claimEvent("TournamentChipClaimed", ctx, { id, player, slot })) return;
+
+  const bit = 1 << slot;
+  await db.query(
+    `UPDATE tournaments SET chips_claimed_mask = chips_claimed_mask | $1 WHERE id = $2`,
+    [bit, id],
+  );
+  broadcast("tournament:chip_claimed", { id, player, slot });
+}
+
+export async function handleTournamentCancelled(data, ctx) {
+  const id     = asNum(data.id);
+  const reason = asNum(data.reason);
+
+  if (!await claimEvent("TournamentCancelled", ctx, { id, reason })) return;
+
+  await db.query(
+    `UPDATE tournaments SET status = 3, cancel_reason = $1, cancel_tx = $2,
+       completed_at = NOW()
+     WHERE id = $3`,
+    [reason, ctx.signature, id],
+  );
+
+  const { rows } = await db.query("SELECT players FROM tournaments WHERE id = $1", [id]);
+  const participants = (rows[0]?.players ?? []).map((p) => p.player).filter(Boolean);
+  broadcastToPlayers("tournament:cancelled", { id, reason }, participants);
+}
+
 export async function handleDeposited(data, ctx) {
   const user    = asPubkey(data.user);
   const amount  = lamportsToSol(data.amount);
@@ -607,6 +912,18 @@ const DISPATCH = {
   BattleRoyaleDecided:      handleBattleRoyaleDecided,
   BattleRoyaleSettledPaid:  handleBattleRoyaleSettledPaid,
   BattleRoyaleCancelled:    handleBattleRoyaleCancelled,
+  // SEC-23 — Tournament
+  TicketMintInitialized:    handleTicketMintInitialized,
+  TicketsPurchased:         handleTicketsPurchased,
+  TournamentCreated:        handleTournamentCreated,
+  TournamentRegistered:     handleTournamentRegistered,
+  TournamentStarted:        handleTournamentStarted,
+  TournamentMatchRolling:   handleTournamentMatchRolling,
+  TournamentMatchDecided:   handleTournamentMatchDecided,
+  TournamentCompleted:      handleTournamentCompleted,
+  TournamentPrizeClaimed:   handleTournamentPrizeClaimed,
+  TournamentChipClaimed:    handleTournamentChipClaimed,
+  TournamentCancelled:      handleTournamentCancelled,
 };
 
 export async function dispatchEvent(event, data, ctx) {
