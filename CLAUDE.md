@@ -322,17 +322,29 @@ Already adapted (don't redo):
 - WalletConnect project ID in the EVM frontend's Dockerfile defaults to a placeholder
 - GitHub Actions are pinned to `@v4`/`@stable` not to SHAs (supply-chain drift risk — Dependabot or `pin-github-action` should land before any real release)
 
-### Outstanding work (post SEC-22)
-- ~~**Battle Royale Phase 2** — relayer~~ → **DONE**. `runSwitchboardCycle` refactored to take a `buildFulfillIx` callback so the same driver serves 1v1 (`fulfill_random_words_switchboard`) and BR (`fulfill_random_words_br_switchboard`). New `fulfillBr()` + `extractFulfillCandidates()` (replaces `extractBattleJoinedIds` — decodes both `BattleJoined` and `BattleRoyaleRolling`). Live + poll paths dispatch on event type. BR is Switchboard-only (no slothash fallback ix exists on chain) — relayer logs `DISABLED` if `RANDOMNESS_SOURCE != switchboard` for BR. `.env.example` flipped default to `RANDOMNESS_SOURCE=switchboard`.
-- ~~**Battle Royale Phase 3** — indexer~~ → **DONE**. New `battle_royales` table (denormalised `players` JSONB array with GIN index for `players @> [{player:X}]` lookups; `idx_br_status/creator/winner/created`). 6 handlers registered in DISPATCH: `BattleRoyaleCreated / Joined / Rolling / Decided / SettledPaid / Cancelled`. `BattleRoyaleSettledPaid` credits winner `total_earned` and bumps `losses + total_paid` for every other participant from the denormalised `players` array (chips are NOT lost in BR — membership only). `handleSwitchboardVerified` extended to UPDATE BOTH `battles` and `battle_royales` (only one row matches per id since both tables share `arena.next_battle_id` counter). No separate `BattleRoyaleSwitchboardVerified` / `ChipClaimed` / `WinningsClaimed` events exist on-chain — the program reuses `SwitchboardVerified` for both modes, and `claim_chip_br` only flips the on-chain `chips_claimed_mask` bitmask (the UI reads that directly from chain). New REST endpoints: `GET /battle-royales[?status&player&pool_tier]`, `/battle-royales/open`, `/battle-royales/live`, `/battle-royales/:id`. `/players/:address` returns `recentBattleRoyales` alongside `recentBattles`; `/stats` returns `battleRoyales` count + `brVolume` aggregate.
-- ~~**Battle Royale Phase 4** — frontend~~ → **DONE** (Lobby + Create + minimal Watch). New `pages/BattleRoyalePage.tsx`, `hooks/useIndexerBattleRoyales.ts` (REST + `br:*` WS topics with optimistic numJoined bump + lazy refetch on join because broadcast doesn't carry slot/chip), `lib/pda.ts` adds `royale(id)` helper, `services/indexerApi.ts` adds `IndexedBattleRoyale` + 4 endpoint getters, `config/index.ts` adds `BR_MAX_PLAYERS_CAP=8 / BR_MIN_PLAYERS=2 / BR_PLAYER_OPTIONS=[4,6,8] / BR_CANCEL_REASON`. Create issues TWO popups: `create_battle_royale(tier, max_players)` then auto-join with creator's chip (bundling via `.preInstructions()` doesn't work because join reads the just-created royale account from chain). Lobby surfaces an "IN LOBBY ✓" badge for rooms the player already joined and a yellow `BalanceHint` panel if internal balance < stake. Watch view renders 8 seat-cards from on-chain BR account's `players[]` + `chips[]` + `chips_claimed_mask` (bitmask drives per-seat `claimed ✓` label) — winner sees CLAIM WINNINGS button (gated on `prizeClaimed=false`), every participant sees CLAIM MY CHIP BACK gated on their bit in the mask. New tab `[%] ROYALE / BR` in `RetroHeader.tsx`, `App.tsx` adds `watchRoyaleId` deep-link state mirroring `watchBattleId`. `tsc --noEmit` + `vite build` both green.
-- **Battle Royale Phase 5** — commit + push + manual deploy on Render + Vercel
-- **Tournament system** (ticket-based, SPL token) — deferred until BR is fully wired
-- **Relayer on hosting** — currently runs on user's PC in WSL. Render free tier doesn't support always-on workers cheaply; consider Fly.io with the rotated token, or a tiny self-hosted VPS
-- **Verifiable build** for solscan (`solana-verify`) — proves the deployed bytecode matches the GitHub source. Needed before any mainnet announcement
-- **Squads multisig execution** on devnet (rehearsal) then mainnet — runbook in `SQUADS_SETUP.md`, both keypairs already generated
-- **Public devnet announcement** — once Phase 2-5 ship and the relayer has a stable home
-- **Mainnet deploy** with capped pool tiers (start with the cheapest tier only, lift cap after a week of clean operation)
+### Closed in this cycle (kept for archaeology)
+- ~~**Battle Royale Phase 2/3/4/5**~~ → SEC-22 fully shipped (relayer dispatch + battle_royales table + BattleRoyalePage UI + devnet deploy).  Validated end-to-end via BR #16 (owner won 0.19 SOL, claimed chip).
+- ~~**Tournament system (ticket-based SPL)**~~ → SEC-23 fully shipped.  Validated via T #20 — owner placed 2nd, claimed 0.04 SOL silver + chip back.  See SEC-23 row in the hardening table for the design choices (60/25/10 split, single-elim + 3rd-place, Box<Account<>> stack fix, R2-branch fix, `winner1StSlot` camelCase).
+
+### Roadmap — what's next
+
+**Infrastructure / production blockers**
+- **Relayer on hosting** — currently runs on user's PC in WSL.  PC reboot = battles/tournaments hang in ROLLING (the relayer's live subscription only catches events from boot onwards; the poll backfill window is ~50 sigs which evicts older events fast on a busy program).  Discovered the hard way during T #20 — fixed via `kick-tournament.js` helper, but the right answer is putting the relayer on Fly.io / Railway / tiny VPS.  **Blocker for any public devnet announcement.**
+- **Ротация утёкших секретов** — Neon DB password, Render `WS_TOKEN`, Fly.io API token (all shared verbatim in chat).  Do BEFORE the public announcement, not after.
+- **Verifiable build** for solscan (`solana-verify`) — proves the deployed bytecode matches the GitHub source.  Needed before any mainnet announcement so an auditor can byte-compare the .so.
+- **Squads multisig execution** on devnet (rehearsal) then mainnet — runbook in `SQUADS_SETUP.md`, both keypairs already generated.  Locks upgrade-authority to 2-of-2 (cold + hot).
+- **Public devnet announcement** — once relayer hosting + secret rotation land.
+- **Mainnet deploy** with capped pool tiers — start with the cheapest tier only, lift cap after a week of clean operation.
+
+**Product / UX work (user-requested 2026-05-27)**
+- **Design pass / visual cleanup** — the retro-pixel theme is fun but the screens feel dense.  Goals: simpler primary CTAs (one obvious action per screen), less wallpaper noise, mobile-first checks on Lobby/Watch screens, consistent spacing.  Don't lose the pixel-art identity — strip down chrome, not aesthetic.
+- **In-game tutorial / how-to-play** — first-run experience for someone who's never touched Solana.  Should cover: wallet connect → fund wallet (devnet faucet link) → mint a chip → join a battle → understand internal balance → claim winnings.  Could be a step-by-step tooltip overlay on first connect, or a static `/help` page, or both.  Add a "?" icon in the header that opens it.
+- **Game-mode polish** — three modes shipped (1v1, BR, Tournament) but rough edges remain:
+  - 1v1: chip W/L stats from indexer, but Battle Audit Panel still has the SEC-21 followups (BR id 404s on `/api/battles/:id`; per-match audit fetch for tournaments).
+  - BR: minimal Watch view — no expire_join / force_resolve user-facing buttons (admin-only via CLI today).
+  - Tournament: bracket UI could show seed/audit hash per match cell on hover; "BUY TICKET" UX could batch into one popup when entering with 0 tickets.
+  - Cross-mode: a unified "/games/:id" route that auto-resolves to the right mode (battle/royale/tournament) for shareable links.
+- **Referral system** — invite codes / referrer pubkey on signup.  Open design questions: 1) Storage — new SPL "referral receipt" or simple `Referral` PDA `[ref, referee_pubkey]`?  2) Payout — % of fee or % of pot or flat ticket airdrop?  3) Anti-sybil — cooldown / minimum activity before referrer credit unlocks?  4) Where to display — Profile tab "your invite code" + "people you referred"?  Pick model BEFORE coding (mirrors the question we resolved for tournaments: SPL ticket vs PDA receipt vs SOL entry).
 
 ## How to resume
 
