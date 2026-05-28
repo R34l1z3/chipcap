@@ -54,8 +54,17 @@ import {
   T_BRACKET_SIZE, T_STATUS, T_MATCH_STATUS, T_ROUND_LABEL,
   T_PRIZE_1ST_PCT, T_PRIZE_2ND_PCT, T_PRIZE_3RD_PCT, T_FEE_PCT,
   TICKET_PRICE_SOL, TICKET_PRICE_LAMPORTS,
-  T_ENTRY_FEE_OPTIONS_SOL, T_CANCEL_REASON,
+  T_ENTRY_FEE_OPTIONS_SOL, T_CANCEL_REASON, CLUSTER,
 } from "../config";
+
+// Per-match audit: link the cell's seed snippet to the Switchboard
+// randomness_account on solscan.  Same cluster-aware URL helpers as
+// BattleAuditPanel; inlined here to keep the bracket component
+// self-contained.
+function solscanAccount(addr: string): string {
+  const c = CLUSTER === "mainnet" ? "" : `?cluster=${CLUSTER}`;
+  return `https://solscan.io/account/${addr}${c}`;
+}
 import { fmtSol, lamportsToSol, shortAddr } from "../lib/format";
 import ChipCard from "../components/ChipCard";
 import BattleAuditPanel from "../components/BattleAuditPanel";
@@ -710,18 +719,54 @@ function MatchCell({ match, players, highlight, me, label }: MatchCellProps) {
         match.status === 1 ? "#FF00FF" :
         match.status === 2 ? "#FFD700" : "#444" }}>
         {match.status === 1 && <span className="animate-blink">ROLLING…</span>}
-        {match.status === 2 && `seed ${match.seed?.slice(0, 6) ?? "?"}…`}
+        {match.status === 2 && (
+          match.randomness_account ? (
+            // Switchboard-verified — link the seed snippet to the
+            // signed randomness account on solscan for independent audit.
+            // Full seed shown on hover via title attr.
+            <a
+              href={solscanAccount(match.randomness_account)}
+              target="_blank" rel="noreferrer"
+              title={`seed: ${match.seed ?? ""}\nclick to view Switchboard randomness account on solscan`}
+              style={{ color: "#FFD700", textDecoration: "none", cursor: "help" }}
+            >
+              seed {match.seed?.slice(0, 6) ?? "?"}… ↗
+            </a>
+          ) : (
+            <span title={`seed: ${match.seed ?? ""}`} style={{ cursor: "help" }}>
+              seed {match.seed?.slice(0, 6) ?? "?"}…
+            </span>
+          )
+        )}
         {match.status === 0 && "PENDING"}
       </div>
     </div>
   );
 }
 
-function Bracket({ t, me }: { t: TournamentData; me?: string | null }) {
-  // matches[0..4] = R0 (4 quarters)
-  // matches[4..6] = R1 (2 semis)
-  // matches[6]    = R2 final
-  // matches[7]    = R2 3rd-place
+function Bracket({
+  t, tChain, me,
+}: {
+  t: TournamentData;
+  // On-chain account (optional).  Each match's randomnessAccount lives
+  // on chain only — TournamentMatchDecided event doesn't carry it.
+  // When present, we merge it into each match cell so the seed snippet
+  // becomes a clickable solscan link.
+  tChain?: any | null;
+  me?: string | null;
+}) {
+  // matches[0..4] = R0 (4 quarters) / [4..6] = R1 semis / [6] = final / [7] = 3rd-place
+
+  const cell = (i: number) => {
+    const m = t.matches[i] ?? defaultMatch();
+    const onChainAcc = tChain?.matches?.[i]?.randomnessAccount?.toBase58?.();
+    // Anchor returns Pubkey::default() (all-zero address) for unset
+    // fields — filter those out so we don't link to "11111…11111".
+    const rndAcc = onChainAcc && onChainAcc !== "11111111111111111111111111111111"
+      ? onChainAcc : (m.randomness_account ?? null);
+    return { ...m, randomness_account: rndAcc };
+  };
+
   return (
     <div className="overflow-x-auto">
       <div className="flex gap-4 items-stretch" style={{ minWidth: 600, padding: 8 }}>
@@ -729,7 +774,7 @@ function Bracket({ t, me }: { t: TournamentData; me?: string | null }) {
         <div className="flex flex-col gap-2 justify-around">
           <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>QUARTERS</div>
           {[0, 1, 2, 3].map((i) => (
-            <MatchCell key={i} match={t.matches[i] ?? defaultMatch()} players={t.players} me={me} />
+            <MatchCell key={i} match={cell(i)} players={t.players} me={me} />
           ))}
         </div>
 
@@ -737,15 +782,15 @@ function Bracket({ t, me }: { t: TournamentData; me?: string | null }) {
         <div className="flex flex-col gap-2 justify-around">
           <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>SEMIS</div>
           {[4, 5].map((i) => (
-            <MatchCell key={i} match={t.matches[i] ?? defaultMatch()} players={t.players} me={me} />
+            <MatchCell key={i} match={cell(i)} players={t.players} me={me} />
           ))}
         </div>
 
         {/* R2 */}
         <div className="flex flex-col gap-2 justify-around">
           <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>FINAL</div>
-          <MatchCell match={t.matches[6] ?? defaultMatch()} players={t.players} me={me} label="GOLD" />
-          <MatchCell match={t.matches[7] ?? defaultMatch()} players={t.players} me={me} label="BRONZE" />
+          <MatchCell match={cell(6)} players={t.players} me={me} label="GOLD" />
+          <MatchCell match={cell(7)} players={t.players} me={me} label="BRONZE" />
         </div>
       </div>
     </div>
@@ -945,7 +990,7 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
         </div>
 
         {/* Bracket */}
-        {t.status >= 1 && <Bracket t={t} me={me} />}
+        {t.status >= 1 && <Bracket t={t} tChain={tChain} me={me} />}
 
         {/* Seats (during REGISTERING) */}
         {t.status === 0 && (
@@ -1054,14 +1099,12 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
         </div>
       </div>
 
-      {/* Reuse the BR/1v1 audit panel — for tournaments it carries the
-          vrf_method badge (switchboard) but the underlying per-match
-          seeds are visible directly in the bracket cells above.  Audit
-          panel adds a top-level link to ANY of the per-match randomness
-          accounts for solscan deep-dive; for now we punt and just show
-          the tournament-level badge. */}
+      {/* Tournament-mode audit panel: lifecycle tx envelope
+          (CREATE / START / COMPLETE / CANCEL).  Per-match seeds +
+          randomness_account links live in the bracket cells above. */}
       {t.status >= 1 && (
         <BattleAuditPanel
+          mode="tournament"
           battleId={tournamentId}
           randomSeed={t.matches.find((m) => m.status === 2)?.seed ?? null}
           winner={w1 != null && w1 !== 255 ? t.players[w1]?.player : null}

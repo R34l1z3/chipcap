@@ -17,12 +17,20 @@ import { useConnection } from "@solana/wallet-adapter-react";
 import { indexerApi } from "../services/indexerApi";
 import { CLUSTER } from "../config";
 
+/**
+ * Audit panel mode — drives which indexer endpoint to hit and which
+ * lifecycle tx rows to render.  Defaults to "battle" (1v1) for back-compat.
+ */
+export type AuditMode = "battle" | "royale" | "tournament";
+
 interface Props {
   battleId: number | string;
-  // From on-chain Battle account.  Optional — panel still renders
-  // (in degraded form) without them.
+  mode?: AuditMode;
+  // From on-chain account.  Optional — panel still renders (in degraded
+  // form) without them.
   randomSeed?: string | null;
   winner?: string | null;
+  // 1v1-only.  Ignored for royale/tournament (multiple losers).
   loser?: string | null;
 }
 
@@ -77,16 +85,24 @@ function TxRow({ label, sig }: { label: string; sig?: string | null }) {
   );
 }
 
-export default function BattleAuditPanel({ battleId, randomSeed, winner, loser }: Props) {
+export default function BattleAuditPanel({
+  battleId, mode = "battle", randomSeed, winner, loser,
+}: Props) {
   const { connection } = useConnection();
   const [data, setData] = useState<any>(null);
   const [verify, setVerify] = useState<{ status: "idle" | "loading" | "ok" | "mismatch" | "skip"; computed?: string; reason?: string }>({ status: "idle" });
 
   useEffect(() => {
-    indexerApi.getBattle(Number(battleId))
-      .then((r: any) => setData(r?.battle ?? null))
-      .catch(() => setData(null));
-  }, [battleId]);
+    // Route to the right indexer endpoint based on mode.  All three
+    // share the arena.next_battle_id counter so a given id lives in
+    // exactly one of (battles / battle_royales / tournaments).
+    const id = Number(battleId);
+    const p =
+      mode === "royale"     ? indexerApi.getBattleRoyale(id).then((r: any) => r?.battleRoyale ?? null) :
+      mode === "tournament" ? indexerApi.getTournament(id).then((r: any) => r?.tournament ?? null) :
+                              indexerApi.getBattle(id).then((r: any) => r?.battle ?? null);
+    p.then((d) => setData(d)).catch(() => setData(null));
+  }, [battleId, mode]);
 
   // VRF recompute.  We don't know the EXACT blockhash the relayer used
   // (it's "latest finalized at relayer's perception of slot N").  But
@@ -119,10 +135,34 @@ export default function BattleAuditPanel({ battleId, randomSeed, winner, loser }
       </div>
 
       <div className="mb-3">
-        <TxRow label="CREATE" sig={data?.create_tx} />
-        <TxRow label="JOIN"   sig={data?.join_tx} />
-        <TxRow label="DECIDE" sig={data?.decide_tx} />
-        <TxRow label="SETTLE" sig={data?.settle_tx} />
+        {mode === "battle" && (
+          <>
+            <TxRow label="CREATE" sig={data?.create_tx} />
+            <TxRow label="JOIN"   sig={data?.join_tx} />
+            <TxRow label="DECIDE" sig={data?.decide_tx} />
+            <TxRow label="SETTLE" sig={data?.settle_tx} />
+          </>
+        )}
+        {mode === "royale" && (
+          <>
+            <TxRow label="CREATE"  sig={data?.create_tx} />
+            <TxRow label="ROLLING" sig={data?.rolling_tx} />
+            <TxRow label="DECIDE"  sig={data?.decide_tx} />
+            <TxRow label="SETTLE"  sig={data?.settle_tx} />
+            {data?.cancel_tx && <TxRow label="CANCEL" sig={data.cancel_tx} />}
+          </>
+        )}
+        {mode === "tournament" && (
+          <>
+            <TxRow label="CREATE"   sig={data?.create_tx} />
+            <TxRow label="START"    sig={data?.start_tx} />
+            <TxRow label="COMPLETE" sig={data?.complete_tx} />
+            {data?.cancel_tx && <TxRow label="CANCEL" sig={data.cancel_tx} />}
+            {/* Per-match audit links live in the bracket cells on
+                TournamentPage (hover/click).  Top-level here we just
+                show the lifecycle envelope. */}
+          </>
+        )}
       </div>
 
       {(randomSeed || winner) && (
@@ -141,12 +181,17 @@ export default function BattleAuditPanel({ battleId, randomSeed, winner, loser }
                  style={{ color: "#00FF88", fontFamily: "'VT323', monospace" }}>
                 {winner.slice(0, 8)}…{winner.slice(-4)} ↗
               </a>
-              {" · "}
-              <span className="opacity-50">loser: </span>
-              <a href={solscanAcc(loser ?? "")} target="_blank" rel="noreferrer"
-                 style={{ color: "#FF4444", fontFamily: "'VT323', monospace" }}>
-                {(loser ?? "").slice(0, 8)}…{(loser ?? "").slice(-4)} ↗
-              </a>
+              {/* loser only meaningful for 1v1; BR/Tournament have many losers. */}
+              {mode === "battle" && loser && (
+                <>
+                  {" · "}
+                  <span className="opacity-50">loser: </span>
+                  <a href={solscanAcc(loser)} target="_blank" rel="noreferrer"
+                     style={{ color: "#FF4444", fontFamily: "'VT323', monospace" }}>
+                    {loser.slice(0, 8)}…{loser.slice(-4)} ↗
+                  </a>
+                </>
+              )}
             </div>
           )}
         </div>

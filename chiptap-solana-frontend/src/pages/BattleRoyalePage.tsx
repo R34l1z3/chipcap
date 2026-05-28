@@ -599,9 +599,16 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
   const { publicKey } = useWallet();
   const arena    = useArenaProgram();
   const treasury = useTreasuryProgram();
+  const { data: cfg } = useArenaConfig();
   const me = publicKey?.toBase58();
 
   const [br, setBr] = useState<any>(null);
+  // Ticker so the "expire-eligible" gate re-evaluates each second.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forceTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const fetchBr = useCallback(async () => {
     if (!arena) return;
@@ -672,6 +679,24 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
       notify("settled", `Claimed winnings · ${sig.slice(0, 8)}…`);
       await fetchBr();
     } catch (e) { notifyTxError("Claim winnings", e); }
+  };
+
+  // SEC-22 / polish — open-callable refund path when a BR's join
+  // window expired without filling.  Anyone (incl. non-participants)
+  // can poke the program; it cancels the BR and returns every chip +
+  // refunds every stake.  Mirrors `expire_join` for 1v1 battles.
+  const expireJoin = async () => {
+    if (!arena || !publicKey) return;
+    try {
+      const sig = await (arena.methods as any).expireBattleRoyaleJoin()
+        .accounts({
+          config:        pda.arenaConfig(),
+          royale:        pda.royale(royaleId),
+          caller:        publicKey,
+        }).rpc();
+      notify("info", `Cancelled stuck royale #${royaleId} · ${sig.slice(0, 8)}…`);
+      await fetchBr();
+    } catch (e) { notifyTxError("Expire join", e); }
   };
 
   if (!br) {
@@ -792,6 +817,35 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
               CLAIM {fmtSol(lamportsToSol(br.poolAmount) - lamportsToSol(br.feeAmount))} SOL WINNINGS
             </button>
           )}
+          {/* Polish — open expire-join when a stuck WAITING royale has
+              outlasted the join_timeout.  Anyone can call (caller pays
+              the rent reclaim); cancels the BR and lets every player
+              hit CLAIM MY CHIP BACK (which now accepts CANCELLED after
+              the matching on-chain guard fix). */}
+          {(() => {
+            if (status !== 0) return null;
+            if (!cfg) return null;
+            const createdAt = Number(br.createdAt) || 0;
+            const eligibleAt = createdAt + cfg.joinTimeout;
+            const now = Math.floor(Date.now() / 1000);
+            const remaining = eligibleAt - now;
+            if (remaining > 0) {
+              return (
+                <div className="text-xs opacity-50 text-center">
+                  Join window closes in {Math.max(0, Math.floor(remaining / 60))}m{remaining % 60}s
+                </div>
+              );
+            }
+            return (
+              <button
+                onClick={expireJoin}
+                className="retro-btn retro-btn-red py-2"
+                style={{ fontSize: 11 }}
+              >
+                CANCEL STUCK ROYALE (refund all)
+              </button>
+            );
+          })()}
           {mySeat && status >= 2 && !mySeat.claimed && (
             <button
               onClick={claimChip}
@@ -809,14 +863,11 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
         </div>
       </div>
 
-      {/* Audit panel — shares the same component as 1v1; it queries the
-          indexer by id which works for both tables (the indexer's
-          getBattle() endpoint targets battles, so we pass the BR's seed
-          + winner directly and let the panel show "switchboard" badge
-          once the SwitchboardVerified row lands).  Future: a BR-specific
-          variant that fetches /battle-royales/:id. */}
+      {/* Audit panel hits /api/battle-royales/:id and renders the BR
+          lifecycle tx rows (CREATE / ROLLING / DECIDE / SETTLE / CANCEL). */}
       {status >= 1 && (
         <BattleAuditPanel
+          mode="royale"
           battleId={royaleId}
           randomSeed={br.randomSeed?.toString?.()}
           winner={br.winner?.toBase58?.()}
