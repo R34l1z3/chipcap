@@ -878,8 +878,14 @@ pub mod battle_arena {
     /// `claim_winnings_br`.
     pub fn claim_chip_br(ctx: Context<ClaimChipBattleRoyale>) -> Result<()> {
         let r = &mut ctx.accounts.royale;
+        // SEC-22 polish — also allow CANCELLED so chips don't get stuck
+        // in escrow after `expire_battle_royale_join` or
+        // `force_resolve_battle_royale` runs.  Mirrors
+        // claim_tournament_chip which already accepts CANCELLED.
         require!(
-            r.status == STATUS_DECIDED || r.status == STATUS_SETTLED,
+            r.status == STATUS_DECIDED
+                || r.status == STATUS_SETTLED
+                || r.status == STATUS_CANCELLED,
             ArenaError::WrongStatus
         );
 
