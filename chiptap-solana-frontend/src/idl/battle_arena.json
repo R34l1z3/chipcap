@@ -1053,6 +1053,10 @@
           "writable": true
         },
         {
+          "name": "player_user",
+          "writable": true
+        },
+        {
           "name": "player",
           "writable": true,
           "signer": true

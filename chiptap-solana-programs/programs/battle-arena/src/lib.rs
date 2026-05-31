@@ -907,6 +907,23 @@ pub mod battle_arena {
         require!((r.chips_claimed_mask & bit) == 0, ArenaError::ChipAlreadyClaimed);
         r.chips_claimed_mask |= bit;
 
+        // SEC-22 fix — on a CANCELLED royale, refund the stake that was
+        // debited at join time (`player_user.balance -= stake`).  This is
+        // done HERE, atomically with the chip return, rather than in a
+        // separate ix: both cancel paths (expire_join from WAITING,
+        // force_resolve from ROLLING) leave chips_claimed_mask == 0, so
+        // every player's first claim_chip_br returns BOTH chip + stake
+        // and the existing per-slot bitmask guards against double-refund.
+        //
+        // In DECIDED/SETTLED the stake stayed in the pool (it's paid out
+        // to the winner via claim_winnings_br), so NO refund there — the
+        // branch is gated on CANCELLED.
+        if r.status == STATUS_CANCELLED {
+            let stake = ctx.accounts.config.pool_amounts[r.pool_tier as usize];
+            ctx.accounts.player_user.balance = ctx.accounts.player_user.balance
+                .checked_add(stake).ok_or(ArenaError::MathOverflow)?;
+        }
+
         let auth_bump = ctx.accounts.config.chip_authority_bump;
         return_chip_to(
             &ctx.accounts.mpl_core,
@@ -972,7 +989,7 @@ pub mod battle_arena {
             now > r.created_at + ctx.accounts.config.join_timeout,
             ArenaError::JoinPeriodNotExpired
         );
-        cancel_br(r, now);
+        cancel_br(r, now, 0 /* join timeout */);
         Ok(())
     }
 
@@ -987,7 +1004,7 @@ pub mod battle_arena {
             now > r.rolling_at + ctx.accounts.config.vrf_timeout,
             ArenaError::VrfNotTimedOut
         );
-        cancel_br(r, now);
+        cancel_br(r, now, 1 /* vrf timeout */);
         Ok(())
     }
 
@@ -1511,14 +1528,21 @@ fn try_settle_br(r: &mut BattleRoyale, now: i64) {
     }
 }
 
-/// SEC-22 — mark a BR as CANCELLED.  Refunds of the per-player
-/// stake from arena_vault → UserAccount are handled by a separate
-/// `claim_stake_refund_br` ix (one tx per player) since iterating 8
-/// UserAccount PDAs in a single ix would explode the BPF stack.
+/// SEC-22 — mark a BR as CANCELLED + emit the cancellation event so the
+/// indexer flips the row out of the open-lobby list.
+///
+/// Per-player stake refunds are NOT done here (iterating up to 8
+/// UserAccount PDAs in one ix would blow the BPF stack).  Instead each
+/// player's stake is credited back atomically inside `claim_chip_br`
+/// when `status == CANCELLED` — one tx per player returns BOTH the
+/// escrowed chip AND the joined stake.  See claim_chip_br.
+///
+/// `reason`: 0 = join timeout (never filled), 1 = VRF timeout (stuck rolling).
 #[inline(never)]
-fn cancel_br(r: &mut BattleRoyale, now: i64) {
+fn cancel_br(r: &mut BattleRoyale, now: i64, reason: u8) {
     r.status     = STATUS_CANCELLED;
     r.settled_at = now;
+    emit!(BattleRoyaleCancelled { id: r.id, reason });
 }
 
 // ============================================================
@@ -2683,18 +2707,21 @@ pub struct FulfillBattleRoyaleSwitchboard<'info> {
 /// chip back regardless of win/loss — chip is membership, not stake).
 #[derive(Accounts)]
 pub struct ClaimChipBattleRoyale<'info> {
+    // SEC-22 — Boxed: BattleRoyale (758 B) + ArenaConfig (286 B) +
+    // UserAccount on one stack frame risks the 4 KB BPF limit (the
+    // tournament structs hit it at a similar size).  Box → heap.
     #[account(
         seeds = [b"arena".as_ref()],
         bump  = config.bump,
     )]
-    pub config: Account<'info, ArenaConfig>,
+    pub config: Box<Account<'info, ArenaConfig>>,
 
     #[account(
         mut,
         seeds = [b"royale".as_ref(), royale.id.to_le_bytes().as_ref()],
         bump  = royale.bump,
     )]
-    pub royale: Account<'info, BattleRoyale>,
+    pub royale: Box<Account<'info, BattleRoyale>>,
 
     /// CHECK: chip authority PDA.
     #[account(
@@ -2706,6 +2733,17 @@ pub struct ClaimChipBattleRoyale<'info> {
     /// CHECK: validated by mpl-core CPI.
     #[account(mut)]
     pub chip: AccountInfo<'info>,
+
+    // The claimer's internal-balance ledger.  Only mutated when the
+    // royale is CANCELLED (stake refund) — read-passed otherwise.  PDA
+    // is guaranteed to exist: the player debited it at join time.
+    // Seeds bind it to `player` so the refund can't be redirected.
+    #[account(
+        mut,
+        seeds = [b"user".as_ref(), player.key().as_ref()],
+        bump  = player_user.bump,
+    )]
+    pub player_user: Box<Account<'info, UserAccount>>,
 
     #[account(mut)]
     pub player: Signer<'info>,

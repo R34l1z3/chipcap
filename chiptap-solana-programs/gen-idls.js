@@ -437,6 +437,7 @@ const arenaIdl = {
       W ("royale"),
       A ("chip_authority"),
       W ("chip"),
+      W ("player_user"),   // SEC-22 — stake refund target on CANCELLED royales
       WS("player"),
       MPL,
       SP,

@@ -193,7 +193,9 @@ async function mintFor(player) {
   for (let i = 0; i < players.length; i++) {
     await arena.methods.claimChipBr().accounts({
       config: arenaConfig, royale: rPda, chipAuthority,
-      chip: chips[i], player: players[i].publicKey,
+      chip: chips[i],
+      playerUser: userPda(players[i].publicKey),  // SEC-22 — stake refund target (no-op on DECIDED)
+      player: players[i].publicKey,
       mplCore: MPL_CORE,
       systemProgram: SystemProgram.programId,
     }).signers([players[i]]).rpc();
