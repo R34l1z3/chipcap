@@ -758,13 +758,35 @@ function Bracket({
   // matches[0..4] = R0 (4 quarters) / [4..6] = R1 semis / [6] = final / [7] = 3rd-place
 
   const cell = (i: number) => {
-    const m = t.matches[i] ?? defaultMatch();
-    const onChainAcc = tChain?.matches?.[i]?.randomnessAccount?.toBase58?.();
-    // Anchor returns Pubkey::default() (all-zero address) for unset
-    // fields — filter those out so we don't link to "11111…11111".
-    const rndAcc = onChainAcc && onChainAcc !== "11111111111111111111111111111111"
-      ? onChainAcc : (m.randomness_account ?? null);
-    return { ...m, randomness_account: rndAcc };
+    const ix = t.matches[i] ?? defaultMatch();
+    const oc = tChain?.matches?.[i];
+    if (!oc) return ix;   // wallet disconnected / no on-chain read — indexer only
+
+    // On-chain is authoritative for the bracket STRUCTURE (slot_a/slot_b
+    // for R1/R2 are filled by t_advance_round on chain, but the indexer's
+    // handleTournamentMatchDecided never back-fills next-round slots — so
+    // without this merge R1/R2 cells render "— vs —" forever).
+    //
+    // STATUS is the one field we DON'T blindly trust on-chain: the program
+    // only knows PENDING(0)/DECIDED(2) — the ROLLING(1) animation is an
+    // indexer-only state set on the TournamentMatchRolling event.  So:
+    // trust on-chain when it says DECIDED; otherwise show the indexer
+    // status (which may be 1=ROLLING mid Switchboard cycle).
+    const ocDecided = Number(oc.status) === 2;   // T_MATCH_DECIDED
+    const rndAcc = oc.randomnessAccount?.toBase58?.();
+    return {
+      status:      ocDecided ? 2 : Number(ix.status),
+      round:       Number(oc.round),
+      slot_a:      Number(oc.slotA),
+      slot_b:      Number(oc.slotB),
+      winner_slot: Number(oc.winnerSlot),
+      seed:        ocDecided && oc.seed ? oc.seed.toString() : ix.seed,
+      // Filter Pubkey::default() (all-1s) so we don't link to the system program.
+      randomness_account:
+        ocDecided && rndAcc && rndAcc !== "11111111111111111111111111111111"
+          ? rndAcc : (ix.randomness_account ?? null),
+      decided_at: ix.decided_at,
+    };
   };
 
   return (
@@ -1100,14 +1122,17 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
       </div>
 
       {/* Tournament-mode audit panel: lifecycle tx envelope
-          (CREATE / START / COMPLETE / CANCEL).  Per-match seeds +
-          randomness_account links live in the bracket cells above. */}
+          (CREATE / START / COMPLETE / CANCEL) + the switchboard badge.
+          We deliberately DON'T pass randomSeed/winner here: a tournament
+          has 8 independent per-match seeds, and pairing "the first
+          decided match's seed" with "the overall champion" implies that
+          seed picked that winner — it didn't.  Per-match seed +
+          randomness_account links live in the bracket cells above, which
+          is the correct granularity for auditing a bracket. */}
       {t.status >= 1 && (
         <BattleAuditPanel
           mode="tournament"
           battleId={tournamentId}
-          randomSeed={t.matches.find((m) => m.status === 2)?.seed ?? null}
-          winner={w1 != null && w1 !== 255 ? t.players[w1]?.player : null}
         />
       )}
     </div>

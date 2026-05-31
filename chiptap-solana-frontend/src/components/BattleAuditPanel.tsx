@@ -93,6 +93,11 @@ export default function BattleAuditPanel({
   const [verify, setVerify] = useState<{ status: "idle" | "loading" | "ok" | "mismatch" | "skip"; computed?: string; reason?: string }>({ status: "idle" });
 
   useEffect(() => {
+    // Clear stale data first — otherwise on a mode/id change the
+    // previous row flashes inside the new mode's JSX (e.g. a tournament's
+    // create_tx rendered under royale's CREATE label) until the new
+    // fetch resolves.
+    setData(null);
     // Route to the right indexer endpoint based on mode.  All three
     // share the arena.next_battle_id counter so a given id lives in
     // exactly one of (battles / battle_royales / tournaments).
@@ -272,11 +277,15 @@ export default function BattleAuditPanel({
         </div>
       )}
 
-      {/* Recompute panel only makes sense for slothash battles — for
-          Switchboard, the seed lives in the on-chain randomness account
-          which a client cannot recompute (it's signed by the oracle).
-          Audit those via the randomness-account solscan link instead. */}
-      {randomSeed && data?.vrf_method !== "switchboard" && (
+      {/* Recompute panel only makes sense for 1v1 slothash battles — the
+          recomputeSeed() helper implements the 1v1 formula (seed even →
+          playerA).  BR uses seed % max_players and tournaments run a
+          per-match Switchboard cycle, so the recompute would always
+          "mismatch" with a misleading explanation.  Gate on mode==="battle"
+          AND non-switchboard (Switchboard seeds are oracle-signed and
+          can't be recomputed client-side — audit via the randomness
+          account solscan link instead). */}
+      {mode === "battle" && randomSeed && data?.vrf_method !== "switchboard" && (
         <div className="flex flex-col gap-1">
           <button
             onClick={runVerify}

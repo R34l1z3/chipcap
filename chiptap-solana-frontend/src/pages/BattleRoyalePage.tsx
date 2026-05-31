@@ -603,12 +603,17 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
   const me = publicKey?.toBase58();
 
   const [br, setBr] = useState<any>(null);
-  // Ticker so the "expire-eligible" gate re-evaluates each second.
+  // Ticker so the timeout countdown / cancel-eligible gate re-evaluates
+  // each second.  Only runs while WAITING (0) or ROLLING (1) — the only
+  // states with a time-based button.  Avoids a forever 1Hz re-render on
+  // a backgrounded SETTLED/CANCELLED tab.
   const [, forceTick] = useState(0);
+  const brStatus = br ? Number(br.status) : null;
   useEffect(() => {
+    if (brStatus !== 0 && brStatus !== 1) return;
     const id = setInterval(() => forceTick((t) => t + 1), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [brStatus]);
 
   const fetchBr = useCallback(async () => {
     if (!arena) return;
@@ -651,11 +656,20 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
           royale:        pda.royale(royaleId),
           chipAuthority: pda.chipAuthority(),
           chip:          new PublicKey(mySeat.chip),
+          // SEC-22 — stake refund target.  On a CANCELLED royale the
+          // program credits this PDA's balance by the join stake in the
+          // same tx as the chip return.  Always passed (PDA exists since
+          // the player joined); only mutated when status==CANCELLED.
+          playerUser:    pda.userAccount(publicKey),
           player:        publicKey,
           mplCore:       MPL_CORE_PROGRAM,
           systemProgram: SystemProgram.programId,
         }).rpc();
-      notify("info", `Reclaimed chip · ${sig.slice(0, 8)}…`);
+      // STATUS_CANCELLED = 4 — read br directly (the outer `status`
+      // const is declared below this closure, after the !br guard).
+      notify("info", Number(br?.status) === 4
+        ? `Reclaimed chip + stake refund · ${sig.slice(0, 8)}…`
+        : `Reclaimed chip · ${sig.slice(0, 8)}…`);
       await fetchBr();
     } catch (e) { notifyTxError("Claim chip", e); }
   };
@@ -681,10 +695,10 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
     } catch (e) { notifyTxError("Claim winnings", e); }
   };
 
-  // SEC-22 / polish — open-callable refund path when a BR's join
-  // window expired without filling.  Anyone (incl. non-participants)
-  // can poke the program; it cancels the BR and returns every chip +
-  // refunds every stake.  Mirrors `expire_join` for 1v1 battles.
+  // SEC-22 / polish — open-callable cancel for a WAITING royale whose
+  // join window expired without filling.  Anyone (incl. non-participants)
+  // can poke; flips status→CANCELLED.  Each player then reclaims chip +
+  // stake via claim_chip_br.  Mirrors `expire_join` for 1v1.
   const expireJoin = async () => {
     if (!arena || !publicKey) return;
     try {
@@ -697,6 +711,23 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
       notify("info", `Cancelled stuck royale #${royaleId} · ${sig.slice(0, 8)}…`);
       await fetchBr();
     } catch (e) { notifyTxError("Expire join", e); }
+  };
+
+  // SEC-22 / polish — open-callable cancel for a ROLLING royale whose
+  // VRF never resolved (relayer died mid-cycle).  Same accounts struct
+  // as expireJoin; the program branches on status + vrf_timeout.
+  const forceResolve = async () => {
+    if (!arena || !publicKey) return;
+    try {
+      const sig = await (arena.methods as any).forceResolveBattleRoyale()
+        .accounts({
+          config:        pda.arenaConfig(),
+          royale:        pda.royale(royaleId),
+          caller:        publicKey,
+        }).rpc();
+      notify("info", `Force-resolved stuck royale #${royaleId} · ${sig.slice(0, 8)}…`);
+      await fetchBr();
+    } catch (e) { notifyTxError("Force resolve", e); }
   };
 
   if (!br) {
@@ -817,34 +848,51 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
               CLAIM {fmtSol(lamportsToSol(br.poolAmount) - lamportsToSol(br.feeAmount))} SOL WINNINGS
             </button>
           )}
-          {/* Polish — open expire-join when a stuck WAITING royale has
-              outlasted the join_timeout.  Anyone can call (caller pays
-              the rent reclaim); cancels the BR and lets every player
-              hit CLAIM MY CHIP BACK (which now accepts CANCELLED after
-              the matching on-chain guard fix). */}
+          {/* Polish — open cancel paths for stuck royales.  Both are
+              open-callable (anyone can poke).  After cancel, every
+              player reclaims chip + stake via CLAIM CHIP + STAKE below.
+              Countdown shows until the timeout, then the button.  The
+              `remaining < 0` (strict) boundary mirrors the on-chain
+              `now > created_at + timeout` so we never offer a button
+              the program would reject with *PeriodNotExpired. */}
           {(() => {
-            if (status !== 0) return null;
             if (!cfg) return null;
-            const createdAt = Number(br.createdAt) || 0;
-            const eligibleAt = createdAt + cfg.joinTimeout;
             const now = Math.floor(Date.now() / 1000);
-            const remaining = eligibleAt - now;
-            if (remaining > 0) {
+            // WAITING — expire_join after join_timeout.
+            if (status === 0) {
+              const eligibleAt = (Number(br.createdAt) || 0) + cfg.joinTimeout;
+              const remaining = eligibleAt - now;
+              if (remaining >= 0) {
+                return (
+                  <div className="text-xs opacity-50 text-center">
+                    Join window closes in {Math.floor(remaining / 60)}m{remaining % 60}s
+                  </div>
+                );
+              }
               return (
-                <div className="text-xs opacity-50 text-center">
-                  Join window closes in {Math.max(0, Math.floor(remaining / 60))}m{remaining % 60}s
-                </div>
+                <button onClick={expireJoin} className="retro-btn retro-btn-red py-2" style={{ fontSize: 11 }}>
+                  CANCEL STUCK ROYALE
+                </button>
               );
             }
-            return (
-              <button
-                onClick={expireJoin}
-                className="retro-btn retro-btn-red py-2"
-                style={{ fontSize: 11 }}
-              >
-                CANCEL STUCK ROYALE (refund all)
-              </button>
-            );
+            // ROLLING — force_resolve after vrf_timeout (relayer died).
+            if (status === 1) {
+              const eligibleAt = (Number(br.rollingAt) || 0) + cfg.vrfTimeout;
+              const remaining = eligibleAt - now;
+              if (remaining >= 0) {
+                return (
+                  <div className="text-xs opacity-50 text-center">
+                    VRF timeout in {Math.floor(remaining / 60)}m{remaining % 60}s — then cancel becomes available
+                  </div>
+                );
+              }
+              return (
+                <button onClick={forceResolve} className="retro-btn retro-btn-red py-2" style={{ fontSize: 11 }}>
+                  FORCE-CANCEL (VRF TIMED OUT)
+                </button>
+              );
+            }
+            return null;
           })()}
           {mySeat && status >= 2 && !mySeat.claimed && (
             <button
@@ -852,25 +900,31 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
               className="retro-btn"
               style={{ fontSize: 10, padding: "6px 12px" }}
             >
-              CLAIM MY CHIP BACK (slot {mySeat.slot})
+              {status === 4
+                ? `CLAIM CHIP + STAKE BACK (slot ${mySeat.slot})`
+                : `CLAIM MY CHIP BACK (slot ${mySeat.slot})`}
             </button>
           )}
           {mySeat && status >= 2 && mySeat.claimed && (
             <div className="text-xs opacity-50 text-center">
-              You've reclaimed your chip ✓
+              {status === 4 ? "Chip + stake reclaimed ✓" : "You've reclaimed your chip ✓"}
             </div>
           )}
         </div>
       </div>
 
       {/* Audit panel hits /api/battle-royales/:id and renders the BR
-          lifecycle tx rows (CREATE / ROLLING / DECIDE / SETTLE / CANCEL). */}
+          lifecycle tx rows (CREATE / ROLLING / DECIDE / SETTLE / CANCEL).
+          Only feed seed/winner once DECIDED — a CANCELLED royale never
+          set them, so winner is Pubkey::default() (toBase58 → all-1s
+          literal, which is truthy and would render a bogus solscan link
+          to the system program).  Gate on status===2/3 (DECIDED/SETTLED). */}
       {status >= 1 && (
         <BattleAuditPanel
           mode="royale"
           battleId={royaleId}
-          randomSeed={br.randomSeed?.toString?.()}
-          winner={br.winner?.toBase58?.()}
+          randomSeed={status === 2 || status === 3 ? br.randomSeed?.toString?.() : null}
+          winner={status === 2 || status === 3 ? br.winner?.toBase58?.() : null}
         />
       )}
     </div>
