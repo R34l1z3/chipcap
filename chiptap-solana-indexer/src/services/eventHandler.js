@@ -449,10 +449,12 @@ export async function handleBattleRoyaleRolling(data, ctx) {
   broadcast("br:rolling", { id, poolAmount });
 }
 
-// Switchboard fulfill landed.  `vrf_method` defaults to 'slothash' to
-// stay consistent with 1v1 (even though BR currently has no slothash
-// path — future-proofing).  COALESCE prevents downgrade from a
-// SwitchboardVerified event that may arrive in the same tx.
+// Switchboard fulfill landed.  BR is Switchboard-ONLY — there is no
+// slothash ix on chain for it — so we default vrf_method to
+// 'switchboard' (not 'slothash' like 1v1).  COALESCE keeps an already-
+// set value if SwitchboardVerified raced ahead.  Defaulting to
+// 'switchboard' here means the audit-panel badge is correct even if the
+// SwitchboardVerified event is delayed or dropped.
 export async function handleBattleRoyaleDecided(data, ctx) {
   const id         = asNum(data.id);
   const winner     = asPubkey(data.winner);
@@ -468,7 +470,7 @@ export async function handleBattleRoyaleDecided(data, ctx) {
        SET status = 2, winner = $1, winner_idx = $2, random_seed = $3,
            payment_amount = $4, fee_amount = $5,
            decided_at = NOW(), decide_tx = $6,
-           vrf_method = COALESCE(vrf_method, 'slothash')
+           vrf_method = COALESCE(vrf_method, 'switchboard')
      WHERE id = $7`,
     [winner, winnerIdx, seed, poolAmount, feeAmount, ctx.signature, id],
   );
@@ -686,7 +688,12 @@ export async function handleTournamentStarted(data, ctx) {
        pool_amount = $2, fee_amount = $3,
        prize_1st = $4, prize_2nd = $5, prize_3rd = $6,
        matches = $7::jsonb,
-       current_round = 0
+       current_round = 0,
+       -- Tournaments are Switchboard-only (per-match VRF).  Stamp the
+       -- method at start so the audit badge is correct from the first
+       -- render, not 'legacy (pre-SEC-21)' during the SwitchboardVerified
+       -- ingestion gap.  COALESCE leaves an already-set value intact.
+       vrf_method = COALESCE(vrf_method, 'switchboard')
      WHERE id = $8`,
     [ctx.signature, poolAmt, feeAmt, p1, p2, p3, JSON.stringify(m), id],
   );
