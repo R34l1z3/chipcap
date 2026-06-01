@@ -8,10 +8,11 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 type Tab = "mint" | "inventory" | "battle" | "royale" | "tournament" | "history" | "leaderboard" | "profile";
 
 export default function RetroHeader({
-  tab, setTab,
+  tab, setTab, onHelp,
 }: {
   tab: Tab;
   setTab: (t: Tab) => void;
+  onHelp?: () => void;
 }) {
   const tabs: { id: Tab; label: string; icon: string; short: string }[] = [
     { id: "mint",        label: "MINT",     icon: "+", short: "MINT" },
@@ -42,8 +43,30 @@ export default function RetroHeader({
             v0.1 / Solana
           </span>
         </div>
-        {/* Wallet-adapter modal trigger.  Style overrides live in index.css. */}
-        <WalletMultiButton />
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* How-to-play — opens the same modal that auto-shows on first visit. */}
+          {onHelp && (
+            <button
+              onClick={onHelp}
+              title="How to play"
+              aria-label="How to play"
+              className="font-pixel"
+              style={{
+                fontSize: 12, color: "#FFD700",
+                width: 28, height: 28, lineHeight: "24px",
+                border: "2px outset #6a6aaa",
+                background: "linear-gradient(180deg, #3a3a7a 0%, #2a2a5a 100%)",
+                cursor: "pointer", flexShrink: 0,
+                textShadow: "0 0 6px #FFD700",
+                touchAction: "manipulation",
+              }}
+            >
+              ?
+            </button>
+          )}
+          {/* Wallet-adapter modal trigger.  Style overrides live in index.css. */}
+          <WalletMultiButton />
+        </div>
       </div>
 
       {/* Marquee */}

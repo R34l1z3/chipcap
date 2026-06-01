@@ -4,11 +4,12 @@
 // stub them so the build is clean and you can wire wallets.
 // ============================================================
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import RetroHeader from "./components/RetroHeader";
 import NotificationToast from "./components/NotificationToast";
 import IndexerStatus from "./components/IndexerStatus";
 import BootDiagnostics from "./components/BootDiagnostics";
+import HelpModal, { HELP_SEEN_KEY } from "./components/HelpModal";
 
 import MintPage from "./pages/MintPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -31,6 +32,18 @@ export default function App() {
   const [watchRoyaleId, setWatchRoyaleId] = useState<number | null>(null);
   // SEC-23 — same for Tournaments.
   const [watchTournamentId, setWatchTournamentId] = useState<number | null>(null);
+
+  // How-to-play modal.  Auto-opens once on a visitor's first ever load
+  // (localStorage gate), and on demand from the header's "?" button.
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    let seen = false;
+    try { seen = localStorage.getItem(HELP_SEEN_KEY) === "1"; } catch { /* private mode */ }
+    if (!seen) {
+      setHelpOpen(true);
+      try { localStorage.setItem(HELP_SEEN_KEY, "1"); } catch { /* ignore */ }
+    }
+  }, []);
 
   const openProfile = useCallback((address: string | null) => {
     setViewedPlayer(address);
@@ -57,8 +70,9 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen stars-bg">
-      <RetroHeader tab={tab} setTab={handleSetTab} />
+      <RetroHeader tab={tab} setTab={handleSetTab} onHelp={() => setHelpOpen(true)} />
       <BootDiagnostics />
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
       <main className="flex-1 overflow-y-auto">
         {tab === "mint"        && <MintPage />}
         {tab === "inventory"   && <InventoryPage />}
