@@ -35,13 +35,12 @@ export default function RetroHeader({
           borderBottom: "2px solid #4a4a8a",
         }}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-pixel text-xs text-white truncate">
-            ChipTap PvP
-          </span>
-          <span className="hidden sm:inline text-yellow-300 font-pixel text-xs animate-blink flex-shrink-0">
-            v0.1 / Solana
-          </span>
+        {/* Brand never truncates — it's flex-shrink-0 so a narrow header
+            shrinks the wallet button's whitespace instead of eating the
+            name.  "PvP" is a dim accent, not part of the truncatable run. */}
+        <div className="flex items-baseline gap-1.5 flex-shrink-0">
+          <span className="font-pixel text-xs text-white">ChipTap</span>
+          <span className="font-pixel text-retro-gold" style={{ fontSize: 9 }}>PvP</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* How-to-play — opens the same modal that auto-shows on first visit. */}
@@ -66,13 +65,6 @@ export default function RetroHeader({
           )}
           {/* Wallet-adapter modal trigger.  Style overrides live in index.css. */}
           <WalletMultiButton />
-        </div>
-      </div>
-
-      {/* Marquee */}
-      <div className="retro-ticker">
-        <div className="animate-marquee inline-block text-retro-gold font-pixel" style={{ fontSize: 9 }}>
-          *** CHIPTAP ON SOLANA *** PHANTOM / SOLFLARE / BACKPACK *** PROVABLY FAIR *** METAPLEX CORE NFTs ***
         </div>
       </div>
 
