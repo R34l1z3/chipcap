@@ -813,13 +813,17 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
 
       {/* On-chain audit trail — visible past WAITING.  Lets any
           spectator verify the VRF result was not picked by the relayer
-          operator (Option A interim trust model). */}
+          operator (Option A interim trust model).
+          Only feed seed/winner/loser once DECIDED(2)/SETTLED(3): during
+          ROLLING(1) battle.winner is Pubkey::default() → toBase58() is
+          the truthy all-1s literal, which would render "winner: 1111…1111"
+          and "seed: 0" in the panel (same class as the SEC-24 BR fix). */}
       {status >= 1 && (
         <BattleAuditPanel
           battleId={battleId}
-          randomSeed={battle.randomSeed?.toString?.()}
-          winner={battle.winner?.toBase58?.()}
-          loser={battle.loser?.toBase58?.()}
+          randomSeed={status === 2 || status === 3 ? battle.randomSeed?.toString?.() : null}
+          winner={status === 2 || status === 3 ? battle.winner?.toBase58?.() : null}
+          loser={status === 2 || status === 3 ? battle.loser?.toBase58?.() : null}
         />
       )}
     </div>
