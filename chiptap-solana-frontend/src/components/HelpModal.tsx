@@ -2,17 +2,16 @@
 // src/components/HelpModal.tsx — first-run + on-demand how-to-play
 //
 // One modal, two entry points:
-//   • Auto-opens once on a visitor's first page load (localStorage gate
-//     HELP_SEEN_KEY) so a brand-new player sees the flow before they
-//     even connect a wallet (step 1 IS "connect a wallet").
+//   • Auto-opens once on a visitor's first page load (HELP_SEEN_KEY).
 //   • The "?" button in RetroHeader opens it any time.
 //
-// Content is devnet-aware (faucet link) and reads prices from config so
-// it can't drift from the on-chain tiers.  Kept skimmable: numbered
-// steps + a short blurb each, scrollable body for small screens.
+// Fully i18n'd (SEC-25) — all copy comes from t("help.*"); prices/tiers
+// are interpolated from config so they can't drift from the on-chain
+// values, and the devnet faucet step auto-drops on mainnet.
 // ============================================================
 
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   CLUSTER, POOL_TIERS, DEFAULT_MINT_PRICE_SOL, TICKET_PRICE_SOL,
   T_PRIZE_1ST_PCT, T_PRIZE_2ND_PCT, T_PRIZE_3RD_PCT, T_FEE_PCT,
@@ -53,9 +52,17 @@ function Step({ n, title, color, children }: {
 }
 
 export default function HelpModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  const isDevnet = CLUSTER !== "mainnet";
   const faucetUrl = "https://faucet.solana.com/";
   const cheapestTier = POOL_TIERS[0]?.label ?? "0.05 SOL";
   const cheapestMint = DEFAULT_MINT_PRICE_SOL[0] ?? 0.02;
+
+  // Step numbers shift down by one on mainnet (no faucet step).
+  const sMint = isDevnet ? 3 : 2;
+  const sFund = isDevnet ? 4 : 3;
+  const sPlay = isDevnet ? 5 : 4;
+  const sClaim = isDevnet ? 6 : 5;
 
   return (
     <div
@@ -70,115 +77,84 @@ export default function HelpModal({ onClose }: { onClose: () => void }) {
       <div
         onClick={(e) => e.stopPropagation()}
         className="retro-panel w-full"
-        style={{
-          maxWidth: 560, borderColor: GOLD, background: "#0f0f24",
-          marginTop: 8, marginBottom: 24,
-        }}
+        style={{ maxWidth: 560, borderColor: GOLD, background: "#0f0f24", marginTop: 8, marginBottom: 24 }}
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-2 mb-3">
           <span className="font-pixel animate-glow" style={{ fontSize: 13, color: MAGENTA }}>
-            HOW TO PLAY
+            {t("help.title")}
           </span>
-          <button
-            onClick={onClose}
-            className="retro-btn"
-            style={{ fontSize: 9, padding: "4px 10px" }}
-          >
-            CLOSE [X]
+          <button onClick={onClose} className="retro-btn" style={{ fontSize: 9, padding: "4px 10px" }}>
+            {t("common.close")} [X]
           </button>
         </div>
 
-        <div
-          className="text-sm mb-3 opacity-80"
-          style={{ fontFamily: "'VT323', monospace", lineHeight: 1.4 }}
-        >
-          ChipTap is a provably-fair on-chain battle game. You own NFT
-          chips and stake SOL; every winner is picked by a verifiable
-          Switchboard VRF — not by us. {CLUSTER !== "mainnet" && (
-            <span style={{ color: GOLD }}>
-              {" "}You're on <b>{CLUSTER}</b> — play money, no real value.
-            </span>
+        <div className="text-sm mb-3 opacity-80" style={{ fontFamily: "'VT323', monospace", lineHeight: 1.4 }}>
+          {t("help.intro")}{" "}
+          {isDevnet && (
+            <span style={{ color: GOLD }}>{t("help.introDevnet", { cluster: CLUSTER })}</span>
           )}
         </div>
 
-        <Step n={1} title="CONNECT A WALLET" color={CYAN}>
-          Top-right <b>SELECT WALLET</b> button. Phantom, Solflare, or
-          Backpack all work. {CLUSTER !== "mainnet" && (
-            <>Set your wallet's network to <b>{CLUSTER}</b>.</>
-          )}
+        <Step n={1} title={t("help.step1Title")} color={CYAN}>
+          {t("help.step1Body")}{" "}
+          {isDevnet && <>{t("help.step1Network", { cluster: CLUSTER })}</>}
         </Step>
 
-        {CLUSTER !== "mainnet" && (
-          <Step n={2} title="GET FREE DEVNET SOL" color={GOLD}>
-            You need a little SOL for fees + stakes. Grab some free from{" "}
-            <a href={faucetUrl} target="_blank" rel="noreferrer" style={{ color: GOLD }}>
-              faucet.solana.com ↗
-            </a>{" "}
-            — paste your wallet address, request ~1 SOL.
+        {isDevnet && (
+          <Step n={2} title={t("help.step2Title")} color={GOLD}>
+            {t("help.step2Body", { faucet: "faucet.solana.com" })}
+            <div style={{ marginTop: 4 }}>
+              <a href={faucetUrl} target="_blank" rel="noreferrer"
+                 className="retro-btn retro-btn-gold inline-block"
+                 style={{ fontSize: 8, padding: "3px 10px", textDecoration: "none" }}>
+                {t("help.step2Title")} ↗
+              </a>
+            </div>
           </Step>
         )}
 
-        <Step n={CLUSTER !== "mainnet" ? 3 : 2} title="MINT A CHIP" color={GREEN}>
-          Go to the <b>[+] MINT</b> tab. A chip is your NFT fighter —
-          cheapest is ~{cheapestMint} SOL. You need at least one to enter
-          any game.
+        <Step n={sMint} title={t("help.step3Title")} color={GREEN}>
+          {t("help.step3Body", { price: cheapestMint })}
         </Step>
 
-        <Step n={CLUSTER !== "mainnet" ? 4 : 3} title="FUND YOUR ARENA BALANCE" color={CYAN}>
-          Stakes come from an <b>internal balance</b> inside the game (not
-          your wallet directly). On the <b>[!] BATTLE</b> tab use the
-          <i> INTERNAL BALANCE</i> banner to <b>DEPOSIT</b> some SOL. It's
-          on-chain and yours — <b>WITHDRAW</b> any time. Joining a game
-          auto-tops-up if you're short, so this step is optional.
+        <Step n={sFund} title={t("help.step4Title")} color={CYAN}>
+          {t("help.step4Body")}
         </Step>
 
-        <Step n={CLUSTER !== "mainnet" ? 5 : 4} title="PICK A MODE & PLAY" color={MAGENTA}>
+        <Step n={sPlay} title={t("help.step5Title")} color={MAGENTA}>
           <div style={{ marginBottom: 4 }}>
-            <span style={{ color: CYAN }}>[!] BATTLE</span> — 1v1. Stake {cheapestTier}+.
-            Loser either pays the pool (95% to winner) to keep their chip,
-            or forfeits the chip.
+            <span style={{ color: CYAN }}>[!] BATTLE</span> — {t("help.step5Battle", { tier: cheapestTier })}
           </div>
           <div style={{ marginBottom: 4 }}>
-            <span style={{ color: MAGENTA }}>[%] ROYALE</span> — up to 8
-            players, one VRF roll picks the winner who takes the whole
-            pool. Chips are just your ticket in — they always come back.
+            <span style={{ color: MAGENTA }}>[%] ROYALE</span> — {t("help.step5Royale")}
           </div>
           <div>
-            <span style={{ color: GOLD }}>[T] TOURNEY</span> — buy a ticket
-            ({TICKET_PRICE_SOL} SOL), enter an 8-player bracket. Prizes:
-            1st {T_PRIZE_1ST_PCT}% / 2nd {T_PRIZE_2ND_PCT}% / 3rd{" "}
-            {T_PRIZE_3RD_PCT}% of the pool ({T_FEE_PCT}% fee).
+            <span style={{ color: GOLD }}>[T] TOURNEY</span> —{" "}
+            {t("help.step5Tourney", {
+              ticket: TICKET_PRICE_SOL,
+              p1: T_PRIZE_1ST_PCT, p2: T_PRIZE_2ND_PCT, p3: T_PRIZE_3RD_PCT, fee: T_FEE_PCT,
+            })}
           </div>
         </Step>
 
-        <Step n={CLUSTER !== "mainnet" ? 6 : 5} title="CLAIM & CASH OUT" color={GREEN}>
-          Won? Your winnings land in your internal balance — hit
-          <b> CLAIM</b> on the result screen, then <b>WITHDRAW</b> on the
-          BATTLE tab to move SOL back to your wallet. Always reclaim your
-          chip too.
+        <Step n={sClaim} title={t("help.step6Title")} color={GREEN}>
+          {t("help.step6Body")}
         </Step>
 
         {/* Fairness note */}
-        <div
-          className="mt-2"
-          style={{ background: "#001a11", border: `2px solid ${GREEN}`, padding: "8px 10px" }}
-        >
+        <div className="mt-2" style={{ background: "#001a11", border: `2px solid ${GREEN}`, padding: "8px 10px" }}>
           <div className="font-pixel mb-1" style={{ fontSize: 8, color: GREEN }}>
-            ✓ WHY IT'S FAIR
+            ✓ {t("help.fairTitle")}
           </div>
           <div className="text-sm opacity-80" style={{ fontFamily: "'VT323', monospace", lineHeight: 1.35 }}>
-            Every result opens an <b>ON-CHAIN AUDIT TRAIL</b> panel with the
-            VRF seed and a Switchboard randomness account you can verify on
-            solscan. The project can't pick winners — the oracle network
-            signs the randomness and the program checks the proof before
-            using it.
+            {t("help.fairBody")}
           </div>
         </div>
 
         <div className="flex justify-end mt-4">
           <button onClick={onClose} className="retro-btn retro-btn-gold" style={{ fontSize: 10, padding: "6px 16px" }}>
-            GOT IT — LET'S PLAY
+            {t("help.gotIt")}
           </button>
         </div>
       </div>

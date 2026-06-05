@@ -1,0 +1,62 @@
+{
+  "lang": { "switch": "语言" },
+  "header": {
+    "tabs": {
+      "mint": "铸造",
+      "inventory": "我的筹码",
+      "battle": "对战",
+      "royale": "大逃杀",
+      "tournament": "锦标赛",
+      "leaderboard": "排行",
+      "profile": "我",
+      "history": "记录"
+    },
+    "tabsShort": {
+      "mint": "铸造",
+      "inventory": "筹码",
+      "battle": "对战",
+      "royale": "逃杀",
+      "tournament": "锦标",
+      "leaderboard": "排行",
+      "profile": "我",
+      "history": "记录"
+    },
+    "howToPlay": "玩法说明"
+  },
+  "footer": {
+    "version": "ChipTap Solana v0.1",
+    "poweredBy": "基于 Solana + Metaplex Core"
+  },
+  "common": {
+    "back": "返回",
+    "close": "关闭",
+    "refresh": "刷新",
+    "loading": "加载中...",
+    "connectWallet": "连接钱包",
+    "you": "你",
+    "by": "由"
+  },
+  "help": {
+    "title": "玩法说明",
+    "intro": "ChipTap 是一款可证明公平的链上对战游戏。你拥有 NFT 筹码并质押 SOL；每位赢家都由可验证的 Switchboard VRF 抽取，而非由我们决定。",
+    "introDevnet": "你当前在 {{cluster}} 网络 — 游戏币，无真实价值。",
+    "step1Title": "连接钱包",
+    "step1Body": "点击右上角的 SELECT WALLET 按钮。Phantom、Solflare 或 Backpack 都可以。",
+    "step1Network": "将钱包网络切换到 {{cluster}}。",
+    "step2Title": "领取免费 DEVNET SOL",
+    "step2Body": "手续费和质押都需要一点 SOL。可在 {{faucet}} 免费领取 — 粘贴你的钱包地址，申请约 1 SOL。",
+    "step3Title": "铸造一个筹码",
+    "step3Body": "前往 MINT 标签页。筹码就是你的 NFT 斗士 — 最便宜约 {{price}} SOL。至少需要一个才能进入任何游戏。",
+    "step4Title": "为竞技场余额充值",
+    "step4Body": "质押来自游戏内的内部余额（不直接来自钱包）。在 BATTLE 标签页用 INTERNAL BALANCE 横幅 DEPOSIT 一些 SOL。它在链上且属于你 — 随时 WITHDRAW。加入游戏时若不足会自动补足，所以这步可选。",
+    "step5Title": "选择模式开玩",
+    "step5Battle": "BATTLE — 1对1。质押 {{tier}} 起。输家要么支付奖池（95% 给赢家）保住筹码，要么放弃筹码。",
+    "step5Royale": "ROYALE — 最多 8 名玩家，一次 VRF 抽取决定赢家，赢家拿走整个奖池。筹码只是入场凭证，总会归还。",
+    "step5Tourney": "TOURNEY — 购买门票（{{ticket}} SOL），进入 8 人对阵表。奖金：第一名 {{p1}}% / 第二名 {{p2}}% / 第三名 {{p3}}%（手续费 {{fee}}%）。",
+    "step6Title": "领取并提现",
+    "step6Body": "赢了？奖金会进入你的内部余额 — 在结算界面点 CLAIM，再到 BATTLE 标签页 WITHDRAW 把 SOL 转回钱包。也别忘了取回筹码。",
+    "fairTitle": "为什么公平",
+    "fairBody": "每个结果都会打开 ON-CHAIN AUDIT TRAIL 面板，显示 VRF 种子和可在 solscan 上验证的 Switchboard 随机账户。项目方无法挑选赢家 — 预言机网络对随机数签名，程序在使用前会校验证明。",
+    "gotIt": "明白了 — 开玩"
+  }
+}

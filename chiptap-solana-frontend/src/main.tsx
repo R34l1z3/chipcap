@@ -26,6 +26,7 @@ import { clusterApiUrl } from "@solana/web3.js";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { CLUSTER, RPC_URL } from "./config";
+import "./i18n";          // initialise react-i18next before first render
 import "./index.css";
 
 const queryClient = new QueryClient({

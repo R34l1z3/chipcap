@@ -1,0 +1,62 @@
+{
+  "lang": { "switch": "Idioma" },
+  "header": {
+    "tabs": {
+      "mint": "CUNHAR",
+      "inventory": "MINHAS FICHAS",
+      "battle": "BATALHA",
+      "royale": "ROYALE",
+      "tournament": "TORNEIO",
+      "leaderboard": "TOP",
+      "profile": "EU",
+      "history": "HISTÓRICO"
+    },
+    "tabsShort": {
+      "mint": "CUNHAR",
+      "inventory": "FICHAS",
+      "battle": "PVP",
+      "royale": "BR",
+      "tournament": "TRN",
+      "leaderboard": "TOP",
+      "profile": "EU",
+      "history": "LOG"
+    },
+    "howToPlay": "Como jogar"
+  },
+  "footer": {
+    "version": "ChipTap Solana v0.1",
+    "poweredBy": "Desenvolvido com Solana + Metaplex Core"
+  },
+  "common": {
+    "back": "VOLTAR",
+    "close": "FECHAR",
+    "refresh": "ATUALIZAR",
+    "loading": "CARREGANDO...",
+    "connectWallet": "CONECTAR CARTEIRA",
+    "you": "VOCÊ",
+    "by": "por"
+  },
+  "help": {
+    "title": "COMO JOGAR",
+    "intro": "ChipTap é um jogo de batalhas on-chain comprovadamente justo. Você possui fichas NFT e aposta SOL; cada vencedor é escolhido por um VRF verificável da Switchboard — não por nós.",
+    "introDevnet": "Você está na {{cluster}} — dinheiro de jogo, sem valor real.",
+    "step1Title": "CONECTE UMA CARTEIRA",
+    "step1Body": "Botão SELECT WALLET no canto superior direito. Phantom, Solflare ou Backpack funcionam.",
+    "step1Network": "Defina a rede da sua carteira como {{cluster}}.",
+    "step2Title": "PEGUE SOL GRÁTIS DA DEVNET",
+    "step2Body": "Você precisa de um pouco de SOL para taxas e apostas. Pegue de graça em {{faucet}} — cole o endereço da sua carteira e peça ~1 SOL.",
+    "step3Title": "CUNHE UMA FICHA",
+    "step3Body": "Vá para a aba MINT. Uma ficha é seu lutador NFT — a mais barata custa ~{{price}} SOL. Você precisa de pelo menos uma para entrar em qualquer jogo.",
+    "step4Title": "ABASTEÇA SEU SALDO DA ARENA",
+    "step4Body": "As apostas vêm de um saldo interno dentro do jogo (não diretamente da carteira). Na aba BATTLE use o banner INTERNAL BALANCE para DEPOSIT um pouco de SOL. É on-chain e é seu — WITHDRAW quando quiser. Ao entrar num jogo ele completa automaticamente se faltar, então este passo é opcional.",
+    "step5Title": "ESCOLHA UM MODO E JOGUE",
+    "step5Battle": "BATTLE — 1v1. Aposta {{tier}}+. O perdedor paga o pote (95% ao vencedor) para ficar com a ficha, ou abre mão da ficha.",
+    "step5Royale": "ROYALE — até 8 jogadores, uma rolagem de VRF escolhe o vencedor que leva todo o pote. As fichas são só sua entrada — sempre voltam.",
+    "step5Tourney": "TOURNEY — compre um ingresso ({{ticket}} SOL) e entre num chaveamento de 8 jogadores. Prêmios: 1º {{p1}}% / 2º {{p2}}% / 3º {{p3}}% do pote (taxa {{fee}}%).",
+    "step6Title": "RESGATE E SAQUE",
+    "step6Body": "Ganhou? Seus ganhos caem no seu saldo interno — toque em CLAIM na tela de resultado, depois WITHDRAW na aba BATTLE para mover o SOL de volta à carteira. Resgate também sua ficha.",
+    "fairTitle": "POR QUE É JUSTO",
+    "fairBody": "Cada resultado abre um painel ON-CHAIN AUDIT TRAIL com a semente do VRF e uma conta de aleatoriedade da Switchboard que você pode verificar no solscan. O projeto não pode escolher vencedores — a rede de oráculos assina a aleatoriedade e o programa confere a prova antes de usá-la.",
+    "gotIt": "ENTENDI — BORA JOGAR"
+  }
+}

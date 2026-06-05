@@ -5,6 +5,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import RetroHeader from "./components/RetroHeader";
 import NotificationToast from "./components/NotificationToast";
 import IndexerStatus from "./components/IndexerStatus";
@@ -23,6 +24,7 @@ import ProfilePage from "./pages/ProfilePage";
 type Tab = "mint" | "inventory" | "battle" | "royale" | "tournament" | "history" | "leaderboard" | "profile";
 
 export default function App() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("mint");
   const [viewedPlayer, setViewedPlayer] = useState<string | null>(null);
   // Deep-link from HistoryPage / LeaderboardPage row clicks into the
@@ -97,10 +99,10 @@ export default function App() {
           borderTop: "2px outset #fff",
         }}
       >
-        <span className="truncate">ChipTap Solana v0.1</span>
+        <span className="truncate">{t("footer.version")}</span>
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <IndexerStatus />
-          <span className="hidden md:inline">Powered by Solana + Metaplex Core</span>
+          <span className="hidden md:inline">{t("footer.poweredBy")}</span>
         </div>
         <span className="flex-shrink-0">{new Date().getFullYear()}</span>
       </footer>

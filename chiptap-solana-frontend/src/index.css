@@ -175,3 +175,47 @@ body::after {
   color: #FFD700 !important;
   font-size: 14px !important;
 }
+
+/* ============================================================
+   i18n — per-script pixel fonts (SEC-25)
+   ------------------------------------------------------------
+   Press Start 2P / VT323 are Latin-only.  For ru/zh/hi we APPEND a
+   script-covering font AFTER the pixel font, so Latin glyphs (digits,
+   "SOL", punctuation) still render pixel and only the script's glyphs
+   fall through to the script font.  Inline VT323 body text needs no
+   override — its `monospace` generic fallback maps to the OS monospace
+   which already covers Cyrillic/CJK/Devanagari (readable, not tofu).
+   <html lang="…"> is kept in sync by src/i18n/index.ts.
+   ============================================================ */
+
+/* Zpix = pixel CJK.  Subsetted to the zh.json glyphs (build step) →
+   /fonts/zpix-subset.woff2.  Until that file exists the zh rules below
+   fall through to 'Noto Sans SC' (clean, loaded from Google Fonts). */
+@font-face {
+  font-family: 'Zpix';
+  src: url('/fonts/zpix-subset.woff2') format('woff2');
+  font-display: swap;
+  unicode-range: U+4E00-9FFF, U+3000-303F, U+FF00-FFEF, U+2014, U+2026;
+}
+
+/* Russian — Cyrillic via Pixelify Sans (pixel). */
+html[lang="ru"] .font-pixel,
+html[lang="ru"] .wallet-adapter-button,
+html[lang="ru"] .wallet-adapter-modal-title {
+  font-family: 'Press Start 2P', 'Pixelify Sans', monospace !important;
+}
+
+/* Chinese — CJK via Zpix (pixel), Noto Sans SC fallback. */
+html[lang="zh"] .font-pixel,
+html[lang="zh"] .wallet-adapter-button,
+html[lang="zh"] .wallet-adapter-modal-title {
+  font-family: 'Press Start 2P', 'Zpix', 'Noto Sans SC', monospace !important;
+}
+
+/* Hindi — Devanagari via Noto Sans Devanagari (no pixel Devanagari font
+   exists, so this language trades pixel headers for legibility). */
+html[lang="hi"] .font-pixel,
+html[lang="hi"] .wallet-adapter-button,
+html[lang="hi"] .wallet-adapter-modal-title {
+  font-family: 'Press Start 2P', 'Noto Sans Devanagari', sans-serif !important;
+}

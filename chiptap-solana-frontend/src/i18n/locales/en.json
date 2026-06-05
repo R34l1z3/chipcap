@@ -1,0 +1,62 @@
+{
+  "lang": { "switch": "Language" },
+  "header": {
+    "tabs": {
+      "mint": "MINT",
+      "inventory": "MY CHIPS",
+      "battle": "BATTLE",
+      "royale": "ROYALE",
+      "tournament": "TOURNEY",
+      "leaderboard": "TOP",
+      "profile": "ME",
+      "history": "HISTORY"
+    },
+    "tabsShort": {
+      "mint": "MINT",
+      "inventory": "CHIPS",
+      "battle": "PVP",
+      "royale": "BR",
+      "tournament": "TRN",
+      "leaderboard": "TOP",
+      "profile": "ME",
+      "history": "LOG"
+    },
+    "howToPlay": "How to play"
+  },
+  "footer": {
+    "version": "ChipTap Solana v0.1",
+    "poweredBy": "Powered by Solana + Metaplex Core"
+  },
+  "common": {
+    "back": "BACK",
+    "close": "CLOSE",
+    "refresh": "REFRESH",
+    "loading": "LOADING...",
+    "connectWallet": "CONNECT WALLET",
+    "you": "YOU",
+    "by": "by"
+  },
+  "help": {
+    "title": "HOW TO PLAY",
+    "intro": "ChipTap is a provably-fair on-chain battle game. You own NFT chips and stake SOL; every winner is picked by a verifiable Switchboard VRF — not by us.",
+    "introDevnet": "You're on {{cluster}} — play money, no real value.",
+    "step1Title": "CONNECT A WALLET",
+    "step1Body": "Top-right SELECT WALLET button. Phantom, Solflare, or Backpack all work.",
+    "step1Network": "Set your wallet's network to {{cluster}}.",
+    "step2Title": "GET FREE DEVNET SOL",
+    "step2Body": "You need a little SOL for fees + stakes. Grab some free from {{faucet}} — paste your wallet address, request ~1 SOL.",
+    "step3Title": "MINT A CHIP",
+    "step3Body": "Go to the MINT tab. A chip is your NFT fighter — cheapest is ~{{price}} SOL. You need at least one to enter any game.",
+    "step4Title": "FUND YOUR ARENA BALANCE",
+    "step4Body": "Stakes come from an internal balance inside the game (not your wallet directly). On the BATTLE tab use the INTERNAL BALANCE banner to DEPOSIT some SOL. It's on-chain and yours — WITHDRAW any time. Joining a game auto-tops-up if you're short, so this step is optional.",
+    "step5Title": "PICK A MODE & PLAY",
+    "step5Battle": "BATTLE — 1v1. Stake {{tier}}+. Loser either pays the pool (95% to winner) to keep their chip, or forfeits the chip.",
+    "step5Royale": "ROYALE — up to 8 players, one VRF roll picks the winner who takes the whole pool. Chips are just your ticket in — they always come back.",
+    "step5Tourney": "TOURNEY — buy a ticket ({{ticket}} SOL), enter an 8-player bracket. Prizes: 1st {{p1}}% / 2nd {{p2}}% / 3rd {{p3}}% of the pool ({{fee}}% fee).",
+    "step6Title": "CLAIM & CASH OUT",
+    "step6Body": "Won? Your winnings land in your internal balance — hit CLAIM on the result screen, then WITHDRAW on the BATTLE tab to move SOL back to your wallet. Always reclaim your chip too.",
+    "fairTitle": "WHY IT'S FAIR",
+    "fairBody": "Every result opens an ON-CHAIN AUDIT TRAIL panel with the VRF seed and a Switchboard randomness account you can verify on solscan. The project can't pick winners — the oracle network signs the randomness and the program checks the proof before using it.",
+    "gotIt": "GOT IT — LET'S PLAY"
+  }
+}
