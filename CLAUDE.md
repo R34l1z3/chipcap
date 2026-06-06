@@ -421,6 +421,36 @@ curl -s http://localhost:3002/api/health
 - **`/api/health` returns HTTP 503 when degraded** — Docker `depends_on: service_healthy` must check this, not just port 3002 being open
 - **WSL2 for Solana toolchain**, never native Windows
 
+## SEC-25 — i18n (multi-language) — IN PROGRESS
+
+6 languages: **en** (base/fallback) + **zh** Chinese, **ru** Russian, **hi** Hindi, **es** Spanish, **pt** Portuguese.  Stack: `react-i18next` + `i18next` + `i18next-browser-languagedetector`.
+
+**Architecture (all in `chiptap-solana-frontend/`):**
+- `src/i18n/index.ts` — init; detects from localStorage key `chiptap_lang` then navigator; `fallbackLng: en`; `load: "languageOnly"` (en-US→en); exports `LANGS` array; syncs `<html lang>` on change.
+- `src/i18n/locales/{en,zh,ru,hi,es,pt}.json` — one flat-nested object per lang, mirrored key sets.  Interpolation `{{var}}` for dynamic values (prices, cluster, ids) so copy can't drift from config.
+- `src/components/LanguageSwitcher.tsx` — native `<select>` in the header (each lang in its own script).
+- `main.tsx` imports `./i18n` before render.
+
+**Per-script pixel fonts (the hard part — Press Start 2P / VT323 are Latin-only):**
+- `index.html` loads Pixelify Sans (ru, pixel Cyrillic) + Noto Sans SC (zh fallback) + Noto Sans Devanagari (hi) from Google Fonts.
+- `index.css` has `@font-face Zpix` (pixel CJK) + `html[lang="ru|zh|hi"] .font-pixel{…}` overrides that APPEND the script font after Press Start 2P — so digits/"SOL"/punctuation stay pixel, only script glyphs use the script font.  Verified working in preview (zh renders in Zpix pixel font, ru in Pixelify Sans).
+- **Zpix is 7 MB → subsetted** to only the glyphs in `zh.json` via `scripts/subset-zpix.py` → `public/fonts/zpix-subset.woff2` (~12 KB).  **RE-RUN `python3 scripts/subset-zpix.py` whenever you add Chinese strings** (needs the Zpix.ttf source at `C:/Temp/zpix/Zpix.ttf` — download from GitHub release v3.1.11 if missing).
+
+**To translate a new page (the established pattern):**
+1. Add a section to `en.json` (e.g. `"battle": { … }`), keys grouped by page; use `{{var}}` for interpolated bits.
+2. Mirror that exact section into the other 5 locale files with translations.
+3. In the page: `import { useTranslation }`, `const { t } = useTranslation();`, replace hardcoded strings with `t("battle.key")` / `t("battle.key", { var })`.  **Gotcha**: if a `.map((t) => …)` shadows the translate fn, rename the loop var (did this in RetroHeader → `tb`).
+4. Re-run the Zpix subset; `tsc --noEmit` + `vite build`; commit.
+
+**Done so far:** foundation (header/tabs/footer/common/help-tutorial — all 6 langs, verified) + Batch 1 (MintPage, BootDiagnostics user-facing, rarity names).  Shared sections already in locales: `lang, header, footer, common, help, boot, rarity, mint`.
+
+**Remaining batches (each = add locale section ×6 + refactor page + re-subset + commit):**
+- **Batch 2 — BattlePage** (~70 strings): DepositWithdrawBanner (INTERNAL BALANCE / Free / Locked / DEPOSIT / WITHDRAW), Lobby (BATTLE LOBBY, REFRESH, CREATE, YOUR ACTIVE BATTLES, OPEN BATTLES, ROLLING, chip-picker, FIGHT/JOIN/CANCEL), CreateBattle (SELECT POOL / SELECT YOUR CHIP / CONFIRM IN WALLET), WatchBattle (VS, ROLLING, FORCE RESOLVE, YOU WON/LOST, CLAIM CHIP, PAY TO KEEP CHIP / FORFEIT CHIP, VICTORY/DEFEAT, resolution labels), main (BATTLE ARENA, CONNECT WALLET TO BATTLE).  **Add shared `status` (WAITING/ROLLING/DECIDED/SETTLED/CANCELLED) + `resolution` (PAID/FORFEITED/EXPIRED) sections here — reused by BR + Tournament.**
+- **Batch 3 — BattleRoyalePage + TournamentPage** (~90): lobbies, create, watch, seat cards, podium, bracket cell labels (QUARTERS/SEMIS/FINAL/GOLD/BRONZE), ticket banner, claim buttons.
+- **Batch 4 — InventoryPage + ProfilePage + LeaderboardPage + HistoryPage** (~60): stat labels, table headers, MY/ALL toggle, empty states.
+- **Batch 5 — BattleAuditPanel + `notify(...)` toast messages** (~40): audit row labels, VRF badges, the scattered `notify("type", "…")` strings (translate the static part; many are template literals with sig/id).
+- **Batch 6 — final**: re-subset Zpix against the complete zh.json, full `vite build`, smoke the language switch on every page, commit.
+
 ## Where we are right now (2026-05-29)
 
 Last work: SEC-24 (code-review hardening + tutorial + design-pass header).  All committed + pushed to `R34l1z3/chipcap` `main` (HEAD ~ `803c653`).  Program redeployed to devnet with the cancel→refund fix.
