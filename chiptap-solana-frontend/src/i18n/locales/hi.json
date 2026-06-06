@@ -58,5 +58,34 @@
     "fairTitle": "यह निष्पक्ष क्यों है",
     "fairBody": "हर परिणाम एक ON-CHAIN AUDIT TRAIL पैनल खोलता है जिसमें VRF सीड और एक Switchboard रैंडमनेस अकाउंट होता है जिसे आप solscan पर सत्यापित कर सकते हैं। प्रोजेक्ट विजेता नहीं चुन सकता — ऑरेकल नेटवर्क रैंडमनेस पर हस्ताक्षर करता है और प्रोग्राम उपयोग से पहले प्रूफ जाँचता है।",
     "gotIt": "समझ गया — चलो खेलें"
+  },
+  "boot": {
+    "warning": "बूट चेतावनी:",
+    "dismiss": "हटाएँ",
+    "noWallet": "कोई वॉलेट नहीं मिला। Phantom (https://phantom.app) या Solflare इंस्टॉल करें।"
+  },
+  "rarity": {
+    "0": "सामान्य",
+    "1": "असामान्य",
+    "2": "दुर्लभ",
+    "3": "एपिक",
+    "4": "दिग्गज"
+  },
+  "mint": {
+    "title": "चिप मिंट स्टेशन",
+    "connect": "मिंट के लिए वॉलेट कनेक्ट करें",
+    "wallets": "Phantom · Solflare · Backpack",
+    "selectRaritySub": "दुर्लभता चुनें",
+    "selectRarity": "दुर्लभता चुनें:",
+    "networkNotReady": "नेटवर्क तैयार नहीं",
+    "chipInfo": "{{rarity}} चिप जानकारी:",
+    "price": "मूल्य:",
+    "minted": "मिंट किए गए:",
+    "total": "कुल:",
+    "signing": "वॉलेट में साइन करें...",
+    "disabled": "मिंट बंद है",
+    "cta": "{{rarity}} चिप मिंट करें",
+    "footnote": "हर मिंट एक नया Metaplex Core Asset + ChipData PDA बनाता है।",
+    "toast": "{{rarity}} मिंट हुआ!"
   }
 }

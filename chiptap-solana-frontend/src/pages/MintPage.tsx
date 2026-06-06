@@ -3,6 +3,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Keypair, SystemProgram } from "@solana/web3.js";
@@ -30,6 +31,7 @@ function METADATA_URI(rarity: number) {
 }
 
 export default function MintPage() {
+  const { t } = useTranslation();
   const { connected, publicKey } = useWallet();
   const program = useChipNftProgram();
   const owner   = publicKey?.toBase58();
@@ -64,6 +66,7 @@ export default function MintPage() {
   useEffect(() => { fetchCfg(); }, [fetchCfg]);
 
   const r = RARITIES[selectedRarity];
+  const rName = t(`rarity.${selectedRarity}`);
   const priceSol = cfg?.mintPrice[selectedRarity] ?? DEFAULT_MINT_PRICE_SOL[selectedRarity];
   const minted   = cfg?.mintedCount[selectedRarity] ?? 0;
   const cap      = cfg?.maxSupply[selectedRarity]   ?? 0;
@@ -91,28 +94,28 @@ export default function MintPage() {
         .signers([asset])
         .rpc();
 
-      notify("info", `Minted ${r.name}! ${sig.slice(0, 8)}…`);
+      notify("info", `${t("mint.toast", { rarity: rName })} ${sig.slice(0, 8)}…`);
       await Promise.all([fetchCfg(), refetchChips()]);
     } catch (e) {
       notifyTxError("Mint", e);
     } finally {
       setPending(false);
     }
-  }, [program, publicKey, selectedRarity, r.name, fetchCfg, refetchChips]);
+  }, [program, publicKey, selectedRarity, rName, t, fetchCfg, refetchChips]);
 
   if (!connected) {
     return (
       <div className="p-2 sm:p-4 max-w-2xl mx-auto">
         <div className="text-center mb-6">
           <h1 className="font-pixel text-retro-gold animate-glow" style={{ fontSize: 18 }}>
-            CHIP MINT STATION
+            {t("mint.title")}
           </h1>
         </div>
         <div className="retro-panel text-center py-8">
           <div className="font-pixel text-retro-gold mb-3" style={{ fontSize: 14 }}>
-            CONNECT WALLET TO MINT
+            {t("mint.connect")}
           </div>
-          <div className="text-sm opacity-60 mb-4">Phantom · Solflare · Backpack</div>
+          <div className="text-sm opacity-60 mb-4">{t("mint.wallets")}</div>
           <div className="flex justify-center">
             <WalletMultiButton />
           </div>
@@ -125,21 +128,21 @@ export default function MintPage() {
     <div className="p-2 sm:p-4 max-w-2xl mx-auto">
       <div className="text-center mb-6">
         <h1 className="font-pixel text-retro-gold animate-glow" style={{ fontSize: 18 }}>
-          CHIP MINT STATION
+          {t("mint.title")}
         </h1>
-        <div className="text-sm opacity-60 mt-1">Select rarity</div>
+        <div className="text-sm opacity-60 mt-1">{t("mint.selectRaritySub")}</div>
       </div>
 
       {cfgErr && (
         <div className="retro-panel mb-4" style={{ borderColor: "#FF8800" }}>
-          <div className="font-pixel text-retro-orange" style={{ fontSize: 10 }}>NETWORK NOT READY</div>
+          <div className="font-pixel text-retro-orange" style={{ fontSize: 10 }}>{t("mint.networkNotReady")}</div>
           <div className="text-xs opacity-70 mt-1">{cfgErr}</div>
         </div>
       )}
 
       <div className="retro-panel mb-4">
         <div className="font-pixel text-xs text-retro-cyan mb-3" style={{ fontSize: 10 }}>
-          &gt; SELECT RARITY:
+          &gt; {t("mint.selectRarity")}
         </div>
         <div className="flex gap-2 flex-wrap justify-center">
           {RARITIES.map((rar) => (
@@ -154,7 +157,7 @@ export default function MintPage() {
                 textShadow: selectedRarity === rar.id ? `0 0 10px ${rar.color}` : "none",
               }}
             >
-              {rar.name}
+              {t(`rarity.${rar.id}`)}
             </button>
           ))}
         </div>
@@ -167,22 +170,22 @@ export default function MintPage() {
 
         <div className="retro-panel flex-1 w-full">
           <div className="font-pixel text-xs mb-3" style={{ fontSize: 10, color: r.color }}>
-            &gt; {r.name.toUpperCase()} CHIP INFO:
+            &gt; {t("mint.chipInfo", { rarity: rName.toUpperCase() })}
           </div>
           <table className="w-full text-sm">
             <tbody>
               <tr>
-                <td className="py-1 text-retro-cyan opacity-70">Price:</td>
+                <td className="py-1 text-retro-cyan opacity-70">{t("mint.price")}</td>
                 <td className="py-1 text-right" style={{ color: r.color }}>
                   {fmtSol(priceSol)} SOL
                 </td>
               </tr>
               <tr>
-                <td className="py-1 text-retro-cyan opacity-70">Minted:</td>
+                <td className="py-1 text-retro-cyan opacity-70">{t("mint.minted")}</td>
                 <td className="py-1 text-right">{capLabel}</td>
               </tr>
               <tr style={{ borderTop: "1px solid #2a2a5a" }}>
-                <td className="py-2 text-retro-gold font-pixel" style={{ fontSize: 11 }}>TOTAL:</td>
+                <td className="py-2 text-retro-gold font-pixel" style={{ fontSize: 11 }}>{t("mint.total")}</td>
                 <td className="py-2 text-right text-retro-gold font-pixel" style={{ fontSize: 14 }}>
                   {fmtSol(priceSol)} SOL
                 </td>
@@ -199,14 +202,14 @@ export default function MintPage() {
         style={{ fontSize: 14 }}
       >
         {pending
-          ? ">> SIGN IN WALLET..."
+          ? `>> ${t("mint.signing")}`
           : !cfg?.mintEnabled
-          ? ">> MINT DISABLED"
-          : `>> MINT ${r.name.toUpperCase()} CHIP <<`}
+          ? `>> ${t("mint.disabled")}`
+          : `>> ${t("mint.cta", { rarity: rName.toUpperCase() })} <<`}
       </button>
 
       <div className="text-xs opacity-40 mt-3 text-center">
-        Each mint creates a fresh Metaplex Core Asset + ChipData PDA.
+        {t("mint.footnote")}
       </div>
     </div>
   );

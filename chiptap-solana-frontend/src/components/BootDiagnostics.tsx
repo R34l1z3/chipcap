@@ -12,6 +12,7 @@
 // ============================================================
 
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   CHIP_NFT_PROGRAM,
@@ -34,6 +35,7 @@ declare global {
 }
 
 export default function BootDiagnostics() {
+  const { t } = useTranslation();
   const { connection } = useConnection();
   const { wallets }    = useWallet();
   const [probes, setProbes] = useState<Probe[]>([]);
@@ -139,17 +141,22 @@ export default function BootDiagnostics() {
       }}
     >
       <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 9, color: "#FF8888" }}>
-        ! BOOT WARNING:
+        ! {t("boot.warning")}
       </span>
       <span style={{ flex: 1, minWidth: 200 }}>
-        {firstFail.name} — {firstFail.detail}
+        {/* The "no wallet" case is the one a normal user actually hits —
+            translate it.  Deeper RPC/program failures stay English
+            (they're for bug reports / devs). */}
+        {firstFail.name === "Wallet extension"
+          ? t("boot.noWallet")
+          : `${firstFail.name} — ${firstFail.detail}`}
       </span>
       <button
         className="retro-btn"
         style={{ fontSize: 9, padding: "2px 6px", minHeight: 0 }}
         onClick={() => setDismissed(true)}
       >
-        DISMISS
+        {t("boot.dismiss")}
       </button>
     </div>
   );

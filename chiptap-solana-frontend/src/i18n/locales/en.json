@@ -58,5 +58,34 @@
     "fairTitle": "WHY IT'S FAIR",
     "fairBody": "Every result opens an ON-CHAIN AUDIT TRAIL panel with the VRF seed and a Switchboard randomness account you can verify on solscan. The project can't pick winners — the oracle network signs the randomness and the program checks the proof before using it.",
     "gotIt": "GOT IT — LET'S PLAY"
+  },
+  "boot": {
+    "warning": "BOOT WARNING:",
+    "dismiss": "DISMISS",
+    "noWallet": "No wallet detected. Install Phantom (https://phantom.app) or Solflare."
+  },
+  "rarity": {
+    "0": "Common",
+    "1": "Uncommon",
+    "2": "Rare",
+    "3": "Epic",
+    "4": "Legendary"
+  },
+  "mint": {
+    "title": "CHIP MINT STATION",
+    "connect": "CONNECT WALLET TO MINT",
+    "wallets": "Phantom · Solflare · Backpack",
+    "selectRaritySub": "Select rarity",
+    "selectRarity": "SELECT RARITY:",
+    "networkNotReady": "NETWORK NOT READY",
+    "chipInfo": "{{rarity}} CHIP INFO:",
+    "price": "Price:",
+    "minted": "Minted:",
+    "total": "TOTAL:",
+    "signing": "SIGN IN WALLET...",
+    "disabled": "MINT DISABLED",
+    "cta": "MINT {{rarity}} CHIP",
+    "footnote": "Each mint creates a fresh Metaplex Core Asset + ChipData PDA.",
+    "toast": "Minted {{rarity}}!"
   }
 }

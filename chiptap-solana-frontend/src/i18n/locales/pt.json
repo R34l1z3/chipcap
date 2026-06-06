@@ -58,5 +58,34 @@
     "fairTitle": "POR QUE É JUSTO",
     "fairBody": "Cada resultado abre um painel ON-CHAIN AUDIT TRAIL com a semente do VRF e uma conta de aleatoriedade da Switchboard que você pode verificar no solscan. O projeto não pode escolher vencedores — a rede de oráculos assina a aleatoriedade e o programa confere a prova antes de usá-la.",
     "gotIt": "ENTENDI — BORA JOGAR"
+  },
+  "boot": {
+    "warning": "AVISO DE INICIALIZAÇÃO:",
+    "dismiss": "DISPENSAR",
+    "noWallet": "Nenhuma carteira detectada. Instale Phantom (https://phantom.app) ou Solflare."
+  },
+  "rarity": {
+    "0": "Comum",
+    "1": "Incomum",
+    "2": "Rara",
+    "3": "Épica",
+    "4": "Lendária"
+  },
+  "mint": {
+    "title": "ESTAÇÃO DE CUNHAGEM",
+    "connect": "CONECTE A CARTEIRA PARA CUNHAR",
+    "wallets": "Phantom · Solflare · Backpack",
+    "selectRaritySub": "Escolha a raridade",
+    "selectRarity": "ESCOLHA A RARIDADE:",
+    "networkNotReady": "REDE NÃO PRONTA",
+    "chipInfo": "INFO DA FICHA {{rarity}}:",
+    "price": "Preço:",
+    "minted": "Cunhadas:",
+    "total": "TOTAL:",
+    "signing": "ASSINE NA CARTEIRA...",
+    "disabled": "CUNHAGEM DESATIVADA",
+    "cta": "CUNHAR FICHA {{rarity}}",
+    "footnote": "Cada cunhagem cria um novo Metaplex Core Asset + ChipData PDA.",
+    "toast": "Ficha {{rarity}} cunhada!"
   }
 }

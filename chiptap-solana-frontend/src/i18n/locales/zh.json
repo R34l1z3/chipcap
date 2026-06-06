@@ -58,5 +58,34 @@
     "fairTitle": "为什么公平",
     "fairBody": "每个结果都会打开 ON-CHAIN AUDIT TRAIL 面板，显示 VRF 种子和可在 solscan 上验证的 Switchboard 随机账户。项目方无法挑选赢家 — 预言机网络对随机数签名，程序在使用前会校验证明。",
     "gotIt": "明白了 — 开玩"
+  },
+  "boot": {
+    "warning": "启动警告：",
+    "dismiss": "忽略",
+    "noWallet": "未检测到钱包。请安装 Phantom (https://phantom.app) 或 Solflare。"
+  },
+  "rarity": {
+    "0": "普通",
+    "1": "非凡",
+    "2": "稀有",
+    "3": "史诗",
+    "4": "传说"
+  },
+  "mint": {
+    "title": "筹码铸造站",
+    "connect": "连接钱包以铸造",
+    "wallets": "Phantom · Solflare · Backpack",
+    "selectRaritySub": "选择稀有度",
+    "selectRarity": "选择稀有度：",
+    "networkNotReady": "网络未就绪",
+    "chipInfo": "{{rarity}} 筹码信息：",
+    "price": "价格：",
+    "minted": "已铸造：",
+    "total": "合计：",
+    "signing": "在钱包中签名...",
+    "disabled": "铸造已禁用",
+    "cta": "铸造 {{rarity}} 筹码",
+    "footnote": "每次铸造都会创建一个新的 Metaplex Core Asset + ChipData PDA。",
+    "toast": "已铸造 {{rarity}}！"
   }
 }

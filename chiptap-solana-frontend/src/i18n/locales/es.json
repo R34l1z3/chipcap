@@ -58,5 +58,34 @@
     "fairTitle": "POR QUÉ ES JUSTO",
     "fairBody": "Cada resultado abre un panel ON-CHAIN AUDIT TRAIL con la semilla del VRF y una cuenta de aleatoriedad de Switchboard que puedes verificar en solscan. El proyecto no puede elegir ganadores — la red de oráculos firma la aleatoriedad y el programa comprueba la prueba antes de usarla.",
     "gotIt": "ENTENDIDO — A JUGAR"
+  },
+  "boot": {
+    "warning": "AVISO DE ARRANQUE:",
+    "dismiss": "DESCARTAR",
+    "noWallet": "No se detectó cartera. Instala Phantom (https://phantom.app) o Solflare."
+  },
+  "rarity": {
+    "0": "Común",
+    "1": "Poco común",
+    "2": "Rara",
+    "3": "Épica",
+    "4": "Legendaria"
+  },
+  "mint": {
+    "title": "ESTACIÓN DE ACUÑACIÓN",
+    "connect": "CONECTA LA CARTERA PARA ACUÑAR",
+    "wallets": "Phantom · Solflare · Backpack",
+    "selectRaritySub": "Elige rareza",
+    "selectRarity": "ELIGE RAREZA:",
+    "networkNotReady": "RED NO LISTA",
+    "chipInfo": "INFO DE FICHA {{rarity}}:",
+    "price": "Precio:",
+    "minted": "Acuñadas:",
+    "total": "TOTAL:",
+    "signing": "FIRMA EN LA CARTERA...",
+    "disabled": "ACUÑACIÓN DESACTIVADA",
+    "cta": "ACUÑAR FICHA {{rarity}}",
+    "footnote": "Cada acuñación crea un nuevo Metaplex Core Asset + ChipData PDA.",
+    "toast": "¡Ficha {{rarity}} acuñada!"
   }
 }
