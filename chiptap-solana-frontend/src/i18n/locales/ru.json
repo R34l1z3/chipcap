@@ -174,5 +174,174 @@
       "resolutionLabel": "Исход:",
       "cancelled": "БИТВА ОТМЕНЕНА"
     }
+  },
+  "tStatus": {
+    "0": "РЕГИСТРАЦИЯ",
+    "1": "ИДЁТ",
+    "2": "ЗАВЕРШЁН",
+    "3": "ОТМЕНЁН"
+  },
+  "tRound": {
+    "0": "ЧЕТВЕРТЬ",
+    "1": "ПОЛУФИНАЛ",
+    "2": "ФИНАЛ И 3-Е"
+  },
+  "brCancelReason": {
+    "0": "ТАЙМАУТ ВХОДА",
+    "1": "ТАЙМАУТ VRF"
+  },
+  "tCancelReason": {
+    "0": "ТАЙМАУТ РЕГИСТРАЦИИ",
+    "1": "ТАЙМАУТ VRF"
+  },
+  "royale": {
+    "title": "РОЯЛЬ",
+    "connect": "ПОДКЛЮЧИ КОШЕЛЁК ДЛЯ ИГРЫ",
+    "subtitle": "До 8 игроков · один VRF · Switchboard On-Demand · чипы вернутся, ставка под риском",
+    "balance": {
+      "title": "АВТО-ПОПОЛНЕНИЕ ПРИ ВХОДЕ",
+      "hint": "Внутренний баланс: {{have}} SOL — вход автоматически возьмёт +{{shortBy}} SOL с кошелька (один поп-ап, без лишних шагов)."
+    },
+    "lobby": {
+      "title": "> ЛОББИ РОЯЛЯ",
+      "createLong": "+ СОЗДАТЬ РОЯЛЬ",
+      "createShort": "+ СОЗДАТЬ",
+      "yourActive": "ТВОИ АКТИВНЫЕ РОЯЛИ:",
+      "royaleNum": "РОЯЛЬ #{{id}}",
+      "claim": "ЗАБРАТЬ",
+      "open": "ОТКРЫТЫЕ РОЯЛИ ({{count}}):",
+      "noOpen": "Открытых роялей нет. Будь первым!",
+      "inLobby": "В ЛОББИ ✓",
+      "pickChip": "Выбери чип",
+      "fight": "БЕЙ!",
+      "joining": "ВХОЖУ...",
+      "join": "ВОЙТИ",
+      "stake": "ставка {{amount}} SOL",
+      "minAgo": "{{n}}м назад",
+      "seats": "места: {{list}}",
+      "rolling": "БРОСОК ({{count}}):",
+      "waitingForVrf": "ЖДЁМ VRF...",
+      "justDecided": "ТОЛЬКО ЧТО РЕШЕНО ({{count}}):",
+      "winnerShort": "победитель: {{addr}}"
+    },
+    "create": {
+      "back": "< НАЗАД",
+      "title": "> СОЗДАТЬ НОВЫЙ РОЯЛЬ",
+      "hint": "Каждый игрок ставит {{pool}}. Победитель забирает пул минус комиссия проекта. Чипы — это членские токены, они всегда возвращаются владельцу после рояля.",
+      "step1": "1. ВЫБЕРИ ПУЛ:",
+      "step2": "2. МАКС. ИГРОКОВ:",
+      "step3": "3. ТВОЙ ЧИП (создатель входит первым):",
+      "players": "{{n}}и",
+      "poolWhenFull": "Пул при полном лобби: {{amount}} SOL.",
+      "noChips": "Чипов нет. Счекань хотя бы один!",
+      "confirm": ">> ПОДПИШИ В КОШЕЛЬКЕ...",
+      "cta": ">> СОЗДАТЬ РОЯЛЬ {{n}}и · {{pool}} <<"
+    },
+    "watch": {
+      "back": "< НАЗАД",
+      "loading": "ЗАГРУЗКА РОЯЛЯ #{{id}}…",
+      "royaleNum": "РОЯЛЬ #{{id}}",
+      "poolSeats": "{{pool}} · {{joined}}/{{max}}",
+      "seat": "МЕСТО {{n}}",
+      "youParen": "(ВЫ)",
+      "chipTail": "чип …{{tail}}",
+      "chipClaimed": "чип забран ✓",
+      "rolling": "БРОСОК — релейер выполняет Switchboard VRF…",
+      "youWonRoyale": "*** ВЫ ВЫИГРАЛИ РОЯЛЬ! ***",
+      "winnerIs": "ПОБЕДИТЕЛЬ: {{addr}}",
+      "cancelled": "РОЯЛЬ ОТМЕНЁН",
+      "cancelReason": "причина: {{reason}}",
+      "claimWinnings": "ЗАБРАТЬ {{amount}} SOL ВЫИГРЫШ",
+      "joinClosesIn": "Окно входа закроется через {{m}}м{{s}}с",
+      "cancelStuck": "ОТМЕНИТЬ ЗАВИСШИЙ РОЯЛЬ",
+      "vrfTimeoutIn": "Таймаут VRF через {{m}}м{{s}}с — потом можно отменить",
+      "forceCancel": "ПРИНУДИТЕЛЬНАЯ ОТМЕНА (VRF ТАЙМАУТ)",
+      "claimChipStake": "ЗАБРАТЬ ЧИП + СТАВКУ (место {{slot}})",
+      "claimChip": "ЗАБРАТЬ МОЙ ЧИП (место {{slot}})",
+      "reclaimedFull": "Чип + ставка возвращены ✓",
+      "reclaimedShort": "Ты забрал свой чип ✓"
+    }
+  },
+  "tournament": {
+    "title": "ТУРНИРЫ",
+    "connect": "ПОДКЛЮЧИ КОШЕЛЁК ДЛЯ УЧАСТИЯ",
+    "subtitle": "8 игроков · одинарное выбывание · {{p1}}/{{p2}}/{{p3}}% призов · Switchboard VRF для каждого матча",
+    "tickets": {
+      "title": "ТВОИ ТИКЕТЫ",
+      "lineOne": "{{n}} ТИКЕТ · цена {{price}} SOL за шт.",
+      "lineMany": "{{n}} ТИКЕТОВ · цена {{price}} SOL за шт.",
+      "buy": "+ КУПИТЬ 1 ТИКЕТ ({{price}} SOL)",
+      "buying": "ПОКУПАЮ…"
+    },
+    "lobby": {
+      "title": "> ЛОББИ ТУРНИРОВ",
+      "createLong": "+ СОЗДАТЬ ТУРНИР",
+      "createShort": "+ СОЗДАТЬ",
+      "yourActive": "ТВОИ АКТИВНЫЕ ТУРНИРЫ:",
+      "tournamentNum": "ТУРНИР #{{id}}",
+      "entryRegistered": "вход {{entry}} · {{registered}}/{{size}}",
+      "open": "ОТКРЫТЫЕ ТУРНИРЫ ({{count}}):",
+      "noOpen": "Открытых турниров нет. Будь первым!",
+      "registered": "ЗАРЕГИСТРИРОВАН ✓",
+      "register": "ЗАРЕГИСТРИРОВАТЬСЯ",
+      "pickChip": "Выбери чип",
+      "enter": "В БОЙ!",
+      "joining": "ВХОЖУ...",
+      "poolWhenFull": "пул при полном: {{amount}} SOL",
+      "prizes": "1-е: {{p1}} · 2-е: {{p2}} · 3-е: {{p3}}",
+      "minAgo": "{{n}}м назад",
+      "active": "ИДУТ ({{count}}):",
+      "entry": "вход {{entry}}",
+      "recentCompleted": "НЕДАВНО ЗАВЕРШЁННЫЕ ({{count}}):",
+      "winnerShort": "победитель: {{addr}}"
+    },
+    "create": {
+      "back": "< НАЗАД",
+      "title": "> СОЗДАТЬ НОВЫЙ ТУРНИР",
+      "hintPrefix": "8 игроков, одинарное выбывание + матч за 3-е место. Каждая регистрация сжигает 1 тикет + ставка ",
+      "hintPrizes": ". Призы: 1-е {{p1}}%, 2-е {{p2}}%, 3-е {{p3}}%; комиссия {{fee}}%. Чипы возвращаются всем 8 игрокам.",
+      "step1": "1. ВЗНОС:",
+      "step2": "2. ТВОЙ ЧИП (создатель регистрируется автоматом):",
+      "solSuffix": "{{n}} SOL",
+      "poolBreakdown": "Пул при полном = {{full}} SOL → 1-е {{p1}} · 2-е {{p2}} · 3-е {{p3}}",
+      "noChips": "Чипов нет. Счекань хотя бы один!",
+      "confirm": ">> ПОДПИШИ В КОШЕЛЬКЕ...",
+      "cta": ">> СОЗДАТЬ ТУРНИР НА {{entry}} SOL <<"
+    },
+    "bracket": {
+      "quarters": "ЧЕТВЕРТЬ",
+      "semis": "ПОЛУФИНАЛ",
+      "final": "ФИНАЛ",
+      "gold": "ЗОЛОТО",
+      "bronze": "БРОНЗА",
+      "vs": "vs",
+      "rolling": "БРОСОК…",
+      "pending": "ОЖИДАНИЕ",
+      "seedShort": "сид {{n}}…",
+      "seedTitle": "сид: {{seed}}",
+      "seedAuditTitle": "сид: {{seed}}\nклик — открыть аккаунт случайности Switchboard на solscan",
+      "slotPlaceholder": "место {{n}}",
+      "empty": "—"
+    },
+    "watch": {
+      "back": "< НАЗАД",
+      "loading": "ЗАГРУЗКА ТУРНИРА #{{id}}…",
+      "tournamentNum": "ТУРНИР #{{id}}",
+      "header": "вход {{entry}} · {{registered}}/{{size}}",
+      "seat": "МЕСТО {{n}}",
+      "you": "ВЫ",
+      "empty": "пусто",
+      "podiumRank1": "1-е",
+      "podiumRank2": "2-е",
+      "podiumRank3": "3-е",
+      "podiumPrize": "{{amount}} SOL ({{pct}}%)",
+      "podiumClaimed": "забрано ✓",
+      "podiumEmpty": "—",
+      "cancelled": "ТУРНИР ОТМЕНЁН",
+      "cancelReason": "причина: {{reason}}",
+      "claimPrize": "ЗАБРАТЬ {{amount}} SOL — МЕСТО {{rank}}",
+      "claimChip": "ЗАБРАТЬ МОЙ ЧИП (место {{slot}})",
+      "reclaimed": "Ты забрал свой чип ✓"
+    }
   }
 }

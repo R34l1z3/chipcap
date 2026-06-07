@@ -26,6 +26,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { BN } from "@coral-xyz/anchor";
@@ -51,10 +52,10 @@ import { notify, notifyTxError } from "../lib/notifications";
 import * as pda from "../lib/pda";
 import { MPL_CORE_PROGRAM } from "../lib/mpl";
 import {
-  T_BRACKET_SIZE, T_STATUS, T_MATCH_STATUS, T_ROUND_LABEL,
+  T_BRACKET_SIZE,
   T_PRIZE_1ST_PCT, T_PRIZE_2ND_PCT, T_PRIZE_3RD_PCT, T_FEE_PCT,
   TICKET_PRICE_SOL, TICKET_PRICE_LAMPORTS,
-  T_ENTRY_FEE_OPTIONS_SOL, T_CANCEL_REASON, CLUSTER,
+  T_ENTRY_FEE_OPTIONS_SOL, CLUSTER,
 } from "../config";
 
 // Per-match audit: link the cell's seed snippet to the Switchboard
@@ -76,6 +77,7 @@ type View = "lobby" | "create" | "watch";
 // ============================================================
 
 function TicketBalanceBanner({ onBought }: { onBought?: () => void }) {
+  const { t } = useTranslation();
   const arena = useArenaProgram();
   const { publicKey } = useWallet();
   const { balance, refetch: refetchTickets } = useTicketBalance();
@@ -115,11 +117,10 @@ function TicketBalanceBanner({ onBought }: { onBought?: () => void }) {
     >
       <div className="text-xs">
         <span className="font-pixel text-retro-cyan" style={{ fontSize: 9 }}>
-          YOUR TICKETS
+          {t("tournament.tickets.title")}
         </span>
         <div className="opacity-80 mt-1">
-          <span className="text-retro-gold">{balance}</span> TICKET{balance === 1 ? "" : "S"}
-          {" "}· price <span className="text-retro-gold">{TICKET_PRICE_SOL} SOL</span> each
+          {t(balance === 1 ? "tournament.tickets.lineOne" : "tournament.tickets.lineMany", { n: balance, price: TICKET_PRICE_SOL })}
         </div>
       </div>
       <button
@@ -128,7 +129,7 @@ function TicketBalanceBanner({ onBought }: { onBought?: () => void }) {
         className="retro-btn retro-btn-gold"
         style={{ fontSize: 9, padding: "4px 12px" }}
       >
-        {busy ? "BUYING…" : `+ BUY 1 TICKET (${TICKET_PRICE_SOL} SOL)`}
+        {busy ? t("tournament.tickets.buying") : t("tournament.tickets.buy", { price: TICKET_PRICE_SOL })}
       </button>
     </div>
   );
@@ -144,6 +145,7 @@ function Lobby({
   onCreate: () => void;
   onWatch: (id: number) => void;
 }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const me = publicKey?.toBase58();
   const arena = useArenaProgram();
@@ -246,15 +248,15 @@ function Lobby({
     <div>
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <h2 className="font-pixel text-retro-cyan" style={{ fontSize: 12 }}>
-          &gt; TOURNAMENT LOBBY
+          {t("tournament.lobby.title")}
         </h2>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => refetch()} className="retro-btn" style={{ fontSize: 8, padding: "4px 8px" }}>
-            REFRESH
+            {t("common.refresh")}
           </button>
           <button onClick={onCreate} className="retro-btn retro-btn-gold" style={{ fontSize: 8, padding: "4px 8px" }}>
-            <span className="hidden sm:inline">+ CREATE TOURNAMENT</span>
-            <span className="sm:hidden">+ CREATE</span>
+            <span className="hidden sm:inline">{t("tournament.lobby.createLong")}</span>
+            <span className="sm:hidden">{t("tournament.lobby.createShort")}</span>
           </button>
         </div>
       </div>
@@ -265,41 +267,41 @@ function Lobby({
       {myActive.length > 0 && (
         <div className="mb-4">
           <div className="font-pixel text-retro-gold mb-2" style={{ fontSize: 9 }}>
-            YOUR ACTIVE TOURNAMENTS:
+            {t("tournament.lobby.yourActive")}
           </div>
-          {myActive.map((t) => {
-            const podium = t.status === 2 && [
-              t.winner1stSlot, t.winner2ndSlot, t.winner3rdSlot,
-            ].some((s) => s != null && t.players[s]?.player === me);
+          {myActive.map((tr) => {
+            const podium = tr.status === 2 && [
+              tr.winner1stSlot, tr.winner2ndSlot, tr.winner3rdSlot,
+            ].some((s) => s != null && tr.players[s]?.player === me);
             return (
               <div
-                key={t.id}
+                key={tr.id}
                 className="retro-panel mb-2 cursor-pointer"
                 style={{
                   borderColor:
-                    t.status === 2 ? (podium ? "#00FF88" : "#aaa") :
-                    t.status === 1 ? "#FF00FF" : "#FFD700",
+                    tr.status === 2 ? (podium ? "#00FF88" : "#aaa") :
+                    tr.status === 1 ? "#FF00FF" : "#FFD700",
                 }}
-                onClick={() => onWatch(t.id)}
+                onClick={() => onWatch(tr.id)}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <span className="font-pixel text-retro-gold" style={{ fontSize: 10 }}>
-                      TOURNAMENT #{t.id}
+                      {t("tournament.lobby.tournamentNum", { id: tr.id })}
                     </span>
                     <span className="ml-2 text-sm opacity-60">
-                      {fmtSol(t.entryFee / 1e9)} entry · {t.registered}/{t.bracketSize}
+                      {t("tournament.lobby.entryRegistered", { entry: fmtSol(tr.entryFee / 1e9) + " SOL", registered: tr.registered, size: tr.bracketSize })}
                     </span>
                   </div>
                   <span className="font-pixel px-2 py-0.5" style={{
                     fontSize: 8,
                     color:
-                      t.status === 0 ? "#00FFFF" :
-                      t.status === 1 ? "#FF00FF" :
-                      t.status === 2 ? (podium ? "#00FF88" : "#888") : "#aaa",
+                      tr.status === 0 ? "#00FFFF" :
+                      tr.status === 1 ? "#FF00FF" :
+                      tr.status === 2 ? (podium ? "#00FF88" : "#888") : "#aaa",
                     border: "1px solid currentColor",
                   }}>
-                    {T_STATUS[t.status as keyof typeof T_STATUS]}
+                    {t(`tStatus.${tr.status}`)}
                   </span>
                 </div>
               </div>
@@ -310,42 +312,42 @@ function Lobby({
 
       {/* Open tournaments */}
       <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>
-        OPEN TOURNAMENTS ({open.length}):
+        {t("tournament.lobby.open", { count: open.length })}
       </div>
 
       {loading && open.length === 0 ? (
         <div className="retro-panel text-center py-6">
-          <div className="text-retro-cyan animate-blink">LOADING...</div>
+          <div className="text-retro-cyan animate-blink">{t("common.loading")}</div>
         </div>
       ) : open.length === 0 ? (
         <div className="retro-panel text-center py-6">
-          <div className="text-sm opacity-60">No open tournaments. Be the first!</div>
+          <div className="text-sm opacity-60">{t("tournament.lobby.noOpen")}</div>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {open.map((t) => {
-            const isIn = alreadyIn(t);
-            const isRegistering = registering === t.id;
-            const entrySol = t.entryFee / 1e9;
-            const poolWhenFull = entrySol * t.bracketSize;
+          {open.map((tr) => {
+            const isIn = alreadyIn(tr);
+            const isRegistering = registering === tr.id;
+            const entrySol = tr.entryFee / 1e9;
+            const poolWhenFull = entrySol * tr.bracketSize;
             return (
-              <div key={t.id} className="retro-panel">
+              <div key={tr.id} className="retro-panel">
                 <div className="flex items-start sm:items-center justify-between gap-2 mb-2 flex-wrap">
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
-                    <span className="font-pixel text-retro-cyan" style={{ fontSize: 10 }}>#{t.id}</span>
+                    <span className="font-pixel text-retro-cyan" style={{ fontSize: 10 }}>#{tr.id}</span>
                     <span className="text-retro-gold font-pixel" style={{ fontSize: 12 }}>
                       {fmtSol(entrySol)} SOL
                     </span>
                     <span className="font-pixel" style={{ fontSize: 10, color: "#FF00FF" }}>
-                      {t.registered}/{t.bracketSize}
+                      {tr.registered}/{tr.bracketSize}
                     </span>
                     <span className="text-xs opacity-50 truncate hidden sm:inline">
-                      by {shortAddr(t.creator)}
+                      {t("common.by")} {shortAddr(tr.creator)}
                     </span>
                   </div>
                   {isIn ? (
                     <span className="font-pixel text-retro-gold" style={{ fontSize: 8 }}>
-                      REGISTERED ✓
+                      {t("tournament.lobby.registered")}
                     </span>
                   ) : isRegistering ? (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -355,7 +357,7 @@ function Lobby({
                         value={selectedChip ?? ""}
                         onChange={(e) => setSelectedChip(e.target.value || null)}
                       >
-                        <option value="">Pick chip</option>
+                        <option value="">{t("tournament.lobby.pickChip")}</option>
                         {chips.map((c) => (
                           <option key={c.asset} value={c.asset}>
                             #{c.token_id} · …{c.asset.slice(-4)}
@@ -363,12 +365,12 @@ function Lobby({
                         ))}
                       </select>
                       <button
-                        onClick={() => handleRegister(t)}
-                        disabled={!selectedChip || busy === t.id}
+                        onClick={() => handleRegister(tr)}
+                        disabled={!selectedChip || busy === tr.id}
                         className="retro-btn retro-btn-gold"
                         style={{ fontSize: 8, padding: "3px 8px" }}
                       >
-                        {busy === t.id ? "JOINING..." : "ENTER!"}
+                        {busy === tr.id ? t("tournament.lobby.joining") : t("tournament.lobby.enter")}
                       </button>
                       <button
                         onClick={() => { setRegistering(null); setSelectedChip(null); }}
@@ -378,18 +380,18 @@ function Lobby({
                     </div>
                   ) : (
                     <button
-                      onClick={() => setRegistering(t.id)}
+                      onClick={() => setRegistering(tr.id)}
                       className="retro-btn retro-btn-gold"
                       style={{ fontSize: 8, padding: "3px 8px" }}
-                    >REGISTER</button>
+                    >{t("tournament.lobby.register")}</button>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-xs opacity-50 flex-wrap">
-                  <span>pool when full: {fmtSol(poolWhenFull)} SOL</span>
+                  <span>{t("tournament.lobby.poolWhenFull", { amount: fmtSol(poolWhenFull) })}</span>
                   <span>|</span>
-                  <span>1st: {fmtSol(poolWhenFull * 0.6)} · 2nd: {fmtSol(poolWhenFull * 0.25)} · 3rd: {fmtSol(poolWhenFull * 0.1)}</span>
+                  <span>{t("tournament.lobby.prizes", { p1: fmtSol(poolWhenFull * 0.6), p2: fmtSol(poolWhenFull * 0.25), p3: fmtSol(poolWhenFull * 0.1) })}</span>
                   <span>|</span>
-                  <span>{Math.floor((Date.now() / 1000 - t.createdAt) / 60)}m ago</span>
+                  <span>{t("tournament.lobby.minAgo", { n: Math.floor((Date.now() / 1000 - tr.createdAt) / 60) })}</span>
                 </div>
               </div>
             );
@@ -401,21 +403,21 @@ function Lobby({
       {active.length > 0 && (
         <div className="mt-4">
           <div className="font-pixel text-retro-magenta mb-2" style={{ fontSize: 9 }}>
-            ACTIVE ({active.length}):
+            {t("tournament.lobby.active", { count: active.length })}
           </div>
-          {active.map((t) => (
+          {active.map((tr) => (
             <div
-              key={t.id}
+              key={tr.id}
               className="retro-panel mb-2 cursor-pointer"
               style={{ borderColor: "#FF00FF" }}
-              onClick={() => onWatch(t.id)}
+              onClick={() => onWatch(tr.id)}
             >
               <div className="flex items-center justify-between">
                 <span className="font-pixel" style={{ fontSize: 10, color: "#FF00FF" }}>
-                  #{t.id} — {fmtSol(t.entryFee / 1e9)} entry
+                  #{tr.id} — {t("tournament.lobby.entry", { entry: fmtSol(tr.entryFee / 1e9) + " SOL" })}
                 </span>
                 <span className="text-xs">
-                  {T_ROUND_LABEL[t.currentRound as keyof typeof T_ROUND_LABEL] ?? "ROUND"}
+                  {t(`tRound.${tr.currentRound}`, { defaultValue: "ROUND" })}
                 </span>
               </div>
             </div>
@@ -427,23 +429,23 @@ function Lobby({
       {completed.length > 0 && (
         <div className="mt-4">
           <div className="font-pixel mb-2" style={{ fontSize: 9, color: "#888" }}>
-            RECENT COMPLETED ({completed.length}):
+            {t("tournament.lobby.recentCompleted", { count: completed.length })}
           </div>
-          {completed.slice(0, 5).map((t) => (
+          {completed.slice(0, 5).map((tr) => (
             <div
-              key={t.id}
+              key={tr.id}
               className="retro-panel mb-2 cursor-pointer"
               style={{ borderColor: "#444" }}
-              onClick={() => onWatch(t.id)}
+              onClick={() => onWatch(tr.id)}
             >
               <div className="flex items-center justify-between">
                 <span className="font-pixel text-retro-gold" style={{ fontSize: 10 }}>
-                  #{t.id}
+                  #{tr.id}
                 </span>
                 <span className="text-xs opacity-60">
-                  winner: {t.winner1stSlot != null
-                    ? shortAddr(t.players[t.winner1stSlot]?.player ?? "")
-                    : "—"}
+                  {t("tournament.lobby.winnerShort", { addr: tr.winner1stSlot != null
+                    ? shortAddr(tr.players[tr.winner1stSlot]?.player ?? "")
+                    : "—" })}
                 </span>
               </div>
             </div>
@@ -459,6 +461,7 @@ function Lobby({
 // ============================================================
 
 function Create({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const arena = useArenaProgram();
   const { chips } = useChipsByOwner(publicKey?.toBase58());
@@ -567,27 +570,22 @@ function Create({ onBack }: { onBack: () => void }) {
   return (
     <div>
       <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>
-        &lt; BACK
+        {t("tournament.create.back")}
       </button>
       <div className="retro-panel mb-4">
         <div className="font-pixel text-retro-gold mb-3" style={{ fontSize: 11 }}>
-          &gt; CREATE NEW TOURNAMENT
+          {t("tournament.create.title")}
         </div>
 
         <div className="text-xs opacity-60 mb-3" style={{ lineHeight: 1.4 }}>
-          8-player single-elimination + 3rd-place playoff.  Every entry
-          burns 1 ticket + stakes <b>{fmtSol(entrySol)} SOL</b>.  Prizes:
-          {" "}<span className="text-retro-gold">1st {T_PRIZE_1ST_PCT}%</span>,
-          {" "}<span className="text-retro-gold">2nd {T_PRIZE_2ND_PCT}%</span>,
-          {" "}<span className="text-retro-gold">3rd {T_PRIZE_3RD_PCT}%</span>;
-          {" "}{T_FEE_PCT}% fee.  Chips returned to all 8 players.
+          {t("tournament.create.hintPrefix")}<b>{fmtSol(entrySol)} SOL</b>{t("tournament.create.hintPrizes", { p1: T_PRIZE_1ST_PCT, p2: T_PRIZE_2ND_PCT, p3: T_PRIZE_3RD_PCT, fee: T_FEE_PCT })}
         </div>
 
         <TicketBalanceBanner />
 
         {/* 1. ENTRY FEE */}
         <div className="mb-4">
-          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>1. ENTRY FEE:</div>
+          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>{t("tournament.create.step1")}</div>
           <div className="flex gap-2 flex-wrap">
             {T_ENTRY_FEE_OPTIONS_SOL.map((sol) => (
               <button
@@ -600,19 +598,19 @@ function Create({ onBack }: { onBack: () => void }) {
                   color: entrySol === sol ? "#FFD700" : "#4a4a8a",
                   textShadow: entrySol === sol ? "0 0 10px #FFD700" : "none",
                 }}
-              >{sol} SOL</button>
+              >{t("tournament.create.solSuffix", { n: sol })}</button>
             ))}
           </div>
           <div className="text-xs opacity-50 mt-1">
-            Pool when full = {fmtSol(poolWhenFull)} SOL → 1st {fmtSol(poolWhenFull * T_PRIZE_1ST_PCT / 100)} · 2nd {fmtSol(poolWhenFull * T_PRIZE_2ND_PCT / 100)} · 3rd {fmtSol(poolWhenFull * T_PRIZE_3RD_PCT / 100)}
+            {t("tournament.create.poolBreakdown", { full: fmtSol(poolWhenFull), p1: fmtSol(poolWhenFull * T_PRIZE_1ST_PCT / 100), p2: fmtSol(poolWhenFull * T_PRIZE_2ND_PCT / 100), p3: fmtSol(poolWhenFull * T_PRIZE_3RD_PCT / 100) })}
           </div>
         </div>
 
         {/* 2. CREATOR'S CHIP */}
         <div className="mb-4">
-          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>2. YOUR CHIP (creator auto-registers):</div>
+          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>{t("tournament.create.step2")}</div>
           {chips.length === 0 ? (
-            <div className="text-sm opacity-50">No chips. Mint one first!</div>
+            <div className="text-sm opacity-50">{t("tournament.create.noChips")}</div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {chips.map((c) => (
@@ -639,8 +637,8 @@ function Create({ onBack }: { onBack: () => void }) {
           style={{ fontSize: 12 }}
         >
           {busy
-            ? ">> CONFIRM IN WALLET..."
-            : `>> CREATE ${fmtSol(entrySol)} SOL TOURNAMENT <<`}
+            ? t("tournament.create.confirm")
+            : t("tournament.create.cta", { entry: fmtSol(entrySol) })}
         </button>
       </div>
     </div>
@@ -660,13 +658,14 @@ interface MatchCellProps {
 }
 
 function MatchCell({ match, players, highlight, me, label }: MatchCellProps) {
+  const { t } = useTranslation();
   const seat = (slot: number) => {
-    if (slot === 255 || slot == null) return { player: null, label: "—" };
+    if (slot === 255 || slot == null) return { player: null, label: t("tournament.bracket.empty") };
     const p = players[slot];
-    if (!p) return { player: null, label: `slot ${slot}` };
+    if (!p) return { player: null, label: t("tournament.bracket.slotPlaceholder", { n: slot }) };
     return {
       player: p.player,
-      label: p.player === me ? "YOU" : shortAddr(p.player),
+      label: p.player === me ? t("tournament.watch.you") : shortAddr(p.player),
     };
   };
   const a = seat(match.slot_a);
@@ -704,7 +703,7 @@ function MatchCell({ match, players, highlight, me, label }: MatchCellProps) {
       >
         {a.label}
       </div>
-      <div className="text-xs opacity-50">vs</div>
+      <div className="text-xs opacity-50">{t("tournament.bracket.vs")}</div>
       <div
         className="text-xs"
         style={{
@@ -718,7 +717,7 @@ function MatchCell({ match, players, highlight, me, label }: MatchCellProps) {
       <div className="font-pixel mt-1" style={{ fontSize: 6, color:
         match.status === 1 ? "#FF00FF" :
         match.status === 2 ? "#FFD700" : "#444" }}>
-        {match.status === 1 && <span className="animate-blink">ROLLING…</span>}
+        {match.status === 1 && <span className="animate-blink">{t("tournament.bracket.rolling")}</span>}
         {match.status === 2 && (
           match.randomness_account ? (
             // Switchboard-verified — link the seed snippet to the
@@ -727,27 +726,27 @@ function MatchCell({ match, players, highlight, me, label }: MatchCellProps) {
             <a
               href={solscanAccount(match.randomness_account)}
               target="_blank" rel="noreferrer"
-              title={`seed: ${match.seed ?? ""}\nclick to view Switchboard randomness account on solscan`}
+              title={t("tournament.bracket.seedAuditTitle", { seed: match.seed ?? "" })}
               style={{ color: "#FFD700", textDecoration: "none", cursor: "help" }}
             >
-              seed {match.seed?.slice(0, 6) ?? "?"}… ↗
+              {t("tournament.bracket.seedShort", { n: match.seed?.slice(0, 6) ?? "?" })} ↗
             </a>
           ) : (
-            <span title={`seed: ${match.seed ?? ""}`} style={{ cursor: "help" }}>
-              seed {match.seed?.slice(0, 6) ?? "?"}…
+            <span title={t("tournament.bracket.seedTitle", { seed: match.seed ?? "" })} style={{ cursor: "help" }}>
+              {t("tournament.bracket.seedShort", { n: match.seed?.slice(0, 6) ?? "?" })}
             </span>
           )
         )}
-        {match.status === 0 && "PENDING"}
+        {match.status === 0 && t("tournament.bracket.pending")}
       </div>
     </div>
   );
 }
 
 function Bracket({
-  t, tChain, me,
+  tournament, tChain, me,
 }: {
-  t: TournamentData;
+  tournament: TournamentData;
   // On-chain account (optional).  Each match's randomnessAccount lives
   // on chain only — TournamentMatchDecided event doesn't carry it.
   // When present, we merge it into each match cell so the seed snippet
@@ -755,10 +754,11 @@ function Bracket({
   tChain?: any | null;
   me?: string | null;
 }) {
+  const { t } = useTranslation();
   // matches[0..4] = R0 (4 quarters) / [4..6] = R1 semis / [6] = final / [7] = 3rd-place
 
   const cell = (i: number) => {
-    const ix = t.matches[i] ?? defaultMatch();
+    const ix = tournament.matches[i] ?? defaultMatch();
     const oc = tChain?.matches?.[i];
     if (!oc) return ix;   // wallet disconnected / no on-chain read — indexer only
 
@@ -794,25 +794,25 @@ function Bracket({
       <div className="flex gap-4 items-stretch" style={{ minWidth: 600, padding: 8 }}>
         {/* R0 */}
         <div className="flex flex-col gap-2 justify-around">
-          <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>QUARTERS</div>
+          <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>{t("tournament.bracket.quarters")}</div>
           {[0, 1, 2, 3].map((i) => (
-            <MatchCell key={i} match={cell(i)} players={t.players} me={me} />
+            <MatchCell key={i} match={cell(i)} players={tournament.players} me={me} />
           ))}
         </div>
 
         {/* R1 */}
         <div className="flex flex-col gap-2 justify-around">
-          <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>SEMIS</div>
+          <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>{t("tournament.bracket.semis")}</div>
           {[4, 5].map((i) => (
-            <MatchCell key={i} match={cell(i)} players={t.players} me={me} />
+            <MatchCell key={i} match={cell(i)} players={tournament.players} me={me} />
           ))}
         </div>
 
         {/* R2 */}
         <div className="flex flex-col gap-2 justify-around">
-          <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>FINAL</div>
-          <MatchCell match={cell(6)} players={t.players} me={me} label="GOLD" />
-          <MatchCell match={cell(7)} players={t.players} me={me} label="BRONZE" />
+          <div className="font-pixel text-retro-cyan text-center" style={{ fontSize: 7 }}>{t("tournament.bracket.final")}</div>
+          <MatchCell match={cell(6)} players={tournament.players} me={me} label={t("tournament.bracket.gold")} />
+          <MatchCell match={cell(7)} players={tournament.players} me={me} label={t("tournament.bracket.bronze")} />
         </div>
       </div>
     </div>
@@ -831,6 +831,7 @@ function defaultMatch() {
 // ============================================================
 
 function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => void }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const arena    = useArenaProgram();
   const treasury = useTreasuryProgram();
@@ -894,17 +895,17 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
     return () => clearInterval(id);
   }, [fetchIndex, fetchChain]);
 
-  const t = tIndex;
+  const tournament = tIndex;
 
   // Per-seat chip-claim state from on-chain mask.
   const playerSeats = useMemo(() => {
-    if (!t || !tChain) return [] as { slot: number; player: string; chip: string; claimed: boolean }[];
+    if (!tournament || !tChain) return [] as { slot: number; player: string; chip: string; claimed: boolean }[];
     const mask: number = Number(tChain.chipsClaimedMask ?? 0);
-    return t.players.map((p) => ({
+    return tournament.players.map((p) => ({
       slot: p.slot, player: p.player, chip: p.chip,
       claimed: (mask & (1 << p.slot)) !== 0,
     }));
-  }, [t, tChain]);
+  }, [tournament, tChain]);
 
   const mySeat = playerSeats.find((s) => s.player === me);
 
@@ -915,10 +916,10 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
   const prizeClaimedMask = Number(tChain?.prizeClaimedMask ?? 0);
 
   const myRank = (): number | null => {
-    if (!t || !me) return null;
-    if (w1 != null && w1 !== 255 && t.players[w1]?.player === me) return 0;
-    if (w2 != null && w2 !== 255 && t.players[w2]?.player === me) return 1;
-    if (w3 != null && w3 !== 255 && t.players[w3]?.player === me) return 2;
+    if (!tournament || !me) return null;
+    if (w1 != null && w1 !== 255 && tournament.players[w1]?.player === me) return 0;
+    if (w2 != null && w2 !== 255 && tournament.players[w2]?.player === me) return 1;
+    if (w3 != null && w3 !== 255 && tournament.players[w3]?.player === me) return 2;
     return null;
   };
 
@@ -940,7 +941,7 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
         }).rpc();
       notify("settled", `Claimed rank ${rank + 1} prize · ${sig.slice(0, 8)}…`);
       await Promise.all([fetchIndex(), fetchChain()]);
-    } catch (e) { notifyTxError(`Claim prize rank ${rank + 1}`, e); }
+    } catch (e) { notifyTxError(`Claim prize rank ${rank + 1}` as any, e); }
   };
 
   const claimChip = async () => {
@@ -961,12 +962,12 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
     } catch (e) { notifyTxError("Claim chip", e); }
   };
 
-  if (!t) {
+  if (!tournament) {
     return (
       <div>
-        <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>&lt; BACK</button>
+        <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>{t("tournament.watch.back")}</button>
         <div className="retro-panel text-center py-8">
-          <div className="animate-blink text-retro-cyan">LOADING TOURNAMENT #{tournamentId}…</div>
+          <div className="animate-blink text-retro-cyan">{t("tournament.watch.loading", { id: tournamentId })}</div>
         </div>
       </div>
     );
@@ -982,43 +983,43 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
 
   return (
     <div>
-      <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>&lt; BACK</button>
+      <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>{t("tournament.watch.back")}</button>
 
       <div
         className="retro-panel"
         style={{
           borderColor:
-            t.status === 2 ? "#FFD700" :
-            t.status === 1 ? "#FF00FF" : "#4a4a8a",
+            tournament.status === 2 ? "#FFD700" :
+            tournament.status === 1 ? "#FF00FF" : "#4a4a8a",
         }}
       >
         {/* Header */}
         <div className="text-center mb-4">
-          <div className="font-pixel text-retro-gold" style={{ fontSize: 14 }}>TOURNAMENT #{tournamentId}</div>
+          <div className="font-pixel text-retro-gold" style={{ fontSize: 14 }}>{t("tournament.watch.tournamentNum", { id: tournamentId })}</div>
           <div className="text-sm">
-            {fmtSol(t.entryFee / 1e9)} entry · {t.registered}/{t.bracketSize}
-            {t.status === 1 && <> · <span className="text-retro-magenta">{T_ROUND_LABEL[t.currentRound as keyof typeof T_ROUND_LABEL] ?? ""}</span></>}
+            {t("tournament.watch.header", { entry: fmtSol(tournament.entryFee / 1e9) + " SOL", registered: tournament.registered, size: tournament.bracketSize })}
+            {tournament.status === 1 && <> · <span className="text-retro-magenta">{t(`tRound.${tournament.currentRound}`, { defaultValue: "" })}</span></>}
           </div>
           <div className="font-pixel mt-1 inline-block px-3 py-0.5" style={{
             fontSize: 9,
             color:
-              t.status === 0 ? "#00FFFF" :
-              t.status === 1 ? "#FF00FF" :
-              t.status === 2 ? "#FFD700" : "#aaa",
+              tournament.status === 0 ? "#00FFFF" :
+              tournament.status === 1 ? "#FF00FF" :
+              tournament.status === 2 ? "#FFD700" : "#aaa",
             border: "1px solid currentColor",
           }}>
-            {T_STATUS[t.status as keyof typeof T_STATUS]}
+            {t(`tStatus.${tournament.status}`)}
           </div>
         </div>
 
         {/* Bracket */}
-        {t.status >= 1 && <Bracket t={t} tChain={tChain} me={me} />}
+        {tournament.status >= 1 && <Bracket tournament={tournament} tChain={tChain} me={me} />}
 
         {/* Seats (during REGISTERING) */}
-        {t.status === 0 && (
+        {tournament.status === 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
-            {Array.from({ length: t.bracketSize }).map((_, i) => {
-              const p = t.players.find((x) => x.slot === i);
+            {Array.from({ length: tournament.bracketSize }).map((_, i) => {
+              const p = tournament.players.find((x) => x.slot === i);
               return (
                 <div
                   key={i}
@@ -1030,10 +1031,10 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
                   }}
                 >
                   <div className="text-xs font-pixel" style={{ fontSize: 8, color: "#00FFFF" }}>
-                    SEAT {i}
+                    {t("tournament.watch.seat", { n: i })}
                   </div>
                   <div className="text-xs opacity-70 truncate mt-1">
-                    {p ? (p.player === me ? "YOU" : shortAddr(p.player)) : "empty"}
+                    {p ? (p.player === me ? t("tournament.watch.you") : shortAddr(p.player)) : t("tournament.watch.empty")}
                   </div>
                 </div>
               );
@@ -1042,14 +1043,14 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
         )}
 
         {/* Podium (when COMPLETED) */}
-        {t.status === 2 && tChain && (
+        {tournament.status === 2 && tChain && (
           <div className="grid grid-cols-3 gap-2 mt-4">
             {[
-              { rank: 0, slot: w1, label: "1st", pct: T_PRIZE_1ST_PCT, color: "#FFD700" },
-              { rank: 1, slot: w2, label: "2nd", pct: T_PRIZE_2ND_PCT, color: "#C0C0C0" },
-              { rank: 2, slot: w3, label: "3rd", pct: T_PRIZE_3RD_PCT, color: "#CD7F32" },
+              { rank: 0, slot: w1, label: t("tournament.watch.podiumRank1"), pct: T_PRIZE_1ST_PCT, color: "#FFD700" },
+              { rank: 1, slot: w2, label: t("tournament.watch.podiumRank2"), pct: T_PRIZE_2ND_PCT, color: "#C0C0C0" },
+              { rank: 2, slot: w3, label: t("tournament.watch.podiumRank3"), pct: T_PRIZE_3RD_PCT, color: "#CD7F32" },
             ].map(({ rank, slot, label, pct, color }) => {
-              const player = (slot != null && slot !== 255) ? t.players[slot]?.player : null;
+              const player = (slot != null && slot !== 255) ? tournament.players[slot]?.player : null;
               const claimed = (prizeClaimedMask & (1 << rank)) !== 0;
               const isMe = player === me;
               const prize = rank === 0 ? lamportsToSol(tChain?.prize1st)
@@ -1067,14 +1068,14 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
                 >
                   <div className="font-pixel" style={{ fontSize: 12, color }}>{label}</div>
                   <div className="text-xs opacity-70 mt-1 truncate">
-                    {player ? (isMe ? "YOU" : shortAddr(player)) : "—"}
+                    {player ? (isMe ? t("tournament.watch.you") : shortAddr(player)) : t("tournament.watch.podiumEmpty")}
                   </div>
                   <div className="text-xs font-pixel mt-1" style={{ fontSize: 9, color }}>
-                    {fmtSol(prize)} SOL ({pct}%)
+                    {t("tournament.watch.podiumPrize", { amount: fmtSol(prize), pct })}
                   </div>
                   {claimed && (
                     <div className="text-xs font-pixel mt-1" style={{ fontSize: 7, color: "#666" }}>
-                      claimed ✓
+                      {t("tournament.watch.podiumClaimed")}
                     </div>
                   )}
                 </div>
@@ -1084,38 +1085,38 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
         )}
 
         {/* Cancelled */}
-        {t.status === 3 && (
+        {tournament.status === 3 && (
           <div className="text-center py-3 mt-3 opacity-50">
-            <div className="font-pixel" style={{ fontSize: 12 }}>TOURNAMENT CANCELLED</div>
+            <div className="font-pixel" style={{ fontSize: 12 }}>{t("tournament.watch.cancelled")}</div>
             <div className="text-xs mt-1">
-              reason: {T_CANCEL_REASON[t.cancelReason as keyof typeof T_CANCEL_REASON] ?? "?"}
+              {t("tournament.watch.cancelReason", { reason: t(`tCancelReason.${tournament.cancelReason}`, { defaultValue: "?" }) })}
             </div>
           </div>
         )}
 
         {/* Actions */}
         <div className="flex flex-col gap-2 mt-4">
-          {r != null && t.status === 2 && !myPrizeClaimed && (
+          {r != null && tournament.status === 2 && !myPrizeClaimed && (
             <button
               onClick={() => claimPrize(r)}
               className="retro-btn retro-btn-gold py-2"
               style={{ fontSize: 11 }}
             >
-              CLAIM {fmtSol(myPrizeAmount)} SOL — RANK {r + 1}
+              {t("tournament.watch.claimPrize", { amount: fmtSol(myPrizeAmount), rank: r + 1 })}
             </button>
           )}
-          {mySeat && t.status >= 2 && !mySeat.claimed && (
+          {mySeat && tournament.status >= 2 && !mySeat.claimed && (
             <button
               onClick={claimChip}
               className="retro-btn"
               style={{ fontSize: 10, padding: "6px 12px" }}
             >
-              CLAIM MY CHIP BACK (slot {mySeat.slot})
+              {t("tournament.watch.claimChip", { slot: mySeat.slot })}
             </button>
           )}
-          {mySeat && t.status >= 2 && mySeat.claimed && (
+          {mySeat && tournament.status >= 2 && mySeat.claimed && (
             <div className="text-xs opacity-50 text-center">
-              You've reclaimed your chip ✓
+              {t("tournament.watch.reclaimed")}
             </div>
           )}
         </div>
@@ -1129,7 +1130,7 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
           seed picked that winner — it didn't.  Per-match seed +
           randomness_account links live in the bracket cells above, which
           is the correct granularity for auditing a bracket. */}
-      {t.status >= 1 && (
+      {tournament.status >= 1 && (
         <BattleAuditPanel
           mode="tournament"
           battleId={tournamentId}
@@ -1146,6 +1147,7 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
 export default function TournamentPage({
   initialWatchId,
 }: { initialWatchId?: number | null } = {}) {
+  const { t } = useTranslation();
   const { connected } = useWallet();
   const [view, setView] = useState<View>(initialWatchId != null ? "watch" : "lobby");
   const [watchId, setWatchId] = useState<number | null>(initialWatchId ?? null);
@@ -1162,12 +1164,12 @@ export default function TournamentPage({
       <div className="p-2 sm:p-4 max-w-3xl mx-auto">
         <div className="text-center mb-4">
           <h1 className="font-pixel text-retro-magenta animate-glow" style={{ fontSize: 18 }}>
-            TOURNAMENTS
+            {t("tournament.title")}
           </h1>
         </div>
         <div className="retro-panel text-center py-8">
           <div className="font-pixel text-retro-gold mb-3" style={{ fontSize: 14 }}>
-            CONNECT WALLET TO COMPETE
+            {t("tournament.connect")}
           </div>
           <div className="flex justify-center mt-4">
             <WalletMultiButton />
@@ -1181,10 +1183,10 @@ export default function TournamentPage({
     <div className="p-2 sm:p-4 max-w-4xl mx-auto">
       <div className="text-center mb-4">
         <h1 className="font-pixel text-retro-magenta animate-glow" style={{ fontSize: 18 }}>
-          TOURNAMENTS
+          {t("tournament.title")}
         </h1>
         <div className="text-xs opacity-50 mt-1">
-          8-player single-elim · {T_PRIZE_1ST_PCT}/{T_PRIZE_2ND_PCT}/{T_PRIZE_3RD_PCT}% prize split · Switchboard VRF per match
+          {t("tournament.subtitle", { p1: T_PRIZE_1ST_PCT, p2: T_PRIZE_2ND_PCT, p3: T_PRIZE_3RD_PCT })}
         </div>
       </div>
 

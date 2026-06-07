@@ -174,5 +174,174 @@
       "resolutionLabel": "结果：",
       "cancelled": "战斗已取消"
     }
+  },
+  "tStatus": {
+    "0": "报名中",
+    "1": "进行中",
+    "2": "已完成",
+    "3": "已取消"
+  },
+  "tRound": {
+    "0": "四分之一",
+    "1": "半决赛",
+    "2": "决赛 & 三四名"
+  },
+  "brCancelReason": {
+    "0": "加入超时",
+    "1": "VRF 超时"
+  },
+  "tCancelReason": {
+    "0": "报名超时",
+    "1": "VRF 超时"
+  },
+  "royale": {
+    "title": "大逃杀",
+    "connect": "连接钱包以参战",
+    "subtitle": "最多 8 人 · 单次 VRF · Switchboard On-Demand · 筹码归还，仅赌注有风险",
+    "balance": {
+      "title": "加入时自动补足",
+      "hint": "内部余额：{{have}} SOL — 加入将自动从钱包扣除 +{{shortBy}} SOL（一次签名，无额外步骤）。"
+    },
+    "lobby": {
+      "title": "> 大逃杀大厅",
+      "createLong": "+ 创建大逃杀",
+      "createShort": "+ 创建",
+      "yourActive": "你的进行中大逃杀：",
+      "royaleNum": "大逃杀 #{{id}}",
+      "claim": "领取",
+      "open": "公开大逃杀 ({{count}})：",
+      "noOpen": "暂无公开大逃杀。当第一个吧！",
+      "inLobby": "已在大厅 ✓",
+      "pickChip": "选择筹码",
+      "fight": "开战！",
+      "joining": "加入中...",
+      "join": "加入",
+      "stake": "赌注 {{amount}} SOL",
+      "minAgo": "{{n}} 分钟前",
+      "seats": "座位：{{list}}",
+      "rolling": "开奖中 ({{count}})：",
+      "waitingForVrf": "等待 VRF...",
+      "justDecided": "刚刚判定 ({{count}})：",
+      "winnerShort": "胜者：{{addr}}"
+    },
+    "create": {
+      "back": "< 返回",
+      "title": "> 创建新大逃杀",
+      "hint": "每位玩家质押 {{pool}}。胜者拿走奖池减去项目手续费。筹码是会员凭证 — 大逃杀结束后总会归还。",
+      "step1": "1. 选择奖池：",
+      "step2": "2. 最大玩家数：",
+      "step3": "3. 你的筹码（创建者自动加入）：",
+      "players": "{{n}}人",
+      "poolWhenFull": "满员时奖池为 {{amount}} SOL。",
+      "noChips": "没有筹码。先铸造一个！",
+      "confirm": ">> 在钱包中签名...",
+      "cta": ">> 创建 {{n}}人 · {{pool}} 大逃杀 <<"
+    },
+    "watch": {
+      "back": "< 返回",
+      "loading": "加载大逃杀 #{{id}}…",
+      "royaleNum": "大逃杀 #{{id}}",
+      "poolSeats": "{{pool}} · {{joined}}/{{max}}",
+      "seat": "座位 {{n}}",
+      "youParen": "（你）",
+      "chipTail": "筹码 …{{tail}}",
+      "chipClaimed": "筹码已领 ✓",
+      "rolling": "开奖中 — 中继器正在执行 Switchboard VRF…",
+      "youWonRoyale": "*** 你赢了大逃杀！ ***",
+      "winnerIs": "胜者：{{addr}}",
+      "cancelled": "大逃杀已取消",
+      "cancelReason": "原因：{{reason}}",
+      "claimWinnings": "领取 {{amount}} SOL 奖金",
+      "joinClosesIn": "加入窗口将在 {{m}}分{{s}}秒后关闭",
+      "cancelStuck": "取消卡住的大逃杀",
+      "vrfTimeoutIn": "VRF 将在 {{m}}分{{s}}秒后超时 — 之后可强制取消",
+      "forceCancel": "强制取消（VRF 超时）",
+      "claimChipStake": "领回筹码 + 赌注（座位 {{slot}}）",
+      "claimChip": "领回我的筹码（座位 {{slot}}）",
+      "reclaimedFull": "筹码 + 赌注已领回 ✓",
+      "reclaimedShort": "你已领回筹码 ✓"
+    }
+  },
+  "tournament": {
+    "title": "锦标赛",
+    "connect": "连接钱包以参赛",
+    "subtitle": "8 人单淘汰 · {{p1}}/{{p2}}/{{p3}}% 奖金分配 · 每场 Switchboard VRF",
+    "tickets": {
+      "title": "你的门票",
+      "lineOne": "{{n}} 张门票 · 单价 {{price}} SOL",
+      "lineMany": "{{n}} 张门票 · 单价 {{price}} SOL",
+      "buy": "+ 购买 1 张门票 ({{price}} SOL)",
+      "buying": "购买中…"
+    },
+    "lobby": {
+      "title": "> 锦标赛大厅",
+      "createLong": "+ 创建锦标赛",
+      "createShort": "+ 创建",
+      "yourActive": "你的进行中锦标赛：",
+      "tournamentNum": "锦标赛 #{{id}}",
+      "entryRegistered": "入场 {{entry}} · {{registered}}/{{size}}",
+      "open": "公开锦标赛 ({{count}})：",
+      "noOpen": "暂无公开锦标赛。当第一个吧！",
+      "registered": "已报名 ✓",
+      "register": "报名",
+      "pickChip": "选择筹码",
+      "enter": "进场！",
+      "joining": "加入中...",
+      "poolWhenFull": "满员时奖池：{{amount}} SOL",
+      "prizes": "冠军：{{p1}} · 亚军：{{p2}} · 季军：{{p3}}",
+      "minAgo": "{{n}} 分钟前",
+      "active": "进行中 ({{count}})：",
+      "entry": "入场 {{entry}}",
+      "recentCompleted": "最近完成 ({{count}})：",
+      "winnerShort": "胜者：{{addr}}"
+    },
+    "create": {
+      "back": "< 返回",
+      "title": "> 创建新锦标赛",
+      "hintPrefix": "8 人单淘汰 + 季军赛。每次报名销毁 1 张门票 + 押注 ",
+      "hintPrizes": "。奖金：冠军 {{p1}}%，亚军 {{p2}}%，季军 {{p3}}%；手续费 {{fee}}%。所有 8 名玩家的筹码都归还。",
+      "step1": "1. 入场费：",
+      "step2": "2. 你的筹码（创建者自动报名）：",
+      "solSuffix": "{{n}} SOL",
+      "poolBreakdown": "满员时奖池 = {{full}} SOL → 冠军 {{p1}} · 亚军 {{p2}} · 季军 {{p3}}",
+      "noChips": "没有筹码。先铸造一个！",
+      "confirm": ">> 在钱包中签名...",
+      "cta": ">> 创建 {{entry}} SOL 锦标赛 <<"
+    },
+    "bracket": {
+      "quarters": "四分之一",
+      "semis": "半决赛",
+      "final": "决赛",
+      "gold": "金",
+      "bronze": "铜",
+      "vs": "vs",
+      "rolling": "开奖中…",
+      "pending": "待定",
+      "seedShort": "种子 {{n}}…",
+      "seedTitle": "种子：{{seed}}",
+      "seedAuditTitle": "种子：{{seed}}\n点击在 solscan 查看 Switchboard 随机账户",
+      "slotPlaceholder": "座位 {{n}}",
+      "empty": "—"
+    },
+    "watch": {
+      "back": "< 返回",
+      "loading": "加载锦标赛 #{{id}}…",
+      "tournamentNum": "锦标赛 #{{id}}",
+      "header": "入场 {{entry}} · {{registered}}/{{size}}",
+      "seat": "座位 {{n}}",
+      "you": "你",
+      "empty": "空位",
+      "podiumRank1": "冠军",
+      "podiumRank2": "亚军",
+      "podiumRank3": "季军",
+      "podiumPrize": "{{amount}} SOL ({{pct}}%)",
+      "podiumClaimed": "已领取 ✓",
+      "podiumEmpty": "—",
+      "cancelled": "锦标赛已取消",
+      "cancelReason": "原因：{{reason}}",
+      "claimPrize": "领取 {{amount}} SOL — 名次 {{rank}}",
+      "claimChip": "领回我的筹码（座位 {{slot}}）",
+      "reclaimed": "你已领回筹码 ✓"
+    }
   }
 }

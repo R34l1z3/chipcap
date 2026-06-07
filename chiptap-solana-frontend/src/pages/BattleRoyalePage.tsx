@@ -21,6 +21,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { BN } from "@coral-xyz/anchor";
@@ -39,8 +40,8 @@ import { notify, notifyTxError } from "../lib/notifications";
 import * as pda from "../lib/pda";
 import { MPL_CORE_PROGRAM } from "../lib/mpl";
 import {
-  POOL_TIERS, BATTLE_STATUS, BR_PLAYER_OPTIONS,
-  BR_MIN_PLAYERS, BR_MAX_PLAYERS_CAP, BR_CANCEL_REASON,
+  POOL_TIERS, BR_PLAYER_OPTIONS,
+  BR_MIN_PLAYERS, BR_MAX_PLAYERS_CAP,
 } from "../config";
 import { fmtSol, lamportsToSol, shortAddr } from "../lib/format";
 import ChipCard from "../components/ChipCard";
@@ -54,6 +55,7 @@ type View = "lobby" | "create" | "watch";
 // ============================================================
 
 function BalanceHint({ neededLamports }: { neededLamports: number }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const { data: user } = useUserAccount();
   if (!publicKey) return null;
@@ -67,12 +69,10 @@ function BalanceHint({ neededLamports }: { neededLamports: number }) {
     >
       <div className="text-xs">
         <span className="font-pixel text-retro-cyan" style={{ fontSize: 9 }}>
-          AUTO TOP-UP ON JOIN
+          {t("royale.balance.title")}
         </span>
         <div className="opacity-80 mt-1">
-          Internal balance: <span className="text-retro-gold">{fmtSol(have / 1e9)} SOL</span>
-          {" "}— join will pull <span className="text-retro-gold">+{fmtSol(shortBy / 1e9)} SOL</span>
-          {" "}from your wallet automatically (one popup, no extra steps).
+          {t("royale.balance.hint", { have: fmtSol(have / 1e9), shortBy: fmtSol(shortBy / 1e9) })}
         </div>
       </div>
     </div>
@@ -89,6 +89,7 @@ function Lobby({
   onCreate: () => void;
   onWatch: (id: number) => void;
 }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const me = publicKey?.toBase58();
   const arena = useArenaProgram();
@@ -171,15 +172,15 @@ function Lobby({
     <div>
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <h2 className="font-pixel text-retro-cyan" style={{ fontSize: 12 }}>
-          &gt; BATTLE ROYALE LOBBY
+          {t("royale.lobby.title")}
         </h2>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => refetch()} className="retro-btn" style={{ fontSize: 8, padding: "4px 8px" }}>
-            REFRESH
+            {t("common.refresh")}
           </button>
           <button onClick={onCreate} className="retro-btn retro-btn-gold" style={{ fontSize: 8, padding: "4px 8px" }}>
-            <span className="hidden sm:inline">+ CREATE ROYALE</span>
-            <span className="sm:hidden">+ CREATE</span>
+            <span className="hidden sm:inline">{t("royale.lobby.createLong")}</span>
+            <span className="sm:hidden">{t("royale.lobby.createShort")}</span>
           </button>
         </div>
       </div>
@@ -188,7 +189,7 @@ function Lobby({
       {myActive.length > 0 && (
         <div className="mb-4">
           <div className="font-pixel text-retro-gold mb-2" style={{ fontSize: 9 }}>
-            YOUR ACTIVE ROYALES:
+            {t("royale.lobby.yourActive")}
           </div>
           {myActive.map((br) => {
             const isWinner = br.status === 2 && br.winner === me;
@@ -206,7 +207,7 @@ function Lobby({
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <span className="font-pixel text-retro-gold" style={{ fontSize: 10 }}>
-                      ROYALE #{br.id}
+                      {t("royale.lobby.royaleNum", { id: br.id })}
                     </span>
                     <span className="ml-2 text-sm opacity-60">
                       {br.poolLabel} · {br.numJoined}/{br.maxPlayers}
@@ -221,11 +222,11 @@ function Lobby({
                         br.status === 2 ? (isWinner ? "#00FF88" : "#FF3333") : "#aaa",
                       border: "1px solid currentColor",
                     }}>
-                      {BATTLE_STATUS[br.status as keyof typeof BATTLE_STATUS]}
+                      {t(`status.${br.status}`)}
                     </span>
                     {isWinner && (
                       <span className="font-pixel text-retro-win" style={{ fontSize: 8 }}>
-                        CLAIM
+                        {t("royale.lobby.claim")}
                       </span>
                     )}
                   </div>
@@ -238,16 +239,16 @@ function Lobby({
 
       {/* Open royales */}
       <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>
-        OPEN ROYALES ({open.length}):
+        {t("royale.lobby.open", { count: open.length })}
       </div>
 
       {loading && open.length === 0 ? (
         <div className="retro-panel text-center py-6">
-          <div className="text-retro-cyan animate-blink">LOADING...</div>
+          <div className="text-retro-cyan animate-blink">{t("common.loading")}</div>
         </div>
       ) : open.length === 0 ? (
         <div className="retro-panel text-center py-6">
-          <div className="text-sm opacity-60">No open royales. Be the first!</div>
+          <div className="text-sm opacity-60">{t("royale.lobby.noOpen")}</div>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -265,12 +266,12 @@ function Lobby({
                       {br.numJoined}/{br.maxPlayers}
                     </span>
                     <span className="text-xs opacity-50 truncate hidden sm:inline">
-                      by {shortAddr(br.creator)}
+                      {t("common.by")} {shortAddr(br.creator)}
                     </span>
                   </div>
                   {alreadyIn ? (
                     <span className="font-pixel text-retro-gold" style={{ fontSize: 8 }}>
-                      IN LOBBY ✓
+                      {t("royale.lobby.inLobby")}
                     </span>
                   ) : isJoining ? (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -280,7 +281,7 @@ function Lobby({
                         value={selectedChip ?? ""}
                         onChange={(e) => setSelectedChip(e.target.value || null)}
                       >
-                        <option value="">Pick chip</option>
+                        <option value="">{t("royale.lobby.pickChip")}</option>
                         {chips.map((c) => (
                           <option key={c.asset} value={c.asset}>
                             #{c.token_id} · …{c.asset.slice(-4)}
@@ -293,7 +294,7 @@ function Lobby({
                         className="retro-btn retro-btn-gold"
                         style={{ fontSize: 8, padding: "3px 8px" }}
                       >
-                        {busy === br.id ? "JOINING..." : "FIGHT!"}
+                        {busy === br.id ? t("royale.lobby.joining") : t("royale.lobby.fight")}
                       </button>
                       <button
                         onClick={() => { setJoining(null); setSelectedChip(null); }}
@@ -306,17 +307,17 @@ function Lobby({
                       onClick={() => setJoining(br.id)}
                       className="retro-btn retro-btn-gold"
                       style={{ fontSize: 8, padding: "3px 8px" }}
-                    >JOIN</button>
+                    >{t("royale.lobby.join")}</button>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-xs opacity-50 flex-wrap">
-                  <span>stake {fmtSol(stakeLamports / 1e9)} SOL</span>
+                  <span>{t("royale.lobby.stake", { amount: fmtSol(stakeLamports / 1e9) })}</span>
                   <span>|</span>
-                  <span>{Math.floor((Date.now() / 1000 - br.createdAt) / 60)}m ago</span>
+                  <span>{t("royale.lobby.minAgo", { n: Math.floor((Date.now() / 1000 - br.createdAt) / 60) })}</span>
                   {br.players.length > 0 && (
                     <>
                       <span>|</span>
-                      <span>seats: {br.players.map((p) => shortAddr(p.player)).join(", ")}</span>
+                      <span>{t("royale.lobby.seats", { list: br.players.map((p) => shortAddr(p.player)).join(", ") })}</span>
                     </>
                   )}
                 </div>
@@ -333,7 +334,7 @@ function Lobby({
       {rolling.length > 0 && (
         <div className="mt-4">
           <div className="font-pixel text-retro-magenta mb-2" style={{ fontSize: 9 }}>
-            ROLLING ({rolling.length}):
+            {t("royale.lobby.rolling", { count: rolling.length })}
           </div>
           {rolling.map((br) => (
             <div
@@ -347,7 +348,7 @@ function Lobby({
                   #{br.id} — {br.poolLabel} — {br.numJoined}/{br.maxPlayers}
                 </span>
                 <span className="animate-blink text-retro-magenta" style={{ fontSize: 12 }}>
-                  WAITING FOR VRF...
+                  {t("royale.lobby.waitingForVrf")}
                 </span>
               </div>
             </div>
@@ -359,7 +360,7 @@ function Lobby({
       {decided.length > 0 && (
         <div className="mt-4">
           <div className="font-pixel mb-2" style={{ fontSize: 9, color: "#FFD700" }}>
-            JUST DECIDED ({decided.length}):
+            {t("royale.lobby.justDecided", { count: decided.length })}
           </div>
           {decided.map((br) => (
             <div
@@ -372,7 +373,7 @@ function Lobby({
                 <span className="font-pixel text-retro-gold" style={{ fontSize: 10 }}>
                   #{br.id} — {br.poolLabel}
                 </span>
-                <span className="text-xs opacity-60">winner: {shortAddr(br.winner)}</span>
+                <span className="text-xs opacity-60">{t("royale.lobby.winnerShort", { addr: shortAddr(br.winner) })}</span>
               </div>
             </div>
           ))}
@@ -387,6 +388,7 @@ function Lobby({
 // ============================================================
 
 function Create({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const arena = useArenaProgram();
   const { chips } = useChipsByOwner(publicKey?.toBase58());
@@ -489,22 +491,20 @@ function Create({ onBack }: { onBack: () => void }) {
   return (
     <div>
       <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>
-        &lt; BACK
+        {t("royale.create.back")}
       </button>
       <div className="retro-panel mb-4">
         <div className="font-pixel text-retro-gold mb-3" style={{ fontSize: 11 }}>
-          &gt; CREATE NEW ROYALE
+          {t("royale.create.title")}
         </div>
 
         <div className="text-xs opacity-60 mb-3" style={{ lineHeight: 1.4 }}>
-          Every player stakes <b>{POOL_TIERS[tier].label}</b>. Winner takes
-          the pool minus the project fee. Chips are <i>membership tokens</i>
-          {" "}— they always come back to their owner after the royale ends.
+          {t("royale.create.hint", { pool: POOL_TIERS[tier].label })}
         </div>
 
         {/* 1. POOL */}
         <div className="mb-4">
-          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>1. SELECT POOL:</div>
+          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>{t("royale.create.step1")}</div>
           <div className="flex gap-2 flex-wrap">
             {POOL_TIERS.map((p) => (
               <button
@@ -524,7 +524,7 @@ function Create({ onBack }: { onBack: () => void }) {
 
         {/* 2. MAX PLAYERS */}
         <div className="mb-4">
-          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>2. MAX PLAYERS:</div>
+          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>{t("royale.create.step2")}</div>
           <div className="flex gap-2 flex-wrap">
             {BR_PLAYER_OPTIONS.map((n) => (
               <button
@@ -537,19 +537,19 @@ function Create({ onBack }: { onBack: () => void }) {
                   color: maxPlayers === n ? "#FF00FF" : "#4a4a8a",
                   textShadow: maxPlayers === n ? "0 0 10px #FF00FF" : "none",
                 }}
-              >{n}P</button>
+              >{t("royale.create.players", { n })}</button>
             ))}
           </div>
           <div className="text-xs opacity-50 mt-1">
-            Pool will be {fmtSol(POOL_TIERS[tier].sol * maxPlayers)} SOL when full.
+            {t("royale.create.poolWhenFull", { amount: fmtSol(POOL_TIERS[tier].sol * maxPlayers) })}
           </div>
         </div>
 
         {/* 3. CREATOR'S CHIP */}
         <div className="mb-4">
-          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>3. YOUR CHIP (creator auto-joins):</div>
+          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>{t("royale.create.step3")}</div>
           {chips.length === 0 ? (
-            <div className="text-sm opacity-50">No chips. Mint one first!</div>
+            <div className="text-sm opacity-50">{t("royale.create.noChips")}</div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {chips.map((c) => (
@@ -581,8 +581,8 @@ function Create({ onBack }: { onBack: () => void }) {
           style={{ fontSize: 12 }}
         >
           {busy
-            ? ">> CONFIRM IN WALLET..."
-            : `>> CREATE ${maxPlayers}P · ${POOL_TIERS[tier].label} ROYALE <<`}
+            ? t("royale.create.confirm")
+            : t("royale.create.cta", { n: maxPlayers, pool: POOL_TIERS[tier].label })}
         </button>
       </div>
     </div>
@@ -596,6 +596,7 @@ function Create({ onBack }: { onBack: () => void }) {
 // ============================================================
 
 function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const arena    = useArenaProgram();
   const treasury = useTreasuryProgram();
@@ -733,9 +734,9 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
   if (!br) {
     return (
       <div>
-        <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>&lt; BACK</button>
+        <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>{t("royale.watch.back")}</button>
         <div className="retro-panel text-center py-8">
-          <div className="animate-blink text-retro-cyan">LOADING ROYALE #{royaleId}…</div>
+          <div className="animate-blink text-retro-cyan">{t("royale.watch.loading", { id: royaleId })}</div>
         </div>
       </div>
     );
@@ -746,7 +747,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
 
   return (
     <div>
-      <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>&lt; BACK</button>
+      <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>{t("royale.watch.back")}</button>
 
       <div
         className="retro-panel"
@@ -758,9 +759,9 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
       >
         {/* Header */}
         <div className="text-center mb-4">
-          <div className="font-pixel text-retro-gold" style={{ fontSize: 14 }}>ROYALE #{royaleId}</div>
+          <div className="font-pixel text-retro-gold" style={{ fontSize: 14 }}>{t("royale.watch.royaleNum", { id: royaleId })}</div>
           <div className="text-sm">
-            {poolLabel} · {Number(br.numJoined)}/{Number(br.maxPlayers)}
+            {t("royale.watch.poolSeats", { pool: poolLabel, joined: Number(br.numJoined), max: Number(br.maxPlayers) })}
           </div>
           <div className="font-pixel mt-1 inline-block px-3 py-0.5" style={{
             fontSize: 9,
@@ -771,7 +772,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
               status === 3 ? "#00FF00" : "#666",
             border: "1px solid currentColor",
           }}>
-            {BATTLE_STATUS[status as keyof typeof BATTLE_STATUS]}
+            {t(`status.${status}`)}
           </div>
         </div>
 
@@ -793,13 +794,13 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
                   fontSize: 8,
                   color: s.player === me ? "#FFD700" : (isWin ? "#00FF88" : "#00FFFF"),
                 }}>
-                  SEAT {s.slot} {s.player === me && "(YOU)"}
+                  {t("royale.watch.seat", { n: s.slot })} {s.player === me && t("royale.watch.youParen")}
                 </div>
                 <div className="text-xs opacity-70 truncate mt-1">{shortAddr(s.player)}</div>
-                <div className="text-xs opacity-50 mt-1">chip …{s.chip.slice(-4)}</div>
+                <div className="text-xs opacity-50 mt-1">{t("royale.watch.chipTail", { tail: s.chip.slice(-4) })}</div>
                 {s.claimed && (
                   <div className="text-xs font-pixel mt-1" style={{ fontSize: 7, color: "#666" }}>
-                    chip claimed ✓
+                    {t("royale.watch.chipClaimed")}
                   </div>
                 )}
               </div>
@@ -810,7 +811,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
         {/* Status-specific banners */}
         {status === 1 && (
           <div className="text-center py-3 animate-blink text-retro-magenta" style={{ fontSize: 12 }}>
-            ROLLING — relayer is fulfilling Switchboard VRF…
+            {t("royale.watch.rolling")}
           </div>
         )}
 
@@ -823,16 +824,16 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
             textShadow: "0 0 15px currentColor",
           }}>
             {isWinner
-              ? "*** YOU WON THE ROYALE! ***"
-              : `WINNER: ${shortAddr(br.winner?.toBase58?.())}`}
+              ? t("royale.watch.youWonRoyale")
+              : t("royale.watch.winnerIs", { addr: shortAddr(br.winner?.toBase58?.()) })}
           </div>
         )}
 
         {status === 4 && (
           <div className="text-center py-3 opacity-50">
-            <div className="font-pixel" style={{ fontSize: 12 }}>ROYALE CANCELLED</div>
+            <div className="font-pixel" style={{ fontSize: 12 }}>{t("royale.watch.cancelled")}</div>
             <div className="text-xs mt-1">
-              reason: {BR_CANCEL_REASON[br.cancelReason as keyof typeof BR_CANCEL_REASON] ?? "?"}
+              {t("royale.watch.cancelReason", { reason: t(`brCancelReason.${br.cancelReason}`, { defaultValue: "?" }) })}
             </div>
           </div>
         )}
@@ -845,7 +846,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
               className="retro-btn retro-btn-gold py-2"
               style={{ fontSize: 11 }}
             >
-              CLAIM {fmtSol(lamportsToSol(br.poolAmount) - lamportsToSol(br.feeAmount))} SOL WINNINGS
+              {t("royale.watch.claimWinnings", { amount: fmtSol(lamportsToSol(br.poolAmount) - lamportsToSol(br.feeAmount)) })}
             </button>
           )}
           {/* Polish — open cancel paths for stuck royales.  Both are
@@ -865,13 +866,13 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
               if (remaining >= 0) {
                 return (
                   <div className="text-xs opacity-50 text-center">
-                    Join window closes in {Math.floor(remaining / 60)}m{remaining % 60}s
+                    {t("royale.watch.joinClosesIn", { m: Math.floor(remaining / 60), s: remaining % 60 })}
                   </div>
                 );
               }
               return (
                 <button onClick={expireJoin} className="retro-btn retro-btn-red py-2" style={{ fontSize: 11 }}>
-                  CANCEL STUCK ROYALE
+                  {t("royale.watch.cancelStuck")}
                 </button>
               );
             }
@@ -882,13 +883,13 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
               if (remaining >= 0) {
                 return (
                   <div className="text-xs opacity-50 text-center">
-                    VRF timeout in {Math.floor(remaining / 60)}m{remaining % 60}s — then cancel becomes available
+                    {t("royale.watch.vrfTimeoutIn", { m: Math.floor(remaining / 60), s: remaining % 60 })}
                   </div>
                 );
               }
               return (
                 <button onClick={forceResolve} className="retro-btn retro-btn-red py-2" style={{ fontSize: 11 }}>
-                  FORCE-CANCEL (VRF TIMED OUT)
+                  {t("royale.watch.forceCancel")}
                 </button>
               );
             }
@@ -901,13 +902,13 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
               style={{ fontSize: 10, padding: "6px 12px" }}
             >
               {status === 4
-                ? `CLAIM CHIP + STAKE BACK (slot ${mySeat.slot})`
-                : `CLAIM MY CHIP BACK (slot ${mySeat.slot})`}
+                ? t("royale.watch.claimChipStake", { slot: mySeat.slot })
+                : t("royale.watch.claimChip", { slot: mySeat.slot })}
             </button>
           )}
           {mySeat && status >= 2 && mySeat.claimed && (
             <div className="text-xs opacity-50 text-center">
-              {status === 4 ? "Chip + stake reclaimed ✓" : "You've reclaimed your chip ✓"}
+              {status === 4 ? t("royale.watch.reclaimedFull") : t("royale.watch.reclaimedShort")}
             </div>
           )}
         </div>
@@ -938,6 +939,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
 export default function BattleRoyalePage({
   initialWatchId,
 }: { initialWatchId?: number | null } = {}) {
+  const { t } = useTranslation();
   const { connected } = useWallet();
   const [view, setView] = useState<View>(initialWatchId != null ? "watch" : "lobby");
   const [watchId, setWatchId] = useState<number | null>(initialWatchId ?? null);
@@ -954,12 +956,12 @@ export default function BattleRoyalePage({
       <div className="p-2 sm:p-4 max-w-3xl mx-auto">
         <div className="text-center mb-4">
           <h1 className="font-pixel text-retro-magenta animate-glow" style={{ fontSize: 18 }}>
-            BATTLE ROYALE
+            {t("royale.title")}
           </h1>
         </div>
         <div className="retro-panel text-center py-8">
           <div className="font-pixel text-retro-gold mb-3" style={{ fontSize: 14 }}>
-            CONNECT WALLET TO PLAY
+            {t("royale.connect")}
           </div>
           <div className="flex justify-center mt-4">
             <WalletMultiButton />
@@ -973,10 +975,10 @@ export default function BattleRoyalePage({
     <div className="p-2 sm:p-4 max-w-3xl mx-auto">
       <div className="text-center mb-4">
         <h1 className="font-pixel text-retro-magenta animate-glow" style={{ fontSize: 18 }}>
-          BATTLE ROYALE
+          {t("royale.title")}
         </h1>
         <div className="text-xs opacity-50 mt-1">
-          8-player single-VRF · Switchboard On-Demand · chips returned, stake at risk
+          {t("royale.subtitle")}
         </div>
       </div>
 

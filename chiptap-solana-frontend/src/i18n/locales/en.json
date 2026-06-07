@@ -174,5 +174,174 @@
       "resolutionLabel": "Resolution:",
       "cancelled": "BATTLE CANCELLED"
     }
+  },
+  "tStatus": {
+    "0": "REGISTERING",
+    "1": "ACTIVE",
+    "2": "COMPLETED",
+    "3": "CANCELLED"
+  },
+  "tRound": {
+    "0": "QUARTERS",
+    "1": "SEMIS",
+    "2": "FINAL & 3RD"
+  },
+  "brCancelReason": {
+    "0": "JOIN TIMEOUT",
+    "1": "VRF TIMEOUT"
+  },
+  "tCancelReason": {
+    "0": "REGISTER TIMEOUT",
+    "1": "VRF TIMEOUT"
+  },
+  "royale": {
+    "title": "BATTLE ROYALE",
+    "connect": "CONNECT WALLET TO PLAY",
+    "subtitle": "8-player single-VRF · Switchboard On-Demand · chips returned, stake at risk",
+    "balance": {
+      "title": "AUTO TOP-UP ON JOIN",
+      "hint": "Internal balance: {{have}} SOL — join will pull +{{shortBy}} SOL from your wallet automatically (one popup, no extra steps)."
+    },
+    "lobby": {
+      "title": "> BATTLE ROYALE LOBBY",
+      "createLong": "+ CREATE ROYALE",
+      "createShort": "+ CREATE",
+      "yourActive": "YOUR ACTIVE ROYALES:",
+      "royaleNum": "ROYALE #{{id}}",
+      "claim": "CLAIM",
+      "open": "OPEN ROYALES ({{count}}):",
+      "noOpen": "No open royales. Be the first!",
+      "inLobby": "IN LOBBY ✓",
+      "pickChip": "Pick chip",
+      "fight": "FIGHT!",
+      "joining": "JOINING...",
+      "join": "JOIN",
+      "stake": "stake {{amount}} SOL",
+      "minAgo": "{{n}}m ago",
+      "seats": "seats: {{list}}",
+      "rolling": "ROLLING ({{count}}):",
+      "waitingForVrf": "WAITING FOR VRF...",
+      "justDecided": "JUST DECIDED ({{count}}):",
+      "winnerShort": "winner: {{addr}}"
+    },
+    "create": {
+      "back": "< BACK",
+      "title": "> CREATE NEW ROYALE",
+      "hint": "Every player stakes {{pool}}. Winner takes the pool minus the project fee. Chips are membership tokens — they always come back to their owner after the royale ends.",
+      "step1": "1. SELECT POOL:",
+      "step2": "2. MAX PLAYERS:",
+      "step3": "3. YOUR CHIP (creator auto-joins):",
+      "players": "{{n}}P",
+      "poolWhenFull": "Pool will be {{amount}} SOL when full.",
+      "noChips": "No chips. Mint one first!",
+      "confirm": ">> CONFIRM IN WALLET...",
+      "cta": ">> CREATE {{n}}P · {{pool}} ROYALE <<"
+    },
+    "watch": {
+      "back": "< BACK",
+      "loading": "LOADING ROYALE #{{id}}…",
+      "royaleNum": "ROYALE #{{id}}",
+      "poolSeats": "{{pool}} · {{joined}}/{{max}}",
+      "seat": "SEAT {{n}}",
+      "youParen": "(YOU)",
+      "chipTail": "chip …{{tail}}",
+      "chipClaimed": "chip claimed ✓",
+      "rolling": "ROLLING — relayer is fulfilling Switchboard VRF…",
+      "youWonRoyale": "*** YOU WON THE ROYALE! ***",
+      "winnerIs": "WINNER: {{addr}}",
+      "cancelled": "ROYALE CANCELLED",
+      "cancelReason": "reason: {{reason}}",
+      "claimWinnings": "CLAIM {{amount}} SOL WINNINGS",
+      "joinClosesIn": "Join window closes in {{m}}m{{s}}s",
+      "cancelStuck": "CANCEL STUCK ROYALE",
+      "vrfTimeoutIn": "VRF timeout in {{m}}m{{s}}s — then cancel becomes available",
+      "forceCancel": "FORCE-CANCEL (VRF TIMED OUT)",
+      "claimChipStake": "CLAIM CHIP + STAKE BACK (slot {{slot}})",
+      "claimChip": "CLAIM MY CHIP BACK (slot {{slot}})",
+      "reclaimedFull": "Chip + stake reclaimed ✓",
+      "reclaimedShort": "You've reclaimed your chip ✓"
+    }
+  },
+  "tournament": {
+    "title": "TOURNAMENTS",
+    "connect": "CONNECT WALLET TO COMPETE",
+    "subtitle": "8-player single-elim · {{p1}}/{{p2}}/{{p3}}% prize split · Switchboard VRF per match",
+    "tickets": {
+      "title": "YOUR TICKETS",
+      "lineOne": "{{n}} TICKET · price {{price}} SOL each",
+      "lineMany": "{{n}} TICKETS · price {{price}} SOL each",
+      "buy": "+ BUY 1 TICKET ({{price}} SOL)",
+      "buying": "BUYING…"
+    },
+    "lobby": {
+      "title": "> TOURNAMENT LOBBY",
+      "createLong": "+ CREATE TOURNAMENT",
+      "createShort": "+ CREATE",
+      "yourActive": "YOUR ACTIVE TOURNAMENTS:",
+      "tournamentNum": "TOURNAMENT #{{id}}",
+      "entryRegistered": "{{entry}} entry · {{registered}}/{{size}}",
+      "open": "OPEN TOURNAMENTS ({{count}}):",
+      "noOpen": "No open tournaments. Be the first!",
+      "registered": "REGISTERED ✓",
+      "register": "REGISTER",
+      "pickChip": "Pick chip",
+      "enter": "ENTER!",
+      "joining": "JOINING...",
+      "poolWhenFull": "pool when full: {{amount}} SOL",
+      "prizes": "1st: {{p1}} · 2nd: {{p2}} · 3rd: {{p3}}",
+      "minAgo": "{{n}}m ago",
+      "active": "ACTIVE ({{count}}):",
+      "entry": "{{entry}} entry",
+      "recentCompleted": "RECENT COMPLETED ({{count}}):",
+      "winnerShort": "winner: {{addr}}"
+    },
+    "create": {
+      "back": "< BACK",
+      "title": "> CREATE NEW TOURNAMENT",
+      "hintPrefix": "8-player single-elimination + 3rd-place playoff. Every entry burns 1 ticket + stakes ",
+      "hintPrizes": ". Prizes: 1st {{p1}}%, 2nd {{p2}}%, 3rd {{p3}}%; {{fee}}% fee. Chips returned to all 8 players.",
+      "step1": "1. ENTRY FEE:",
+      "step2": "2. YOUR CHIP (creator auto-registers):",
+      "solSuffix": "{{n}} SOL",
+      "poolBreakdown": "Pool when full = {{full}} SOL → 1st {{p1}} · 2nd {{p2}} · 3rd {{p3}}",
+      "noChips": "No chips. Mint one first!",
+      "confirm": ">> CONFIRM IN WALLET...",
+      "cta": ">> CREATE {{entry}} SOL TOURNAMENT <<"
+    },
+    "bracket": {
+      "quarters": "QUARTERS",
+      "semis": "SEMIS",
+      "final": "FINAL",
+      "gold": "GOLD",
+      "bronze": "BRONZE",
+      "vs": "vs",
+      "rolling": "ROLLING…",
+      "pending": "PENDING",
+      "seedShort": "seed {{n}}…",
+      "seedTitle": "seed: {{seed}}",
+      "seedAuditTitle": "seed: {{seed}}\nclick to view Switchboard randomness account on solscan",
+      "slotPlaceholder": "slot {{n}}",
+      "empty": "—"
+    },
+    "watch": {
+      "back": "< BACK",
+      "loading": "LOADING TOURNAMENT #{{id}}…",
+      "tournamentNum": "TOURNAMENT #{{id}}",
+      "header": "{{entry}} entry · {{registered}}/{{size}}",
+      "seat": "SEAT {{n}}",
+      "you": "YOU",
+      "empty": "empty",
+      "podiumRank1": "1st",
+      "podiumRank2": "2nd",
+      "podiumRank3": "3rd",
+      "podiumPrize": "{{amount}} SOL ({{pct}}%)",
+      "podiumClaimed": "claimed ✓",
+      "podiumEmpty": "—",
+      "cancelled": "TOURNAMENT CANCELLED",
+      "cancelReason": "reason: {{reason}}",
+      "claimPrize": "CLAIM {{amount}} SOL — RANK {{rank}}",
+      "claimChip": "CLAIM MY CHIP BACK (slot {{slot}})",
+      "reclaimed": "You've reclaimed your chip ✓"
+    }
   }
 }

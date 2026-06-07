@@ -174,5 +174,174 @@
       "resolutionLabel": "Resolución:",
       "cancelled": "BATALLA CANCELADA"
     }
+  },
+  "tStatus": {
+    "0": "INSCRIPCIÓN",
+    "1": "EN CURSO",
+    "2": "TERMINADO",
+    "3": "CANCELADO"
+  },
+  "tRound": {
+    "0": "CUARTOS",
+    "1": "SEMIS",
+    "2": "FINAL Y 3º"
+  },
+  "brCancelReason": {
+    "0": "TIEMPO DE ENTRADA",
+    "1": "TIEMPO VRF"
+  },
+  "tCancelReason": {
+    "0": "TIEMPO DE INSCRIPCIÓN",
+    "1": "TIEMPO VRF"
+  },
+  "royale": {
+    "title": "BATTLE ROYALE",
+    "connect": "CONECTA CARTERA PARA JUGAR",
+    "subtitle": "Hasta 8 jugadores · VRF único · Switchboard On-Demand · fichas vuelven, apuesta en juego",
+    "balance": {
+      "title": "AUTO-CARGA AL UNIRSE",
+      "hint": "Saldo interno: {{have}} SOL — al unirte se tomarán +{{shortBy}} SOL de tu cartera automáticamente (una firma, sin pasos extra)."
+    },
+    "lobby": {
+      "title": "> SALA DEL BATTLE ROYALE",
+      "createLong": "+ CREAR ROYALE",
+      "createShort": "+ CREAR",
+      "yourActive": "TUS ROYALES ACTIVOS:",
+      "royaleNum": "ROYALE #{{id}}",
+      "claim": "RECLAMAR",
+      "open": "ROYALES ABIERTOS ({{count}}):",
+      "noOpen": "No hay royales abiertos. ¡Sé el primero!",
+      "inLobby": "EN LA SALA ✓",
+      "pickChip": "Elige ficha",
+      "fight": "¡A LUCHAR!",
+      "joining": "ENTRANDO...",
+      "join": "UNIRSE",
+      "stake": "apuesta {{amount}} SOL",
+      "minAgo": "hace {{n}}m",
+      "seats": "asientos: {{list}}",
+      "rolling": "TIRANDO ({{count}}):",
+      "waitingForVrf": "ESPERANDO VRF...",
+      "justDecided": "RECIÉN DECIDIDOS ({{count}}):",
+      "winnerShort": "ganador: {{addr}}"
+    },
+    "create": {
+      "back": "< ATRÁS",
+      "title": "> CREAR NUEVO ROYALE",
+      "hint": "Cada jugador apuesta {{pool}}. El ganador se lleva el bote menos la comisión. Las fichas son tokens de membresía — siempre vuelven a su dueño al terminar.",
+      "step1": "1. ELIGE EL BOTE:",
+      "step2": "2. MÁX. JUGADORES:",
+      "step3": "3. TU FICHA (el creador entra automático):",
+      "players": "{{n}}J",
+      "poolWhenFull": "El bote será {{amount}} SOL cuando esté lleno.",
+      "noChips": "Sin fichas. ¡Acuña una primero!",
+      "confirm": ">> CONFIRMA EN LA CARTERA...",
+      "cta": ">> CREAR ROYALE {{n}}J · {{pool}} <<"
+    },
+    "watch": {
+      "back": "< ATRÁS",
+      "loading": "CARGANDO ROYALE #{{id}}…",
+      "royaleNum": "ROYALE #{{id}}",
+      "poolSeats": "{{pool}} · {{joined}}/{{max}}",
+      "seat": "ASIENTO {{n}}",
+      "youParen": "(TÚ)",
+      "chipTail": "ficha …{{tail}}",
+      "chipClaimed": "ficha reclamada ✓",
+      "rolling": "TIRANDO — el relay ejecuta Switchboard VRF…",
+      "youWonRoyale": "*** ¡GANASTE EL ROYALE! ***",
+      "winnerIs": "GANADOR: {{addr}}",
+      "cancelled": "ROYALE CANCELADO",
+      "cancelReason": "razón: {{reason}}",
+      "claimWinnings": "RECLAMAR {{amount}} SOL",
+      "joinClosesIn": "La inscripción cierra en {{m}}m{{s}}s",
+      "cancelStuck": "CANCELAR ROYALE ATASCADO",
+      "vrfTimeoutIn": "Tiempo VRF en {{m}}m{{s}}s — luego se podrá cancelar",
+      "forceCancel": "CANCELAR A LA FUERZA (VRF AGOTADO)",
+      "claimChipStake": "RECLAMAR FICHA + APUESTA (asiento {{slot}})",
+      "claimChip": "RECLAMAR MI FICHA (asiento {{slot}})",
+      "reclaimedFull": "Ficha + apuesta recuperadas ✓",
+      "reclaimedShort": "Recuperaste tu ficha ✓"
+    }
+  },
+  "tournament": {
+    "title": "TORNEOS",
+    "connect": "CONECTA CARTERA PARA COMPETIR",
+    "subtitle": "8 jugadores · eliminación directa · {{p1}}/{{p2}}/{{p3}}% de premios · Switchboard VRF por partido",
+    "tickets": {
+      "title": "TUS ENTRADAS",
+      "lineOne": "{{n}} ENTRADA · precio {{price}} SOL c/u",
+      "lineMany": "{{n}} ENTRADAS · precio {{price}} SOL c/u",
+      "buy": "+ COMPRAR 1 ENTRADA ({{price}} SOL)",
+      "buying": "COMPRANDO…"
+    },
+    "lobby": {
+      "title": "> SALA DE TORNEOS",
+      "createLong": "+ CREAR TORNEO",
+      "createShort": "+ CREAR",
+      "yourActive": "TUS TORNEOS ACTIVOS:",
+      "tournamentNum": "TORNEO #{{id}}",
+      "entryRegistered": "entrada {{entry}} · {{registered}}/{{size}}",
+      "open": "TORNEOS ABIERTOS ({{count}}):",
+      "noOpen": "No hay torneos abiertos. ¡Sé el primero!",
+      "registered": "INSCRITO ✓",
+      "register": "INSCRIBIRSE",
+      "pickChip": "Elige ficha",
+      "enter": "¡ENTRAR!",
+      "joining": "ENTRANDO...",
+      "poolWhenFull": "bote al llenar: {{amount}} SOL",
+      "prizes": "1º: {{p1}} · 2º: {{p2}} · 3º: {{p3}}",
+      "minAgo": "hace {{n}}m",
+      "active": "EN CURSO ({{count}}):",
+      "entry": "entrada {{entry}}",
+      "recentCompleted": "RECIÉN TERMINADOS ({{count}}):",
+      "winnerShort": "ganador: {{addr}}"
+    },
+    "create": {
+      "back": "< ATRÁS",
+      "title": "> CREAR NUEVO TORNEO",
+      "hintPrefix": "8 jugadores eliminación directa + partido por el 3.º puesto. Cada inscripción quema 1 entrada + apuesta ",
+      "hintPrizes": ". Premios: 1º {{p1}}%, 2º {{p2}}%, 3º {{p3}}%; comisión {{fee}}%. Fichas devueltas a los 8 jugadores.",
+      "step1": "1. CUOTA DE ENTRADA:",
+      "step2": "2. TU FICHA (el creador se inscribe automático):",
+      "solSuffix": "{{n}} SOL",
+      "poolBreakdown": "Bote al llenar = {{full}} SOL → 1º {{p1}} · 2º {{p2}} · 3º {{p3}}",
+      "noChips": "Sin fichas. ¡Acuña una primero!",
+      "confirm": ">> CONFIRMA EN LA CARTERA...",
+      "cta": ">> CREAR TORNEO DE {{entry}} SOL <<"
+    },
+    "bracket": {
+      "quarters": "CUARTOS",
+      "semis": "SEMIS",
+      "final": "FINAL",
+      "gold": "ORO",
+      "bronze": "BRONCE",
+      "vs": "vs",
+      "rolling": "TIRANDO…",
+      "pending": "PENDIENTE",
+      "seedShort": "semilla {{n}}…",
+      "seedTitle": "semilla: {{seed}}",
+      "seedAuditTitle": "semilla: {{seed}}\nclic para ver la cuenta de aleatoriedad Switchboard en solscan",
+      "slotPlaceholder": "asiento {{n}}",
+      "empty": "—"
+    },
+    "watch": {
+      "back": "< ATRÁS",
+      "loading": "CARGANDO TORNEO #{{id}}…",
+      "tournamentNum": "TORNEO #{{id}}",
+      "header": "entrada {{entry}} · {{registered}}/{{size}}",
+      "seat": "ASIENTO {{n}}",
+      "you": "TÚ",
+      "empty": "vacío",
+      "podiumRank1": "1º",
+      "podiumRank2": "2º",
+      "podiumRank3": "3º",
+      "podiumPrize": "{{amount}} SOL ({{pct}}%)",
+      "podiumClaimed": "reclamado ✓",
+      "podiumEmpty": "—",
+      "cancelled": "TORNEO CANCELADO",
+      "cancelReason": "razón: {{reason}}",
+      "claimPrize": "RECLAMAR {{amount}} SOL — PUESTO {{rank}}",
+      "claimChip": "RECLAMAR MI FICHA (asiento {{slot}})",
+      "reclaimed": "Recuperaste tu ficha ✓"
+    }
   }
 }

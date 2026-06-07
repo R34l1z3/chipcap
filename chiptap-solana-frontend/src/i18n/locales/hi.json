@@ -174,5 +174,174 @@
       "resolutionLabel": "परिणाम:",
       "cancelled": "बैटल रद्द"
     }
+  },
+  "tStatus": {
+    "0": "रजिस्ट्रेशन",
+    "1": "सक्रिय",
+    "2": "पूर्ण",
+    "3": "रद्द"
+  },
+  "tRound": {
+    "0": "क्वार्टर",
+    "1": "सेमी",
+    "2": "फाइनल और तीसरा"
+  },
+  "brCancelReason": {
+    "0": "जॉइन टाइमआउट",
+    "1": "VRF टाइमआउट"
+  },
+  "tCancelReason": {
+    "0": "रजिस्ट्रेशन टाइमआउट",
+    "1": "VRF टाइमआउट"
+  },
+  "royale": {
+    "title": "बैटल रॉयल",
+    "connect": "खेलने के लिए वॉलेट कनेक्ट करें",
+    "subtitle": "8 खिलाड़ी · सिंगल VRF · Switchboard On-Demand · चिप वापस, दांव जोखिम में",
+    "balance": {
+      "title": "जुड़ने पर ऑटो टॉप-अप",
+      "hint": "आंतरिक बैलेंस: {{have}} SOL — जुड़ते समय आपके वॉलेट से +{{shortBy}} SOL अपने-आप ले लिया जाएगा (एक पॉप-अप, कोई अतिरिक्त चरण नहीं)।"
+    },
+    "lobby": {
+      "title": "> बैटल रॉयल लॉबी",
+      "createLong": "+ रॉयल बनाएं",
+      "createShort": "+ बनाएं",
+      "yourActive": "तुम्हारे सक्रिय रॉयल:",
+      "royaleNum": "रॉयल #{{id}}",
+      "claim": "लें",
+      "open": "खुले रॉयल ({{count}}):",
+      "noOpen": "कोई खुला रॉयल नहीं। पहले बनो!",
+      "inLobby": "लॉबी में ✓",
+      "pickChip": "चिप चुनें",
+      "fight": "लड़ो!",
+      "joining": "जुड़ रहा...",
+      "join": "जुड़ें",
+      "stake": "दांव {{amount}} SOL",
+      "minAgo": "{{n}}मि पहले",
+      "seats": "सीटें: {{list}}",
+      "rolling": "रोलिंग ({{count}}):",
+      "waitingForVrf": "VRF का इंतज़ार...",
+      "justDecided": "अभी निर्णीत ({{count}}):",
+      "winnerShort": "विजेता: {{addr}}"
+    },
+    "create": {
+      "back": "< वापस",
+      "title": "> नया रॉयल बनाएं",
+      "hint": "हर खिलाड़ी {{pool}} दांव लगाता है। विजेता को पूल मिनस प्रोजेक्ट शुल्क मिलता है। चिप मेम्बरशिप टोकन हैं — रॉयल खत्म होने पर हमेशा मालिक को लौटते हैं।",
+      "step1": "1. पूल चुनें:",
+      "step2": "2. अधिकतम खिलाड़ी:",
+      "step3": "3. तुम्हारा चिप (निर्माता अपने-आप जुड़ता है):",
+      "players": "{{n}}खि",
+      "poolWhenFull": "भरने पर पूल होगा {{amount}} SOL।",
+      "noChips": "कोई चिप नहीं। पहले एक मिंट करें!",
+      "confirm": ">> वॉलेट में पुष्टि करें...",
+      "cta": ">> {{n}}खि · {{pool}} रॉयल बनाएं <<"
+    },
+    "watch": {
+      "back": "< वापस",
+      "loading": "रॉयल #{{id}} लोड हो रहा…",
+      "royaleNum": "रॉयल #{{id}}",
+      "poolSeats": "{{pool}} · {{joined}}/{{max}}",
+      "seat": "सीट {{n}}",
+      "youParen": "(तुम)",
+      "chipTail": "चिप …{{tail}}",
+      "chipClaimed": "चिप लिया ✓",
+      "rolling": "रोलिंग — रिले Switchboard VRF पूरा कर रहा है…",
+      "youWonRoyale": "*** तुमने रॉयल जीता! ***",
+      "winnerIs": "विजेता: {{addr}}",
+      "cancelled": "रॉयल रद्द",
+      "cancelReason": "कारण: {{reason}}",
+      "claimWinnings": "{{amount}} SOL जीत लें",
+      "joinClosesIn": "जॉइन विंडो {{m}}मि{{s}}स में बंद",
+      "cancelStuck": "अटके रॉयल को रद्द करें",
+      "vrfTimeoutIn": "VRF टाइमआउट {{m}}मि{{s}}स में — फिर रद्द किया जा सकेगा",
+      "forceCancel": "बलपूर्वक रद्द (VRF टाइमआउट)",
+      "claimChipStake": "चिप + दांव लें (सीट {{slot}})",
+      "claimChip": "मेरा चिप वापस लें (सीट {{slot}})",
+      "reclaimedFull": "चिप + दांव वापस लिया ✓",
+      "reclaimedShort": "तुमने चिप वापस लिया ✓"
+    }
+  },
+  "tournament": {
+    "title": "टूर्नामेंट",
+    "connect": "प्रतिस्पर्धा करने के लिए वॉलेट कनेक्ट करें",
+    "subtitle": "8 खिलाड़ी सिंगल-एलिम · {{p1}}/{{p2}}/{{p3}}% पुरस्कार · हर मैच Switchboard VRF",
+    "tickets": {
+      "title": "तुम्हारे टिकट",
+      "lineOne": "{{n}} टिकट · कीमत {{price}} SOL प्रत्येक",
+      "lineMany": "{{n}} टिकट · कीमत {{price}} SOL प्रत्येक",
+      "buy": "+ 1 टिकट खरीदें ({{price}} SOL)",
+      "buying": "खरीद रहा…"
+    },
+    "lobby": {
+      "title": "> टूर्नामेंट लॉबी",
+      "createLong": "+ टूर्नामेंट बनाएं",
+      "createShort": "+ बनाएं",
+      "yourActive": "तुम्हारे सक्रिय टूर्नामेंट:",
+      "tournamentNum": "टूर्नामेंट #{{id}}",
+      "entryRegistered": "एंट्री {{entry}} · {{registered}}/{{size}}",
+      "open": "खुले टूर्नामेंट ({{count}}):",
+      "noOpen": "कोई खुला टूर्नामेंट नहीं। पहले बनो!",
+      "registered": "रजिस्टर्ड ✓",
+      "register": "रजिस्टर",
+      "pickChip": "चिप चुनें",
+      "enter": "प्रवेश!",
+      "joining": "जुड़ रहा...",
+      "poolWhenFull": "भरने पर पूल: {{amount}} SOL",
+      "prizes": "पहला: {{p1}} · दूसरा: {{p2}} · तीसरा: {{p3}}",
+      "minAgo": "{{n}}मि पहले",
+      "active": "सक्रिय ({{count}}):",
+      "entry": "एंट्री {{entry}}",
+      "recentCompleted": "हाल ही में पूर्ण ({{count}}):",
+      "winnerShort": "विजेता: {{addr}}"
+    },
+    "create": {
+      "back": "< वापस",
+      "title": "> नया टूर्नामेंट बनाएं",
+      "hintPrefix": "8 खिलाड़ी सिंगल-एलिमिनेशन + तीसरे स्थान का प्लेऑफ़। हर एंट्री 1 टिकट जलाती है + दांव ",
+      "hintPrizes": "। पुरस्कार: पहला {{p1}}%, दूसरा {{p2}}%, तीसरा {{p3}}%; {{fee}}% शुल्क। सभी 8 खिलाड़ियों के चिप वापस।",
+      "step1": "1. एंट्री शुल्क:",
+      "step2": "2. तुम्हारा चिप (निर्माता अपने-आप रजिस्टर):",
+      "solSuffix": "{{n}} SOL",
+      "poolBreakdown": "भरने पर पूल = {{full}} SOL → पहला {{p1}} · दूसरा {{p2}} · तीसरा {{p3}}",
+      "noChips": "कोई चिप नहीं। पहले एक मिंट करें!",
+      "confirm": ">> वॉलेट में पुष्टि करें...",
+      "cta": ">> {{entry}} SOL टूर्नामेंट बनाएं <<"
+    },
+    "bracket": {
+      "quarters": "क्वार्टर",
+      "semis": "सेमी",
+      "final": "फाइनल",
+      "gold": "स्वर्ण",
+      "bronze": "कांस्य",
+      "vs": "vs",
+      "rolling": "रोलिंग…",
+      "pending": "लंबित",
+      "seedShort": "सीड {{n}}…",
+      "seedTitle": "सीड: {{seed}}",
+      "seedAuditTitle": "सीड: {{seed}}\nsolscan पर Switchboard रैंडमनेस अकाउंट देखने के लिए क्लिक करें",
+      "slotPlaceholder": "सीट {{n}}",
+      "empty": "—"
+    },
+    "watch": {
+      "back": "< वापस",
+      "loading": "टूर्नामेंट #{{id}} लोड हो रहा…",
+      "tournamentNum": "टूर्नामेंट #{{id}}",
+      "header": "एंट्री {{entry}} · {{registered}}/{{size}}",
+      "seat": "सीट {{n}}",
+      "you": "तुम",
+      "empty": "खाली",
+      "podiumRank1": "पहला",
+      "podiumRank2": "दूसरा",
+      "podiumRank3": "तीसरा",
+      "podiumPrize": "{{amount}} SOL ({{pct}}%)",
+      "podiumClaimed": "लिया ✓",
+      "podiumEmpty": "—",
+      "cancelled": "टूर्नामेंट रद्द",
+      "cancelReason": "कारण: {{reason}}",
+      "claimPrize": "{{amount}} SOL लें — रैंक {{rank}}",
+      "claimChip": "मेरा चिप वापस लें (सीट {{slot}})",
+      "reclaimed": "तुमने चिप वापस लिया ✓"
+    }
   }
 }
