@@ -87,5 +87,92 @@
     "cta": "MINT {{rarity}} CHIP",
     "footnote": "Each mint creates a fresh Metaplex Core Asset + ChipData PDA.",
     "toast": "Minted {{rarity}}!"
+  },
+  "status": {
+    "0": "WAITING",
+    "1": "ROLLING",
+    "2": "DECIDED",
+    "3": "SETTLED",
+    "4": "CANCELLED"
+  },
+  "resolution": {
+    "1": "PAID",
+    "2": "FORFEITED",
+    "3": "EXPIRED"
+  },
+  "battle": {
+    "title": "BATTLE ARENA",
+    "connect": "CONNECT WALLET TO BATTLE",
+    "balance": {
+      "title": "INTERNAL BALANCE",
+      "free": "Free",
+      "locked": "Locked",
+      "deposit": "DEPOSIT",
+      "depositing": "DEPOSITING...",
+      "withdrawAll": "WITHDRAW ALL",
+      "withdrawing": "WITHDRAWING...",
+      "amountPlaceholder": "SOL"
+    },
+    "lobby": {
+      "title": "> BATTLE LOBBY",
+      "createLong": "+ CREATE BATTLE",
+      "createShort": "+ CREATE",
+      "yourActive": "YOUR ACTIVE BATTLES:",
+      "open": "OPEN BATTLES ({{count}}):",
+      "rolling": "ROLLING ({{count}}):",
+      "battleNum": "BATTLE #{{id}}",
+      "payOrForfeit": "PAY OR FORFEIT",
+      "claim": "CLAIM",
+      "noOpen": "No open battles. Be the first!",
+      "waitingForVrf": "WAITING FOR VRF...",
+      "pickChip": "Pick chip",
+      "fight": "FIGHT!",
+      "joining": "JOINING...",
+      "join": "JOIN",
+      "cancel": "CANCEL",
+      "minAgo": "{{n}}m ago",
+      "chipTail": "chip …{{tail}}"
+    },
+    "create": {
+      "back": "< BACK",
+      "title": "> CREATE NEW BATTLE",
+      "step1": "1. SELECT POOL:",
+      "step2": "2. SELECT YOUR CHIP:",
+      "loseHint": "If you lose: pay {{pool}} to keep chip, or forfeit chip",
+      "noChips": "No chips. Mint one first!",
+      "confirm": ">> CONFIRM IN WALLET...",
+      "cta": ">> CREATE {{pool}} BATTLE <<"
+    },
+    "watch": {
+      "back": "< BACK",
+      "loading": "LOADING BATTLE #{{id}}…",
+      "battleNum": "BATTLE #{{id}}",
+      "poolSuffix": "{{pool}} POOL",
+      "unknown": "???",
+      "vs": "VS",
+      "rolling": "ROLLING…",
+      "waitingForVrf": "Waiting for VRF…",
+      "forceResolve": "FORCE RESOLVE (after 1h)",
+      "resolving": "RESOLVING...",
+      "youWon": "*** YOU WON! ***",
+      "youLost": "*** YOU LOST ***",
+      "winnerIs": "WINNER: {{addr}}",
+      "claimYourChip": "CLAIM YOUR CHIP",
+      "chipInEscrow": "Your chip is in escrow.",
+      "claimChip": "CLAIM CHIP",
+      "claiming": "CLAIMING...",
+      "chooseFate": "CHOOSE YOUR FATE:",
+      "payToKeep": "PAY TO KEEP CHIP",
+      "payToKeepSub": "{{pool}} (95% to winner)",
+      "paying": "PAYING...",
+      "forfeitChip": "FORFEIT CHIP",
+      "forfeitSub": "No payment",
+      "forfeiting": "FORFEITING...",
+      "victory": "VICTORY!",
+      "defeat": "DEFEAT",
+      "complete": "BATTLE COMPLETE",
+      "resolutionLabel": "Resolution:",
+      "cancelled": "BATTLE CANCELLED"
+    }
   }
 }

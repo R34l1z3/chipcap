@@ -87,5 +87,92 @@
     "cta": "CUNHAR FICHA {{rarity}}",
     "footnote": "Cada cunhagem cria um novo Metaplex Core Asset + ChipData PDA.",
     "toast": "Ficha {{rarity}} cunhada!"
+  },
+  "status": {
+    "0": "AGUARDANDO",
+    "1": "ROLANDO",
+    "2": "DECIDIDO",
+    "3": "LIQUIDADO",
+    "4": "CANCELADO"
+  },
+  "resolution": {
+    "1": "PAGO",
+    "2": "ABANDONADO",
+    "3": "EXPIRADO"
+  },
+  "battle": {
+    "title": "ARENA DE BATALHA",
+    "connect": "CONECTE A CARTEIRA PARA BATALHAR",
+    "balance": {
+      "title": "SALDO INTERNO",
+      "free": "Livre",
+      "locked": "Bloqueado",
+      "deposit": "DEPOSITAR",
+      "depositing": "DEPOSITANDO...",
+      "withdrawAll": "SACAR TUDO",
+      "withdrawing": "SACANDO...",
+      "amountPlaceholder": "SOL"
+    },
+    "lobby": {
+      "title": "> SAGUÃO DE BATALHA",
+      "createLong": "+ CRIAR BATALHA",
+      "createShort": "+ CRIAR",
+      "yourActive": "SUAS BATALHAS ATIVAS:",
+      "open": "BATALHAS ABERTAS ({{count}}):",
+      "rolling": "ROLANDO ({{count}}):",
+      "battleNum": "BATALHA #{{id}}",
+      "payOrForfeit": "PAGUE OU ABANDONE",
+      "claim": "RESGATAR",
+      "noOpen": "Nenhuma batalha aberta. Seja o primeiro!",
+      "waitingForVrf": "AGUARDANDO VRF...",
+      "pickChip": "Escolha a ficha",
+      "fight": "LUTAR!",
+      "joining": "ENTRANDO...",
+      "join": "ENTRAR",
+      "cancel": "CANCELAR",
+      "minAgo": "há {{n}}m",
+      "chipTail": "ficha …{{tail}}"
+    },
+    "create": {
+      "back": "< VOLTAR",
+      "title": "> CRIAR NOVA BATALHA",
+      "step1": "1. ESCOLHA O POTE:",
+      "step2": "2. ESCOLHA SUA FICHA:",
+      "loseHint": "Se perder: pague {{pool}} para manter a ficha, ou abra mão da ficha",
+      "noChips": "Sem fichas. Cunhe uma primeiro!",
+      "confirm": ">> CONFIRME NA CARTEIRA...",
+      "cta": ">> CRIAR BATALHA {{pool}} <<"
+    },
+    "watch": {
+      "back": "< VOLTAR",
+      "loading": "CARREGANDO BATALHA #{{id}}…",
+      "battleNum": "BATALHA #{{id}}",
+      "poolSuffix": "POTE {{pool}}",
+      "unknown": "???",
+      "vs": "VS",
+      "rolling": "ROLANDO…",
+      "waitingForVrf": "Aguardando VRF…",
+      "forceResolve": "RESOLVER FORÇADO (após 1h)",
+      "resolving": "RESOLVENDO...",
+      "youWon": "*** VOCÊ GANHOU! ***",
+      "youLost": "*** VOCÊ PERDEU ***",
+      "winnerIs": "VENCEDOR: {{addr}}",
+      "claimYourChip": "RESGATE SUA FICHA",
+      "chipInEscrow": "Sua ficha está em escrow.",
+      "claimChip": "RESGATAR FICHA",
+      "claiming": "RESGATANDO...",
+      "chooseFate": "ESCOLHA SEU DESTINO:",
+      "payToKeep": "PAGAR PARA MANTER FICHA",
+      "payToKeepSub": "{{pool}} (95% ao vencedor)",
+      "paying": "PAGANDO...",
+      "forfeitChip": "ABANDONAR FICHA",
+      "forfeitSub": "Sem pagamento",
+      "forfeiting": "ABANDONANDO...",
+      "victory": "VITÓRIA!",
+      "defeat": "DERROTA",
+      "complete": "BATALHA COMPLETA",
+      "resolutionLabel": "Resolução:",
+      "cancelled": "BATALHA CANCELADA"
+    }
   }
 }

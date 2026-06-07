@@ -87,5 +87,92 @@
     "cta": "СЧЕКАНИТЬ ЧИП {{rarity}}",
     "footnote": "Каждая чеканка создаёт новый Metaplex Core Asset + ChipData PDA.",
     "toast": "Счеканен {{rarity}}!"
+  },
+  "status": {
+    "0": "ОЖИДАНИЕ",
+    "1": "БРОСОК",
+    "2": "ИСХОД",
+    "3": "ЗАВЕРШЕНО",
+    "4": "ОТМЕНЕНО"
+  },
+  "resolution": {
+    "1": "ОПЛАЧЕНО",
+    "2": "ЧИП ОТДАН",
+    "3": "ИСТЕКЛО"
+  },
+  "battle": {
+    "title": "АРЕНА БИТВ",
+    "connect": "ПОДКЛЮЧИ КОШЕЛЁК ДЛЯ БИТВЫ",
+    "balance": {
+      "title": "ВНУТРЕННИЙ БАЛАНС",
+      "free": "Свободно",
+      "locked": "В игре",
+      "deposit": "ВНЕСТИ",
+      "depositing": "ВНОШУ...",
+      "withdrawAll": "ВЫВЕСТИ ВСЁ",
+      "withdrawing": "ВЫВОЖУ...",
+      "amountPlaceholder": "SOL"
+    },
+    "lobby": {
+      "title": "> ЛОББИ БИТВ",
+      "createLong": "+ СОЗДАТЬ БИТВУ",
+      "createShort": "+ СОЗДАТЬ",
+      "yourActive": "ТВОИ АКТИВНЫЕ БИТВЫ:",
+      "open": "ОТКРЫТЫЕ БИТВЫ ({{count}}):",
+      "rolling": "БРОСОК ({{count}}):",
+      "battleNum": "БИТВА #{{id}}",
+      "payOrForfeit": "ПЛАТИ ИЛИ ОТДАВАЙ",
+      "claim": "ЗАБРАТЬ",
+      "noOpen": "Открытых битв нет. Будь первым!",
+      "waitingForVrf": "ЖДЁМ VRF...",
+      "pickChip": "Выбери чип",
+      "fight": "БЕЙ!",
+      "joining": "ВХОЖУ...",
+      "join": "ВОЙТИ",
+      "cancel": "ОТМЕНИТЬ",
+      "minAgo": "{{n}}м назад",
+      "chipTail": "чип …{{tail}}"
+    },
+    "create": {
+      "back": "< НАЗАД",
+      "title": "> СОЗДАТЬ НОВУЮ БИТВУ",
+      "step1": "1. ВЫБЕРИ ПУЛ:",
+      "step2": "2. ВЫБЕРИ СВОЙ ЧИП:",
+      "loseHint": "Если проиграешь: заплати {{pool}} чтобы оставить чип, или отдай чип",
+      "noChips": "Чипов нет. Счекань хотя бы один!",
+      "confirm": ">> ПОДПИШИ В КОШЕЛЬКЕ...",
+      "cta": ">> СОЗДАТЬ БИТВУ {{pool}} <<"
+    },
+    "watch": {
+      "back": "< НАЗАД",
+      "loading": "ЗАГРУЗКА БИТВЫ #{{id}}…",
+      "battleNum": "БИТВА #{{id}}",
+      "poolSuffix": "ПУЛ {{pool}}",
+      "unknown": "???",
+      "vs": "VS",
+      "rolling": "БРОСОК…",
+      "waitingForVrf": "Ждём VRF…",
+      "forceResolve": "ПРИНУДИТЕЛЬНО (через 1ч)",
+      "resolving": "РЕШАЮ...",
+      "youWon": "*** ТЫ ПОБЕДИЛ! ***",
+      "youLost": "*** ТЫ ПРОИГРАЛ ***",
+      "winnerIs": "ПОБЕДИТЕЛЬ: {{addr}}",
+      "claimYourChip": "ЗАБЕРИ ЧИП",
+      "chipInEscrow": "Твой чип в эскроу.",
+      "claimChip": "ЗАБРАТЬ ЧИП",
+      "claiming": "ЗАБИРАЮ...",
+      "chooseFate": "ВЫБЕРИ СУДЬБУ:",
+      "payToKeep": "ЗАПЛАТИТЬ И ОСТАВИТЬ ЧИП",
+      "payToKeepSub": "{{pool}} (95% победителю)",
+      "paying": "ПЛАЧУ...",
+      "forfeitChip": "ОТДАТЬ ЧИП",
+      "forfeitSub": "Без оплаты",
+      "forfeiting": "ОТДАЮ...",
+      "victory": "ПОБЕДА!",
+      "defeat": "ПОРАЖЕНИЕ",
+      "complete": "БИТВА ЗАВЕРШЕНА",
+      "resolutionLabel": "Исход:",
+      "cancelled": "БИТВА ОТМЕНЕНА"
+    }
   }
 }

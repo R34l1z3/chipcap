@@ -3,6 +3,7 @@
 // ============================================================
 
 import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { BN } from "@coral-xyz/anchor";
@@ -19,7 +20,7 @@ import { useChipsByOwner } from "../hooks/useChipsByOwner";
 import { notify, notifyTxError } from "../lib/notifications";
 import * as pda from "../lib/pda";
 import { MPL_CORE_PROGRAM } from "../lib/mpl";
-import { POOL_TIERS, BATTLE_STATUS } from "../config";
+import { POOL_TIERS } from "../config";
 import { fmtSol, lamportsToSol, shortAddr } from "../lib/format";
 import ChipCard from "../components/ChipCard";
 import BattleAuditPanel from "../components/BattleAuditPanel";
@@ -31,6 +32,7 @@ type View = "lobby" | "create" | "watch";
 // ============================================================
 
 function DepositWithdrawBanner() {
+  const { t } = useTranslation();
   const arena = useArenaProgram();
   const { publicKey } = useWallet();
   const { data: user, refetch: refetchUser } = useUserAccount();
@@ -96,12 +98,12 @@ function DepositWithdrawBanner() {
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <div>
           <div className="font-pixel text-retro-gold" style={{ fontSize: 10 }}>
-            INTERNAL BALANCE
+            {t("battle.balance.title")}
           </div>
           <div className="text-xs opacity-60 mt-1">
-            Free <span className="text-retro-gold">{fmtSol(balanceSol)} SOL</span>
+            {t("battle.balance.free")} <span className="text-retro-gold">{fmtSol(balanceSol)} SOL</span>
             <span className="opacity-40 mx-2">·</span>
-            Locked <span className="text-retro-magenta">{fmtSol(lockedSol)} SOL</span>
+            {t("battle.balance.locked")} <span className="text-retro-magenta">{fmtSol(lockedSol)} SOL</span>
           </div>
         </div>
         <button
@@ -110,7 +112,7 @@ function DepositWithdrawBanner() {
           className="retro-btn retro-btn-gold"
           style={{ fontSize: 9, padding: "4px 10px" }}
         >
-          {busy === "withdraw" ? "WITHDRAWING..." : "WITHDRAW ALL"}
+          {busy === "withdraw" ? t("battle.balance.withdrawing") : t("battle.balance.withdrawAll")}
         </button>
       </div>
       <div className="flex gap-2 items-center flex-wrap">
@@ -121,7 +123,7 @@ function DepositWithdrawBanner() {
           onChange={(e) => setAmountSol(e.target.value)}
           type="text"
           inputMode="decimal"
-          placeholder="SOL"
+          placeholder={t("battle.balance.amountPlaceholder")}
         />
         <button
           onClick={deposit}
@@ -129,7 +131,7 @@ function DepositWithdrawBanner() {
           className="retro-btn"
           style={{ fontSize: 9, padding: "4px 10px" }}
         >
-          {busy === "deposit" ? "DEPOSITING..." : "DEPOSIT"}
+          {busy === "deposit" ? t("battle.balance.depositing") : t("battle.balance.deposit")}
         </button>
       </div>
     </div>
@@ -146,6 +148,7 @@ function Lobby({
   onCreateBattle: () => void;
   onWatchBattle: (id: number) => void;
 }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const me = publicKey?.toBase58();
   const arena = useArenaProgram();
@@ -205,14 +208,14 @@ function Lobby({
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-        <h2 className="font-pixel text-retro-cyan" style={{ fontSize: 12 }}>&gt; BATTLE LOBBY</h2>
+        <h2 className="font-pixel text-retro-cyan" style={{ fontSize: 12 }}>{t("battle.lobby.title")}</h2>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => refetch()} className="retro-btn" style={{ fontSize: 8, padding: "4px 8px" }}>
-            REFRESH
+            {t("common.refresh")}
           </button>
           <button onClick={onCreateBattle} className="retro-btn retro-btn-gold" style={{ fontSize: 8, padding: "4px 8px" }}>
-            <span className="hidden sm:inline">+ CREATE BATTLE</span>
-            <span className="sm:hidden">+ CREATE</span>
+            <span className="hidden sm:inline">{t("battle.lobby.createLong")}</span>
+            <span className="sm:hidden">{t("battle.lobby.createShort")}</span>
           </button>
         </div>
       </div>
@@ -223,7 +226,7 @@ function Lobby({
       {myActiveBattles.length > 0 && (
         <div className="mb-4">
           <div className="font-pixel text-retro-gold mb-2" style={{ fontSize: 9 }}>
-            YOUR ACTIVE BATTLES:
+            {t("battle.lobby.yourActive")}
           </div>
           {myActiveBattles.map((b) => {
             const needsAction = b.status === 2 && b.loser  === me;
@@ -242,7 +245,7 @@ function Lobby({
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <span className="font-pixel text-retro-gold" style={{ fontSize: 10 }}>
-                      BATTLE #{b.id}
+                      {t("battle.lobby.battleNum", { id: b.id })}
                     </span>
                     <span className="ml-2 text-sm opacity-60">{b.poolLabel}</span>
                   </div>
@@ -255,16 +258,16 @@ function Lobby({
                         b.status === 2 ? "#FF3333" : "#aaa",
                       border: "1px solid currentColor",
                     }}>
-                      {BATTLE_STATUS[b.status as keyof typeof BATTLE_STATUS]}
+                      {t(`status.${b.status}`)}
                     </span>
                     {needsAction && (
                       <span className="font-pixel text-retro-red animate-blink" style={{ fontSize: 8 }}>
-                        PAY OR FORFEIT
+                        {t("battle.lobby.payOrForfeit")}
                       </span>
                     )}
                     {canClaim && (
                       <span className="font-pixel text-retro-win" style={{ fontSize: 8 }}>
-                        CLAIM
+                        {t("battle.lobby.claim")}
                       </span>
                     )}
                   </div>
@@ -277,16 +280,16 @@ function Lobby({
 
       {/* Open battles */}
       <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>
-        OPEN BATTLES ({openBattles.length}):
+        {t("battle.lobby.open", { count: openBattles.length })}
       </div>
 
       {loading && openBattles.length === 0 ? (
         <div className="retro-panel text-center py-6">
-          <div className="text-retro-cyan animate-blink">LOADING...</div>
+          <div className="text-retro-cyan animate-blink">{t("common.loading")}</div>
         </div>
       ) : openBattles.length === 0 ? (
         <div className="retro-panel text-center py-6">
-          <div className="text-sm opacity-60">No open battles. Be the first!</div>
+          <div className="text-sm opacity-60">{t("battle.lobby.noOpen")}</div>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -299,12 +302,12 @@ function Lobby({
                   <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
                     <span className="font-pixel text-retro-cyan" style={{ fontSize: 10 }}>#{b.id}</span>
                     <span className="text-retro-gold font-pixel" style={{ fontSize: 12 }}>{b.poolLabel}</span>
-                    <span className="text-xs opacity-50 truncate">by {shortAddr(b.playerA)}</span>
+                    <span className="text-xs opacity-50 truncate">{t("common.by")} {shortAddr(b.playerA)}</span>
                   </div>
                   {isOwn ? (
                     <button onClick={() => handleCancel(b)} disabled={busy === b.id}
                       className="retro-btn retro-btn-red" style={{ fontSize: 8, padding: "3px 8px" }}>
-                      {busy === b.id ? "..." : "CANCEL"}
+                      {busy === b.id ? "..." : t("battle.lobby.cancel")}
                     </button>
                   ) : isJoining ? (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -314,7 +317,7 @@ function Lobby({
                         value={selectedChip ?? ""}
                         onChange={(e) => setSelectedChip(e.target.value || null)}
                       >
-                        <option value="">Pick chip</option>
+                        <option value="">{t("battle.lobby.pickChip")}</option>
                         {chips.map((c) => (
                           <option key={c.asset} value={c.asset}>
                             #{c.token_id} · …{c.asset.slice(-4)}
@@ -327,7 +330,7 @@ function Lobby({
                         className="retro-btn retro-btn-gold"
                         style={{ fontSize: 8, padding: "3px 8px" }}
                       >
-                        {busy === b.id ? "JOINING..." : "FIGHT!"}
+                        {busy === b.id ? t("battle.lobby.joining") : t("battle.lobby.fight")}
                       </button>
                       <button
                         onClick={() => { setJoining(null); setSelectedChip(null); }}
@@ -340,13 +343,13 @@ function Lobby({
                       onClick={() => setJoining(b.id)}
                       className="retro-btn retro-btn-gold"
                       style={{ fontSize: 8, padding: "3px 8px" }}
-                    >JOIN</button>
+                    >{t("battle.lobby.join")}</button>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-xs opacity-50">
-                  <span>chip …{b.chipA.slice(-4)}</span>
+                  <span>{t("battle.lobby.chipTail", { tail: b.chipA.slice(-4) })}</span>
                   <span>|</span>
-                  <span>{Math.floor((Date.now() / 1000 - b.createdAt) / 60)}m ago</span>
+                  <span>{t("battle.lobby.minAgo", { n: Math.floor((Date.now() / 1000 - b.createdAt) / 60) })}</span>
                 </div>
               </div>
             );
@@ -358,7 +361,7 @@ function Lobby({
       {rollingBattles.length > 0 && (
         <div className="mt-4">
           <div className="font-pixel text-retro-magenta mb-2" style={{ fontSize: 9 }}>
-            ROLLING ({rollingBattles.length}):
+            {t("battle.lobby.rolling", { count: rollingBattles.length })}
           </div>
           {rollingBattles.map((b) => (
             <div
@@ -372,7 +375,7 @@ function Lobby({
                   #{b.id} — {b.poolLabel}
                 </span>
                 <span className="animate-blink text-retro-magenta" style={{ fontSize: 12 }}>
-                  WAITING FOR VRF...
+                  {t("battle.lobby.waitingForVrf")}
                 </span>
               </div>
             </div>
@@ -388,6 +391,7 @@ function Lobby({
 // ============================================================
 
 function CreateBattle({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const arena = useArenaProgram();
   const { chips } = useChipsByOwner(publicKey?.toBase58());
@@ -423,15 +427,15 @@ function CreateBattle({ onBack }: { onBack: () => void }) {
   return (
     <div>
       <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>
-        &lt; BACK
+        {t("battle.create.back")}
       </button>
       <div className="retro-panel mb-4">
         <div className="font-pixel text-retro-gold mb-3" style={{ fontSize: 11 }}>
-          &gt; CREATE NEW BATTLE
+          {t("battle.create.title")}
         </div>
 
         <div className="mb-4">
-          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>1. SELECT POOL:</div>
+          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>{t("battle.create.step1")}</div>
           <div className="flex gap-2 flex-wrap">
             {POOL_TIERS.map((p) => (
               <button
@@ -448,14 +452,14 @@ function CreateBattle({ onBack }: { onBack: () => void }) {
             ))}
           </div>
           <div className="text-xs opacity-50 mt-1">
-            If you lose: pay {POOL_TIERS[tier].label} to keep chip, or forfeit chip
+            {t("battle.create.loseHint", { pool: POOL_TIERS[tier].label })}
           </div>
         </div>
 
         <div className="mb-4">
-          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>2. SELECT YOUR CHIP:</div>
+          <div className="font-pixel text-retro-cyan mb-2" style={{ fontSize: 9 }}>{t("battle.create.step2")}</div>
           {chips.length === 0 ? (
-            <div className="text-sm opacity-50">No chips. Mint one first!</div>
+            <div className="text-sm opacity-50">{t("battle.create.noChips")}</div>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {chips.map((c) => (
@@ -482,8 +486,8 @@ function CreateBattle({ onBack }: { onBack: () => void }) {
           style={{ fontSize: 12 }}
         >
           {busy
-            ? ">> CONFIRM IN WALLET..."
-            : `>> CREATE ${POOL_TIERS[tier].label} BATTLE <<`}
+            ? t("battle.create.confirm")
+            : t("battle.create.cta", { pool: POOL_TIERS[tier].label })}
         </button>
       </div>
     </div>
@@ -495,6 +499,7 @@ function CreateBattle({ onBack }: { onBack: () => void }) {
 // ============================================================
 
 function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => void }) {
+  const { t } = useTranslation();
   const { publicKey } = useWallet();
   const arena    = useArenaProgram();
   const chipNft  = useChipNftProgram();
@@ -521,9 +526,9 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
   if (!battle) {
     return (
       <div>
-        <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>&lt; BACK</button>
+        <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>{t("battle.watch.back")}</button>
         <div className="retro-panel text-center py-8">
-          <div className="animate-blink text-retro-cyan">LOADING BATTLE #{battleId}…</div>
+          <div className="animate-blink text-retro-cyan">{t("battle.watch.loading", { id: battleId })}</div>
         </div>
       </div>
     );
@@ -653,7 +658,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
 
   return (
     <div>
-      <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>&lt; BACK</button>
+      <button onClick={onBack} className="retro-btn mb-4" style={{ fontSize: 8, padding: "3px 8px" }}>{t("battle.watch.back")}</button>
 
       <div className="retro-panel" style={{
         borderColor:
@@ -662,8 +667,8 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
       }}>
         {/* Header */}
         <div className="text-center mb-4">
-          <div className="font-pixel text-retro-gold" style={{ fontSize: 14 }}>BATTLE #{battleId}</div>
-          <div className="text-sm">{poolLabel} POOL</div>
+          <div className="font-pixel text-retro-gold" style={{ fontSize: 14 }}>{t("battle.watch.battleNum", { id: battleId })}</div>
+          <div className="text-sm">{t("battle.watch.poolSuffix", { pool: poolLabel })}</div>
           <div className="font-pixel mt-1 inline-block px-3 py-0.5" style={{
             fontSize: 9,
             color:
@@ -673,7 +678,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
               status === 3 ? "#00FF00" : "#666",
             border: "1px solid currentColor",
           }}>
-            {BATTLE_STATUS[status as keyof typeof BATTLE_STATUS]}
+            {t(`status.${status}`)}
           </div>
         </div>
 
@@ -681,7 +686,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
         <div className="flex items-center justify-center gap-2 sm:gap-4 mb-4">
           <div className="text-center min-w-0">
             <div className="font-pixel mb-1 truncate" style={{ fontSize: 8, color: isPlayerA ? "#FFD700" : "#00FFFF" }}>
-              {isPlayerA ? "YOU" : shortAddr(battle.playerA?.toBase58?.())}
+              {isPlayerA ? t("common.you") : shortAddr(battle.playerA?.toBase58?.())}
             </div>
             <ChipCard asset={battle.chipA?.toBase58?.()} rarity={0} size="md" />
           </div>
@@ -690,10 +695,10 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
             <div className="font-pixel animate-glow" style={{
               fontSize: 20,
               color: status === 1 ? "#FF00FF" : status === 2 ? "#FFD700" : "#4a4a8a",
-            }}>VS</div>
+            }}>{t("battle.watch.vs")}</div>
             {status === 1 && (
               <div className="animate-blink text-retro-magenta mt-1 text-center" style={{ fontSize: 11 }}>
-                ROLLING…
+                {t("battle.watch.rolling")}
               </div>
             )}
           </div>
@@ -701,8 +706,8 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           <div className="text-center min-w-0">
             <div className="font-pixel mb-1 truncate" style={{ fontSize: 8, color: isPlayerB ? "#FFD700" : "#00FFFF" }}>
               {battle.playerB?.equals?.(new PublicKey("11111111111111111111111111111111"))
-                ? "???"
-                : isPlayerB ? "YOU" : shortAddr(battle.playerB?.toBase58?.())}
+                ? t("battle.watch.unknown")
+                : isPlayerB ? t("common.you") : shortAddr(battle.playerB?.toBase58?.())}
             </div>
             <ChipCard asset={battle.chipB?.toBase58?.()} rarity={0} size="md" />
           </div>
@@ -711,7 +716,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
         {/* Status-specific actions */}
         {status === 1 && (
           <div className="text-center py-4">
-            <div className="text-xs opacity-50 mb-2">Waiting for VRF…</div>
+            <div className="text-xs opacity-50 mb-2">{t("battle.watch.waitingForVrf")}</div>
             {(isPlayerA || isPlayerB) && (
               <button
                 onClick={forceResolve}
@@ -719,7 +724,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
                 className="retro-btn retro-btn-red px-4 py-2"
                 style={{ fontSize: 9 }}
               >
-                {busy === "force" ? "RESOLVING..." : "FORCE RESOLVE (after 1h)"}
+                {busy === "force" ? t("battle.watch.resolving") : t("battle.watch.forceResolve")}
               </button>
             )}
           </div>
@@ -734,24 +739,24 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
               color: isWinner ? "#00FF88" : isLoser ? "#FF4444" : "#FFD700",
               textShadow: `0 0 15px currentColor`,
             }}>
-              {isWinner ? "*** YOU WON! ***"
-               : isLoser ? "*** YOU LOST ***"
-               : `WINNER: ${shortAddr(battle.winner?.toBase58?.())}`}
+              {isWinner ? t("battle.watch.youWon")
+               : isLoser ? t("battle.watch.youLost")
+               : t("battle.watch.winnerIs", { addr: shortAddr(battle.winner?.toBase58?.()) })}
             </div>
 
             {isWinner && (
               <div className="retro-panel mb-3" style={{ borderColor: "#00FF00", background: "#001a11" }}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-retro-win font-pixel" style={{ fontSize: 10 }}>CLAIM YOUR CHIP</div>
-                    <div className="text-xs opacity-60 mt-1">Your chip is in escrow.</div>
+                    <div className="text-retro-win font-pixel" style={{ fontSize: 10 }}>{t("battle.watch.claimYourChip")}</div>
+                    <div className="text-xs opacity-60 mt-1">{t("battle.watch.chipInEscrow")}</div>
                   </div>
                   <button
                     onClick={claim} disabled={busy !== null}
                     className="retro-btn retro-btn-gold px-4"
                     style={{ fontSize: 9 }}
                   >
-                    {busy === "claim" ? "CLAIMING..." : "CLAIM CHIP"}
+                    {busy === "claim" ? t("battle.watch.claiming") : t("battle.watch.claimChip")}
                   </button>
                 </div>
               </div>
@@ -760,7 +765,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
             {isLoser && (
               <div className="retro-panel" style={{ borderColor: "#FF3333" }}>
                 <div className="font-pixel text-retro-red text-center mb-3" style={{ fontSize: 10 }}>
-                  CHOOSE YOUR FATE:
+                  {t("battle.watch.chooseFate")}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -768,18 +773,18 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
                     className="retro-btn retro-btn-gold py-4"
                     style={{ fontSize: 9 }}
                   >
-                    <div>PAY TO KEEP CHIP</div>
-                    <div className="mt-1 text-xs opacity-70">{poolLabel} (95% to winner)</div>
-                    {busy === "pay" && <div className="mt-1 animate-blink">PAYING...</div>}
+                    <div>{t("battle.watch.payToKeep")}</div>
+                    <div className="mt-1 text-xs opacity-70">{t("battle.watch.payToKeepSub", { pool: poolLabel })}</div>
+                    {busy === "pay" && <div className="mt-1 animate-blink">{t("battle.watch.paying")}</div>}
                   </button>
                   <button
                     onClick={forfeit} disabled={busy !== null}
                     className="retro-btn retro-btn-red py-4"
                     style={{ fontSize: 9 }}
                   >
-                    <div>FORFEIT CHIP</div>
-                    <div className="mt-1 text-xs opacity-70">No payment</div>
-                    {busy === "forfeit" && <div className="mt-1 animate-blink">FORFEITING...</div>}
+                    <div>{t("battle.watch.forfeitChip")}</div>
+                    <div className="mt-1 text-xs opacity-70">{t("battle.watch.forfeitSub")}</div>
+                    {busy === "forfeit" && <div className="mt-1 animate-blink">{t("battle.watch.forfeiting")}</div>}
                   </button>
                 </div>
               </div>
@@ -794,19 +799,19 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
               color: isWinner ? "#00FF88" : isLoser ? "#FF4444" : "#FFD700",
               textShadow: `0 0 20px currentColor`,
             }}>
-              {isWinner ? "VICTORY!" : isLoser ? "DEFEAT" : "BATTLE COMPLETE"}
+              {isWinner ? t("battle.watch.victory") : isLoser ? t("battle.watch.defeat") : t("battle.watch.complete")}
             </div>
             <div className="text-sm opacity-60">
-              Resolution: {battle.resolution === 1 ? "PAID"
-                : battle.resolution === 2 ? "FORFEITED"
-                : battle.resolution === 3 ? "EXPIRED" : "—"}
+              {t("battle.watch.resolutionLabel")} {battle.resolution === 1 ? t("resolution.1")
+                : battle.resolution === 2 ? t("resolution.2")
+                : battle.resolution === 3 ? t("resolution.3") : "—"}
             </div>
           </div>
         )}
 
         {status === 4 && (
           <div className="text-center py-4 opacity-50">
-            <div className="font-pixel" style={{ fontSize: 12 }}>BATTLE CANCELLED</div>
+            <div className="font-pixel" style={{ fontSize: 12 }}>{t("battle.watch.cancelled")}</div>
           </div>
         )}
       </div>
@@ -835,6 +840,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
 // ============================================================
 
 export default function BattlePage({ initialWatchId }: { initialWatchId?: number | null } = {}) {
+  const { t } = useTranslation();
   const { connected } = useWallet();
   const [view, setView] = useState<View>(
     initialWatchId != null ? "watch" : "lobby"
@@ -854,12 +860,12 @@ export default function BattlePage({ initialWatchId }: { initialWatchId?: number
       <div className="p-2 sm:p-4 max-w-3xl mx-auto">
         <div className="text-center mb-4">
           <h1 className="font-pixel text-retro-magenta animate-glow" style={{ fontSize: 18 }}>
-            BATTLE ARENA
+            {t("battle.title")}
           </h1>
         </div>
         <div className="retro-panel text-center py-8">
           <div className="font-pixel text-retro-gold mb-3" style={{ fontSize: 14 }}>
-            CONNECT WALLET TO BATTLE
+            {t("battle.connect")}
           </div>
           <div className="flex justify-center mt-4">
             <WalletMultiButton />
@@ -873,7 +879,7 @@ export default function BattlePage({ initialWatchId }: { initialWatchId?: number
     <div className="p-2 sm:p-4 max-w-3xl mx-auto">
       <div className="text-center mb-4">
         <h1 className="font-pixel text-retro-magenta animate-glow" style={{ fontSize: 18 }}>
-          BATTLE ARENA
+          {t("battle.title")}
         </h1>
       </div>
 

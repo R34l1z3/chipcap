@@ -87,5 +87,92 @@
     "cta": "{{rarity}} चिप मिंट करें",
     "footnote": "हर मिंट एक नया Metaplex Core Asset + ChipData PDA बनाता है।",
     "toast": "{{rarity}} मिंट हुआ!"
+  },
+  "status": {
+    "0": "प्रतीक्षा",
+    "1": "रोलिंग",
+    "2": "निर्णीत",
+    "3": "निपटाया गया",
+    "4": "रद्द"
+  },
+  "resolution": {
+    "1": "भुगतान किया",
+    "2": "चिप त्यागी",
+    "3": "समाप्त"
+  },
+  "battle": {
+    "title": "बैटल अरेना",
+    "connect": "लड़ने के लिए वॉलेट कनेक्ट करें",
+    "balance": {
+      "title": "आंतरिक बैलेंस",
+      "free": "उपलब्ध",
+      "locked": "लॉक्ड",
+      "deposit": "जमा करें",
+      "depositing": "जमा हो रहा...",
+      "withdrawAll": "सब निकालें",
+      "withdrawing": "निकाल रहा...",
+      "amountPlaceholder": "SOL"
+    },
+    "lobby": {
+      "title": "> बैटल लॉबी",
+      "createLong": "+ बैटल बनाएं",
+      "createShort": "+ बनाएं",
+      "yourActive": "तुम्हारी सक्रिय बैटल:",
+      "open": "खुली बैटलें ({{count}}):",
+      "rolling": "रोलिंग ({{count}}):",
+      "battleNum": "बैटल #{{id}}",
+      "payOrForfeit": "भुगतान या त्याग",
+      "claim": "लें",
+      "noOpen": "कोई खुली बैटल नहीं। पहले बनो!",
+      "waitingForVrf": "VRF का इंतज़ार...",
+      "pickChip": "चिप चुनें",
+      "fight": "लड़ो!",
+      "joining": "जुड़ रहा...",
+      "join": "जुड़ें",
+      "cancel": "रद्द करें",
+      "minAgo": "{{n}}मि पहले",
+      "chipTail": "चिप …{{tail}}"
+    },
+    "create": {
+      "back": "< वापस",
+      "title": "> नई बैटल बनाएं",
+      "step1": "1. पूल चुनें:",
+      "step2": "2. अपना चिप चुनें:",
+      "loseHint": "अगर हारे: चिप रखने के लिए {{pool}} दें, या चिप त्यागें",
+      "noChips": "कोई चिप नहीं। पहले एक मिंट करें!",
+      "confirm": ">> वॉलेट में पुष्टि करें...",
+      "cta": ">> {{pool}} बैटल बनाएं <<"
+    },
+    "watch": {
+      "back": "< वापस",
+      "loading": "बैटल #{{id}} लोड हो रही…",
+      "battleNum": "बैटल #{{id}}",
+      "poolSuffix": "{{pool}} पूल",
+      "unknown": "???",
+      "vs": "VS",
+      "rolling": "रोलिंग…",
+      "waitingForVrf": "VRF का इंतज़ार…",
+      "forceResolve": "बलपूर्वक हल (1घ बाद)",
+      "resolving": "हल हो रहा...",
+      "youWon": "*** तुम जीते! ***",
+      "youLost": "*** तुम हारे ***",
+      "winnerIs": "विजेता: {{addr}}",
+      "claimYourChip": "अपना चिप लें",
+      "chipInEscrow": "तुम्हारा चिप एस्क्रो में है।",
+      "claimChip": "चिप लें",
+      "claiming": "ले रहा...",
+      "chooseFate": "अपनी किस्मत चुनें:",
+      "payToKeep": "चिप रखने को भुगतान",
+      "payToKeepSub": "{{pool}} (95% विजेता को)",
+      "paying": "भुगतान हो रहा...",
+      "forfeitChip": "चिप त्यागें",
+      "forfeitSub": "कोई भुगतान नहीं",
+      "forfeiting": "त्याग रहा...",
+      "victory": "विजय!",
+      "defeat": "पराजय",
+      "complete": "बैटल पूरी",
+      "resolutionLabel": "परिणाम:",
+      "cancelled": "बैटल रद्द"
+    }
   }
 }

@@ -87,5 +87,92 @@
     "cta": "铸造 {{rarity}} 筹码",
     "footnote": "每次铸造都会创建一个新的 Metaplex Core Asset + ChipData PDA。",
     "toast": "已铸造 {{rarity}}！"
+  },
+  "status": {
+    "0": "等待中",
+    "1": "开奖中",
+    "2": "已判定",
+    "3": "已结算",
+    "4": "已取消"
+  },
+  "resolution": {
+    "1": "已支付",
+    "2": "已弃筹",
+    "3": "已过期"
+  },
+  "battle": {
+    "title": "战斗竞技场",
+    "connect": "连接钱包以参战",
+    "balance": {
+      "title": "内部余额",
+      "free": "可用",
+      "locked": "锁定",
+      "deposit": "存入",
+      "depositing": "存入中...",
+      "withdrawAll": "全部提取",
+      "withdrawing": "提取中...",
+      "amountPlaceholder": "SOL"
+    },
+    "lobby": {
+      "title": "> 战斗大厅",
+      "createLong": "+ 创建战斗",
+      "createShort": "+ 创建",
+      "yourActive": "你的进行中战斗：",
+      "open": "公开战斗 ({{count}})：",
+      "rolling": "开奖中 ({{count}})：",
+      "battleNum": "战斗 #{{id}}",
+      "payOrForfeit": "支付或弃筹",
+      "claim": "领取",
+      "noOpen": "暂无公开战斗。当第一个吧！",
+      "waitingForVrf": "等待 VRF...",
+      "pickChip": "选择筹码",
+      "fight": "开战！",
+      "joining": "加入中...",
+      "join": "加入",
+      "cancel": "取消",
+      "minAgo": "{{n}} 分钟前",
+      "chipTail": "筹码 …{{tail}}"
+    },
+    "create": {
+      "back": "< 返回",
+      "title": "> 创建新战斗",
+      "step1": "1. 选择奖池：",
+      "step2": "2. 选择你的筹码：",
+      "loseHint": "若你输了：支付 {{pool}} 保留筹码，或弃掉筹码",
+      "noChips": "没有筹码。先铸造一个！",
+      "confirm": ">> 在钱包中签名...",
+      "cta": ">> 创建 {{pool}} 战斗 <<"
+    },
+    "watch": {
+      "back": "< 返回",
+      "loading": "加载战斗 #{{id}}…",
+      "battleNum": "战斗 #{{id}}",
+      "poolSuffix": "{{pool}} 奖池",
+      "unknown": "???",
+      "vs": "VS",
+      "rolling": "开奖中…",
+      "waitingForVrf": "等待 VRF…",
+      "forceResolve": "强制结算（1小时后）",
+      "resolving": "结算中...",
+      "youWon": "*** 你赢了！ ***",
+      "youLost": "*** 你输了 ***",
+      "winnerIs": "胜者：{{addr}}",
+      "claimYourChip": "领取你的筹码",
+      "chipInEscrow": "你的筹码在托管中。",
+      "claimChip": "领取筹码",
+      "claiming": "领取中...",
+      "chooseFate": "选择你的命运：",
+      "payToKeep": "支付以保留筹码",
+      "payToKeepSub": "{{pool}}（95% 给胜者）",
+      "paying": "支付中...",
+      "forfeitChip": "弃掉筹码",
+      "forfeitSub": "无需支付",
+      "forfeiting": "弃筹中...",
+      "victory": "胜利！",
+      "defeat": "失败",
+      "complete": "战斗完成",
+      "resolutionLabel": "结果：",
+      "cancelled": "战斗已取消"
+    }
   }
 }
