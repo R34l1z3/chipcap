@@ -364,7 +364,42 @@ Already adapted (don't redo):
 
 **Product / UX work**
 - **Unified `/games/:id` route** — shareable deep-link that auto-resolves to the right mode.  Needs `react-router` (not yet a dep).  Deferred from SEC-24.
-- **Referral system** — DEFERRED by user (2026-05-29: "too early for announce, no player-acquisition need yet, testing with friends").  When revisited: design discussion already had it framed as a "closed club" — user wants invites to feel desirable + referrer earns from it.  Options floated (no decision): econ reward = % of referee fee (lifetime) / % of winnings / milestone bounty / ticket-airdrop / compounding-rate; status = tier badges / Founder-NFT-chip on milestones / public invite-tree; scarcity = capped invites per user / invite-as-SPL-NFT / invite-only launch.  My recommendation on the table was **A+G+I** (lifetime fee-share + Founder NFT chip at 5/10/25 referrals + 5 lifetime invites unlocking more per tier).  Pick the model BEFORE coding (same discipline as the tournament ticket-vs-PDA decision).
+
+### Active product backlog (2026-06-09, user-requested)
+
+The four items below were explicitly added to "near-term tasks" by the user (after the i18n batches 2/3 shipped and battle #25 was unstuck).  Each will be its own SEC-* in a future cycle.  Order in this list is the user's stated order — not necessarily the right execution order; design discussions below in each item.  **Don't start coding any of them without confirming scope with the user first** — three of the four are architecture-shaping decisions that fork the codebase if picked wrong.
+
+1. **Referral system** — UNBLOCKED (was DEFERRED 2026-05-29 "too early for announce", user reactivated 2026-06-09).  Design discussion already had it framed as a "closed club" — invites feel desirable + referrer earns from it.  Options floated (still no decision): econ reward = % of referee fee (lifetime) / % of winnings / milestone bounty / ticket-airdrop / compounding-rate; status = tier badges / Founder-NFT-chip on milestones / public invite-tree; scarcity = capped invites per user / invite-as-SPL-NFT / invite-only launch.  My recommendation on the table was **A+G+I** (lifetime fee-share + Founder NFT chip at 5/10/25 referrals + 5 lifetime invites unlocking more per tier).  **Pick the model BEFORE coding** (same discipline as the tournament ticket-vs-PDA decision).  On-chain shape options: (a) `Referral` PDA `[ref, referrer_pubkey]` storing total fee-share earned; (b) reuse `UserAccount.balance` as the credit ledger.  Indexer needs `referrals` table tracking referrer→referee + lifetime $ flow.
+
+2. **Tier system for chips (replace 5-rarity)** — currently `Rarity = Common/Uncommon/Rare/Epic/Legendary` (5 levels, mint-time only, never changes after).  Replace with **Tier 1/2/3/4** with **progression** (chips level up).  Wide-blast-radius change:
+   - **Programs**: `chip-nft::ChipData.rarity: u8` → `tier: u8` + new `level/xp/progress` fields.  Need a `level_up_chip` ix gated on some xp source (battle wins?  ticket burn?  SOL burn?).  `_reserved` padding from SEC-20 can absorb new fields without account migration if shape stays under 64 bytes — but `Rarity → Tier` rename IS a hard break, every existing chip on devnet has old layout.  Either (a) migration ix that reads old `rarity` and writes `tier=rarity/2+1` in place (cheapest), or (b) burn-and-reissue.
+   - **Mint prices**: currently `[0.02, 0.1, 0.4, 1, 4]` for 5 rarities → needs new pricing curve for 4 tiers.
+   - **Indexer**: `chips.rarity INT` → `chips.tier INT`; `chips.level` / `chips.xp` columns; migration script.
+   - **Frontend**: `RARITIES` const → `TIERS` const (config); `ChipCard` colors/borders; MintPage rarity picker → tier picker.  Progression UI somewhere — chip detail panel? Inventory?
+   - **i18n**: `rarity.{0..4}` keys → `tier.{1..4}` keys (en + 5 mirrored locales — touches BATCH 1 work but additive).
+   - **NFT metadata**: `chiptap-nft-metadata/` SVG generators iterate over rarity ids — full rerun.
+   - **Smoke regressions**: every `*-smoke.js` mints chips by rarity — update.
+   - **Open design question (DECIDE FIRST)**: what's the progression source?  Battle wins (current `bumpChipStats` already counts these) feel natural but means PvE-less game = wins are zero-sum (someone else loses xp).  Ticket-burn means tickets become dual-use (tournament entry AND chip upgrade).  Free time-based (1 xp/day) feels Web2-ish.  **Don't start the program-side rename until this answer is locked.**
+
+3. **Web2-friendly on/off-ramp + P2P system** — current barrier: new player needs Phantom + devnet SOL + the BootDiagnostics dance before they can mint anything.  Goal stated by user: "упростить вход для пользователей слабо понимающих в блокчейне, а именно ввод и вывод средств. P2p система".  Two intertwined problems:
+   - **On-ramp** (fiat → SOL inside the game): MoonPay / Ramp / Transak SDKs all have Solana support but charge 2-5% + KYC.  Alternative: **sponsored wallet** — project pays gas + airdrops a tiny SOL reserve via `ensureUserAccount` + a one-shot `welcome_grant` ix on first interaction, recouped via fee on first win.  Or **embedded wallet** (Privy / Web3Auth — auth with Google/email, key custodied by their SDK, user never sees a seed phrase).  Privy has Solana support now.  Tradeoff: embedded wallet = 5 min onboarding but auth dependency + key custody risk; native Phantom = friction but pure self-custody (which is half the game's value prop given the "provably fair" pitch).
+   - **P2P off-ramp** (SOL → fiat without going through a CEX): currently impossible inside the game.  Options: (a) integrate a P2P fiat marketplace (Binance P2P API, Coinbase P2P) — heavy KYC, jurisdiction issues; (b) **internal P2P marketplace** where users post buy/sell offers for chips/tickets in SOL, with escrow handled by an arena PDA — this turns chips into tradable assets and creates secondary market liquidity (also pairs with Tier system #2 — high-tier chips become tradable).  (c) ignore off-ramp entirely; users withdraw to wallet and DIY exit on a CEX.
+   - **User likely means (b)**: a P2P chip/ticket marketplace inside the game.  Confirm before designing.  On-chain shape: `Listing` PDA per offer (`[listing, owner, asset]`), `make_listing / cancel_listing / fill_listing` ixs, fee on fill (% to treasury, like battle fee).
+   - **My take**: solve **on-ramp via Privy embedded wallet FIRST** (single biggest funnel killer is "install Phantom + buy SOL on Binance + bridge to devnet"), then layer P2P marketplace.  Off-ramp can stay "withdraw to wallet → DIY" through alpha.
+
+4. **Visual polish pass** — animations, sounds, menu rework.  Loose list, not yet scoped:
+   - Battle animations (current state: status badges flip colors, no actual fight scene).  Even minimal VS-screen with chip art clashing + a 2-second "rolling dice" animation while waiting for VRF would massively change feel.
+   - SFX: every retro game has them.  Pickable kit (8-bit), gated on user setting (mute by default — autoplay audio is hostile).  Hook points: CONNECT, MINT, JOIN, ROLL, WIN, LOSE, CLAIM.
+   - Menu rework — what's currently a horizontal tab strip (`RetroHeader.tsx`) feels arcade-cabinet but cramped on mobile.  Consider a "start screen" / launcher concept.  User has prior screenshot review pending from SEC-24 — bundle this rework with that pass.
+   - Performance budget: current JS bundle is 1 MB (300 KB gzip) — adding sound assets + sprite art could double it.  Lazy-load battle animations only on the BattlePage chunk.
+
+**Concrete sequencing recommendation** (NOT a decision):
+- **Now**: relayer on Fly.io (#0 blocker, in `Infrastructure / production blockers`) — without this, none of the above matter because the game still hangs.
+- **Then**: Tier rework (#2) BEFORE Referral (#1) — because referral rewards will likely be expressed in "tier-N chip airdrops" or "X tickets" which depend on the chip model being finalized.
+- **Then**: Web2 on-ramp via Privy (#3) — biggest funnel impact, can ship before referral if going public devnet.
+- **Then**: Visual polish (#4) — last because every page will get reskinned during the above and you don't want to redo it.
+- **Then**: Referral (#1) — once player flow is smooth enough that referees actually retain.
+- **P2P marketplace** is its own multi-week project — defer past first public devnet wave.
 
 ## How to resume
 
