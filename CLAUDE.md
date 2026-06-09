@@ -91,7 +91,22 @@ Regression suites (run after any program change):
 - `wsl -d Ubuntu -- bash -lc 'cd .../chiptap-solana-programs && SOLANA_RPC=https://api.devnet.solana.com node br-smoke.js'` — SEC-22 (Battle Royale 8-player end-to-end, **devnet only** — fund + mint + deposit + create + join × 8 + Switchboard + claim chips + claim winnings). Burns ~0.8+ SOL of throwaway funding; run sparingly. Also the SEC-24 regression for the `claim_chip_br` + `player_user` account layout.
 - `wsl -d Ubuntu -- bash -lc 'cd .../chiptap-solana-programs && SOLANA_RPC=https://api.devnet.solana.com node tournament-smoke.js'` — SEC-23 (8-player bracket: buy_ticket × 8 → register × 8 → start → 8 Switchboard cycles → claim_prize × 3 → claim_chip × 8). ~6 min.
 - `wsl -d Ubuntu -- bash -lc 'cd .../chiptap-solana-programs && SOLANA_RPC=https://api.devnet.solana.com node cancel-refund-smoke.js'` — SEC-24 (proves BR cancel→stake-refund: temporarily sets join_timeout→300s, 2 joins, expire→CANCELLED, asserts each claim_chip_br refunds the stake, restores timeout to 1800). ~6 min; mutates devnet config briefly (restored even on failure).
-- Operator helpers (not tests): `fill-br.js` / `fill-tournament.js` (fund N throwaways + join + auto-start, for filling a lobby created via the UI), `kick-tournament.js` (manually run Switchboard cycles for a tournament whose relayer missed the MatchRolling events — e.g. relayer was down at start_tournament).
+- Operator helpers (not tests): `fill-br.js` / `fill-tournament.js` (fund N throwaways + join + auto-start, for filling a lobby created via the UI), `kick-tournament.js` (manually run Switchboard cycles for a tournament whose relayer missed the MatchRolling events — e.g. relayer was down at start_tournament), `kick-battle.js` (same idea for a 1v1 battle stuck in ROLLING — `B_ID=N node kick-battle.js`).
+
+**Playbook — "battle/BR/tournament stuck in ROLLING > 30 min"** (recurring while the relayer lives on the user's PC):
+1. Hit `/api/battles?status=rolling` (or `/battle-royales`, `/tournaments`) on the indexer to confirm `decide_tx: null` and which row(s) are stuck.
+2. Run the matching `kick-*.js` helper from `chiptap-solana-programs/` via WSL **as root** (the relayer keypair is at `/root/.config/solana/id.json`):
+   - 1v1:        `wsl -d Ubuntu -u root -- bash -lc 'cd /mnt/c/.../chiptap-solana-programs && B_ID=N node kick-battle.js'`
+   - Tournament: `wsl -d Ubuntu -u root -- bash -lc 'cd /mnt/c/.../chiptap-solana-programs && T_ID=N node kick-tournament.js'`
+   - Battle Royale: no dedicated kick yet — fastest is restarting the relayer (next step) and letting it re-fulfill from the live subscription. Force-cancel button in the Watch UI is the user-facing fallback after vrf_timeout.
+3. Restart the relayer itself so it lives until the next PC reboot. The relayer process **dies when its parent wsl.exe call exits** — do NOT launch it via a one-shot `Bash`/`wsl -- nohup` tool call from here, that returns and the kernel reaps the process. The user must run it from a persistent WSL shell on their PC:
+   ```bash
+   sudo bash -c 'cd /mnt/c/.../chiptap-solana-relayer && nohup node src/index.js > /tmp/relayer.log 2>&1 & disown'
+   ```
+   then `sudo pgrep -af "node.*relayer.*src/index"` to confirm.
+4. The proper fix (already on the roadmap, blocker for friends-test) is hosting it — `fly.toml` is already in `chiptap-solana-relayer/`. Until then, treat every PC reboot as "battles will hang until relayer is re-started or kick-* is run".
+
+Recurrences so far (kept for pattern-matching, not exhaustive): T #20, T #23 needed `kick-tournament.js`; battle #25 needed `kick-battle.js` (2026-06-09, ~41h stuck — winner DAdhXgv…CmqR, seed 10263788496616174800, decide_tx 4ZEKsAi…UZ58m).
 - From `chiptap-solana-indexer/`:
   - `node test/idempotency.test.js` — SEC-5 (needs Postgres up; verifies SEC-15 composite index + SEC-9 `bumpChipStats` along the way)
   - `node test/events-prefix.test.js` — SEC-12 (pure unit, no infra)
