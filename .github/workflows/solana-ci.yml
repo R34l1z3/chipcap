@@ -88,12 +88,14 @@ jobs:
           path: ~/.cargo/bin/anchor
           key: ${{ runner.os }}-anchor-cli-${{ env.ANCHOR_VERSION }}
 
+      # Direct pinned install from crates.io — the previous approach built
+      # avm from anchor's UNPINNED git master, whose MSRV moved past our
+      # Rust 1.79 (exit 101 since ~May 24).  This mirrors the documented
+      # local toolchain: `RUSTUP_TOOLCHAIN=1.79.0 cargo install
+      # anchor-cli@0.30.1 --locked` (CLAUDE.md toolchain table).
       - name: Install Anchor CLI ${{ env.ANCHOR_VERSION }}
         if: steps.cache-anchor.outputs.cache-hit != 'true'
-        run: |
-          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
-          avm install ${ANCHOR_VERSION}
-          avm use ${ANCHOR_VERSION}
+        run: cargo install anchor-cli@${ANCHOR_VERSION} --locked --force
 
       - name: Setup Node 20
         uses: actions/setup-node@v4
@@ -243,8 +245,14 @@ jobs:
         run: node test/events-prefix.test.js
 
       - name: Boot + healthcheck + WS auth (SEC-6, SEC-13)
+        # WS_TOKEN must be visible to BOTH the server and ws-auth.test.js —
+        # the test connects with `?token=$WS_TOKEN` (defaults to secret123
+        # when unset, which mismatched the server's ci-secret and 4401'd
+        # the happy-path case).
+        env:
+          WS_TOKEN: ci-secret
         run: |
-          WS_TOKEN=ci-secret npm start > indexer.log 2>&1 &
+          npm start > indexer.log 2>&1 &
           PID=$!
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:3002/api/health >/dev/null; then
