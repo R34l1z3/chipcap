@@ -96,7 +96,7 @@ async function dumpEvents(sig, label) {
   async function mintFor(player) {
     const asset = Keypair.generate();
     const sig = await chipNft.methods
-      .mintChip(0, "ChipTap", "https://chiptap.gg/metadata/0.json")
+      .mintChip("ChipTap", "https://chiptap.gg/metadata/0.json")
       .accounts({
         config:   chipNftConfig,
         vault:    chipNftVault,

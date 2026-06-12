@@ -144,9 +144,12 @@ const chipNftIdl = {
       SP,
     ]),
     ix("set_mint_enabled",  [W("config"), S("owner")], [{ name: "enabled", type: "bool" }]),
-    ix("set_mint_price",    [W("config"), S("owner")], [{ name: "rarity", type: "u8" }, { name: "price_lamports", type: "u64" }]),
-    ix("set_max_supply",    [W("config"), S("owner")], [{ name: "rarity", type: "u8" }, { name: "supply", type: "u32" }]),
+    // SEC-26 — single flat price / supply (rarity args gone).
+    ix("set_mint_price",    [W("config"), S("owner")], [{ name: "price_lamports", type: "u64" }]),
+    ix("set_max_supply",    [W("config"), S("owner")], [{ name: "supply", type: "u64" }]),
     ix("set_battle_authority", [W("config"), S("owner")], [{ name: "authority", type: PUBKEY }]),
+    // SEC-26 — trusted owner of Battle/BattleRoyale accounts for record_chip_win.
+    ix("set_battle_arena_program", [W("config"), S("owner")], [{ name: "program", type: PUBKEY }]),
     ix("withdraw",          [W("config"), W("vault"), WS("owner"), SP], [{ name: "amount", type: "u64" }]),
     ix("mint_chip", [
       W ("config"),
@@ -157,11 +160,17 @@ const chipNftIdl = {
       MPL,
       SP,
     ], [
-      { name: "rarity", type: "u8" },
       { name: "name",   type: "string" },
       { name: "uri",    type: "string" },
     ]),
     // SEC-9 — `record_battle` removed.  Stats live in the indexer now.
+    // SEC-26 — permissionless win recording + tier auto-promotion.
+    ix("record_chip_win", [
+      A ("config"),
+      W ("chip_data"),
+      A ("game"),
+      S ("caller"),
+    ]),
   ],
   accounts: [acc("ChipNftConfig"), acc("ChipData")],
   events: [
@@ -172,61 +181,91 @@ const chipNftIdl = {
     // SEC-19
     ev("MintEnabledUpdated"),
     ev("MaxSupplyUpdated"),
+    // SEC-26
+    ev("BattleArenaProgramUpdated"),
+    ev("ChipWinRecorded"),
+    ev("ChipPromoted"),
   ],
   errors: [
     { code: 6000, name: "NotOwner",                    msg: "Caller is not the owner" },
     { code: 6001, name: "NotBattleAuthorityDeprecated", msg: "(deprecated)" },
     { code: 6002, name: "MintDisabled",        msg: "Mint is currently disabled" },
-    { code: 6003, name: "InvalidRarity",       msg: "Invalid rarity" },
-    { code: 6004, name: "MaxSupplyReached",    msg: "Maximum supply for this rarity has been reached" },
+    { code: 6003, name: "InvalidRarityDeprecated", msg: "(deprecated)" },
+    { code: 6004, name: "MaxSupplyReached",    msg: "Maximum supply has been reached" },
     { code: 6005, name: "InsufficientBalance", msg: "Vault has insufficient lamports above rent minimum" },
     { code: 6006, name: "ZeroAmount",          msg: "Amount must be greater than zero" },
     { code: 6007, name: "NameTooLong",         msg: "Asset name exceeds 32 bytes" },
     { code: 6008, name: "UriTooLong",          msg: "Asset URI exceeds 200 bytes" },
     { code: 6009, name: "MathOverflow",        msg: "Arithmetic overflow" },
+    // SEC-26 — record_chip_win.
+    { code: 6010, name: "ArenaProgramNotSet",  msg: "battle_arena_program is not configured" },
+    { code: 6011, name: "WrongGameProgram",    msg: "Game account is not owned by the registered battle-arena program" },
+    { code: 6012, name: "BadGameAccount",      msg: "Account is not a Battle or BattleRoyale" },
+    { code: 6013, name: "GameNotDecided",      msg: "Game is not decided yet" },
+    { code: 6014, name: "NotWinnerChip",       msg: "Chip is not the winner of this game" },
+    { code: 6015, name: "WinAlreadyRecorded",  msg: "Win for this game was already recorded" },
   ],
   types: [
     {
       name: "ChipNftConfig",
       type: { kind: "struct", fields: [
-        { name: "owner",            type: PUBKEY },
-        { name: "battle_authority", type: PUBKEY },
-        { name: "mint_enabled",     type: "bool" },
-        { name: "next_token_id",    type: "u64" },
-        { name: "mint_price",       type: arr("u64", 5) },
-        { name: "max_supply",       type: arr("u32", 5) },
-        { name: "minted_count",     type: arr("u32", 5) },
-        { name: "bump",             type: "u8" },
-        { name: "vault_bump",       type: "u8" },
+        { name: "owner",                type: PUBKEY },
+        { name: "battle_authority",     type: PUBKEY },
+        // SEC-26
+        { name: "battle_arena_program", type: PUBKEY },
+        { name: "mint_enabled",         type: "bool" },
+        { name: "next_token_id",        type: "u64" },
+        { name: "mint_price",           type: "u64" },
+        { name: "max_supply",           type: "u64" },
+        { name: "minted_count",         type: "u64" },
+        { name: "bump",                 type: "u8" },
+        { name: "vault_bump",           type: "u8" },
         // SEC-20 forward-compat padding
-        { name: "_reserved",        type: arr("u8", 64) },
+        { name: "_reserved",            type: arr("u8", 64) },
       ]},
     },
     {
       name: "ChipData",
       type: { kind: "struct", fields: [
-        { name: "asset",     type: PUBKEY },
-        { name: "token_id",  type: "u64" },
-        { name: "rarity",    type: "u8" },
-        { name: "minted_at", type: "i64" },
-        { name: "bump",      type: "u8" },
+        { name: "asset",            type: PUBKEY },
+        { name: "token_id",         type: "u64" },
+        // SEC-26 — tier + progression
+        { name: "tier",             type: "u8" },
+        { name: "progression_wins", type: "u32" },
+        { name: "last_game_id",     type: "u64" },
+        { name: "minted_at",        type: "i64" },
+        { name: "bump",             type: "u8" },
+        { name: "_reserved",        type: arr("u8", 16) },
       ]},
     },
     { name: "ChipNftInitialized",     type: { kind: "struct", fields: [{ name: "owner", type: PUBKEY }] } },
-    { name: "MintPriceUpdated",       type: { kind: "struct", fields: [{ name: "rarity", type: "u8" }, { name: "new_price", type: "u64" }] } },
+    { name: "MintPriceUpdated",       type: { kind: "struct", fields: [{ name: "new_price", type: "u64" }] } },
     { name: "BattleAuthorityUpdated", type: { kind: "struct", fields: [{ name: "authority", type: PUBKEY }] } },
     { name: "ChipMinted",             type: { kind: "struct", fields: [
       { name: "asset", type: PUBKEY },
       { name: "owner", type: PUBKEY },
       { name: "token_id", type: "u64" },
-      { name: "rarity", type: "u8" },
-      { name: "price",  type: "u64" },
+      { name: "tier",  type: "u8" },
+      { name: "price", type: "u64" },
     ] } },
     // SEC-19
     { name: "MintEnabledUpdated", type: { kind: "struct", fields: [{ name: "enabled", type: "bool" }] } },
     { name: "MaxSupplyUpdated",   type: { kind: "struct", fields: [
-      { name: "rarity", type: "u8" },
-      { name: "supply", type: "u32" },
+      { name: "supply", type: "u64" },
+    ] } },
+    // SEC-26
+    { name: "BattleArenaProgramUpdated", type: { kind: "struct", fields: [{ name: "program", type: PUBKEY }] } },
+    { name: "ChipWinRecorded", type: { kind: "struct", fields: [
+      { name: "asset",   type: PUBKEY },
+      { name: "game_id", type: "u64" },
+      { name: "wins",    type: "u32" },
+      { name: "tier",    type: "u8" },
+    ] } },
+    { name: "ChipPromoted", type: { kind: "struct", fields: [
+      { name: "asset",    type: PUBKEY },
+      { name: "old_tier", type: "u8" },
+      { name: "new_tier", type: "u8" },
+      { name: "wins",     type: "u32" },
     ] } },
   ],
 };

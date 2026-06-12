@@ -471,6 +471,25 @@ curl -s http://localhost:3002/api/health
 - **`/api/health` returns HTTP 503 when degraded** — Docker `depends_on: service_healthy` must check this, not just port 3002 being open
 - **WSL2 for Solana toolchain**, never native Windows
 
+## SEC-26 — Tier system (replaces 5-rarity) — IN PROGRESS
+
+**User decisions (2026-06-10/12, locked):**
+- Tiers **T0..T4**; every chip mints at **T0**, flat **0.02 SOL** (no more rarity picker).
+- Promotion by **cumulative wins**: T0→T1 at **100**, →T2 at **250**, →T3 at **550**, →T4 at **1550** (`TIER_THRESHOLDS` in chip-nft lib.rs).
+- **XP sources: 1v1 + Battle Royale wins ONLY** (tournaments excluded). Social quests will add progress later (Phase 3).
+- Progress is **per-chip** (user's wording: "прогресс фишек"). `ChipData` carries it; a leveled chip is a tradable asset (P2P synergy).
+- Perks: **visual** (now) → **fee discount per tier** (Phase 2) → **invite codes per tier** (Phase 3, with referral system).
+- Old devnet state: **wipe** — new program keypairs, fresh configs, no legacy airdrop, no mint limit.
+
+**Mechanism — `chip_nft::record_chip_win` (PERMISSIONLESS, no CPI from arena):**
+battle-arena is UNTOUCHED. Anyone (in practice the winner's client, bundled at claim time) submits the `Battle`/`BattleRoyale` account; chip-nft verifies: (1) account owner == `config.battle_arena_program` (set via new admin ix `set_battle_arena_program`, wired by init-programs.js), (2) 8-byte discriminator matches `Battle` [81,148,121,71,63,166,116,24] or `BattleRoyale` [236,95,128,245,19,52,28,163], (3) status DECIDED|SETTLED, (4) `chip_data.asset` == the WINNER's chip parsed from raw layout (Battle: player_a@16 chip_a@80 chip_b@112 status@145 winner@146; BR: status@16 num_joined@19 players@52+32i chips@308+32i winner@564), (5) `game.id > chip_data.last_game_id` (monotonic replay guard — valid because a chip is escrowed while playing, so its game ids strictly increase; 1v1+BR share the arena id counter). Emits `ChipWinRecorded{asset,game_id,wins,tier}` + `ChipPromoted{asset,old_tier,new_tier,wins}`. **Do NOT "simplify" this into a CPI from battle-arena — that's the SEC-9/SEC-10 BPF-stack grave.**
+
+**Layout changes (devnet-wipe-only, NOT upgrade-safe):** `ChipData{asset,token_id,tier:u8,progression_wins:u32,last_game_id:u64,minted_at,bump,_reserved[16]}` (SPACE 86); `ChipNftConfig` gains `battle_arena_program:Pubkey`, arrays `mint_price/max_supply/minted_count` collapse to single u64s (SPACE 195). `mint_chip(name,uri)` — rarity arg GONE. `set_mint_price(u64)` / `set_max_supply(u64)` — rarity arg gone. Error 6003 = `InvalidRarityDeprecated` (slot kept); new 6010-6015 (`ArenaProgramNotSet/WrongGameProgram/BadGameAccount/GameNotDecided/NotWinnerChip/WinAlreadyRecorded`). Events: `ChipMinted.rarity→tier`, `MintPriceUpdated/MaxSupplyUpdated` lose rarity, new `BattleArenaProgramUpdated`.
+
+**Status:** program + gen-idls + init-programs wiring + all 9 operator scripts' mintChip calls done. **Remaining:** WSL build verify → localnet smoke → devnet redeploy with NEW keypairs (gen-program-keys, declare_id! updates, .env updates everywhere: frontend Vercel, indexer Render, relayer) → indexer (`chips.rarity→tier`, `progression_wins`, ChipWinRecorded/ChipPromoted handlers) → frontend (TIERS const, MintPage single-button, ChipCard tier badge + progress bar, record_chip_win bundled into claim flows, i18n `tier.*` ×6) → re-subset Zpix. **Deploy timing needs user GO — wipe kills in-flight devnet battles.**
+
+Gotcha found en route: `build-direct.sh` actually ran `anchor build` WITH IDL (contradicting its CLAUDE.md description) — worked only while no one rebuilt; fixed to `--no-idl`. WSL toolchain lives under **root** (`/root/.cargo`, `/root/.local/share/solana`); default-user `$HOME` has none of it — always `wsl -u root`. MSYS quoting eats `bash -c '... && ...'` chains through wsl.exe — use script FILES, not inline `-c` one-liners.
+
 ## SEC-25 — i18n (multi-language) — IN PROGRESS
 
 6 languages: **en** (base/fallback) + **zh** Chinese, **ru** Russian, **hi** Hindi, **es** Spanish, **pt** Portuguese.  Stack: `react-i18next` + `i18next` + `i18next-browser-languagedetector`.

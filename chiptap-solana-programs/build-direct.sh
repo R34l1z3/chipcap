@@ -7,5 +7,7 @@ anchor --version
 echo "--- which solana ---"
 which solana
 solana --version
-echo "--- anchor build (with IDL) ---"
-anchor build 2>&1
+# IDL stage is broken on Rust >= 1.95 (proc_macro::SourceFile removed —
+# see CLAUDE.md "anchor build is broken").  IDLs come from gen-idls.js.
+echo "--- anchor build --no-idl ---"
+anchor build --no-idl 2>&1

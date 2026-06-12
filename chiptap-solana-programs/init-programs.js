@@ -134,6 +134,14 @@ async function maybeInit(name, fn) {
     .accounts({ config: chipNftConfig, owner: wallet.publicKey })
     .rpc();
 
+  // SEC-26 — record_chip_win only trusts Battle/BattleRoyale accounts
+  // owned by this program id.
+  log("wiring chip_nft.battle_arena_program ← arena.programId …");
+  await chipNft.methods
+    .setBattleArenaProgram(arena.programId)
+    .accounts({ config: chipNftConfig, owner: wallet.publicKey })
+    .rpc();
+
   log("wiring treasury.battle_arena ← arena.vault …");
   await treasury.methods
     .setBattleArena(arenaVault)

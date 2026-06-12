@@ -68,7 +68,7 @@ async function fund(to, sol) {
 }
 async function mintFor(player) {
   const asset = Keypair.generate();
-  await chipNft.methods.mintChip(0, "ChipTap", "https://chiptap.gg/metadata/0.json").accounts({
+  await chipNft.methods.mintChip("ChipTap", "https://chiptap.gg/metadata/0.json").accounts({
     config: chipNftConfig, vault: chipNftVault,
     asset: asset.publicKey, chipData: chipDataPda(asset.publicKey),
     payer: player.publicKey, mplCore: MPL_CORE,

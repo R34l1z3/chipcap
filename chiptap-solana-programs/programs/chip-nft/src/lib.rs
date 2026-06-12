@@ -1,20 +1,26 @@
 // ============================================================
 // programs/chip-nft/src/lib.rs
 //
-// Solana port of EVM ChipNFT.sol.
 // Each chip is a Metaplex Core Asset (one account, ~0.0035 SOL rent).
 // Per-chip game stats live in our own `ChipData` PDA — keeping them
-// out of the Asset's plugin data so we don't pay extra rent and have
-// type-safe access from BattleArena CPI.
+// out of the Asset's plugin data so we don't pay extra rent.
 //
-// Differences from EVM:
-//   • mint price + max supply per rarity stored in `ChipNftConfig`,
-//     not in 5 separate mappings.
-//   • mint price flows into a SystemAccount-style vault PDA;
-//     owner withdraws via signed CPI.
-//   • `recordBattle` ↔ `record_battle` callable only by a single
-//     registered `battle_authority` PDA (the BattleArena's signer
-//     PDA).  Verified by Pubkey match — no list, no mapping.
+// SEC-26 — Tier system (replaces the 5-level mint-time rarity):
+//   • Every chip mints at TIER 0 for a single flat price.
+//   • `progression_wins` counts the chip's PvP (1v1) + Battle Royale
+//     victories; crossing a threshold auto-promotes the tier:
+//       T0→T1 at 100 wins, →T2 at 250, →T3 at 550, →T4 at 1550.
+//     Tournaments intentionally do NOT count (user decision 2026-06-10).
+//   • `record_chip_win` is PERMISSIONLESS + idempotent: anyone may
+//     submit the Battle / BattleRoyale account after the game is
+//     DECIDED; the handler verifies the account is owned by the
+//     registered battle-arena program, parses the winner + winner's
+//     chip from the raw layout (same manual-parse discipline as the
+//     SEC-21 Switchboard verification), and dedupes via a monotonic
+//     `last_game_id` (1v1 + BR share one arena-side id counter, and a
+//     chip is escrowed while it plays, so its game ids strictly
+//     increase).  NO CPI from battle-arena — that path is what blew
+//     the 4 KB BPF stack in SEC-9/SEC-10.
 // ============================================================
 
 use anchor_lang::prelude::*;
@@ -27,47 +33,40 @@ use mpl_core::{
 
 declare_id!("A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ");
 
-// Rarity values mirror the EVM enum order.
-pub const RARITY_COMMON:    u8 = 0;
-pub const RARITY_UNCOMMON:  u8 = 1;
-pub const RARITY_RARE:      u8 = 2;
-pub const RARITY_EPIC:      u8 = 3;
-pub const RARITY_LEGENDARY: u8 = 4;
-pub const RARITY_MAX:       u8 = 4;
+// SEC-26 — cumulative win thresholds; index = current tier.
+// tier N promotes to N+1 once progression_wins >= TIER_THRESHOLDS[N].
+pub const TIER_THRESHOLDS: [u32; 4] = [100, 250, 550, 1550];
+pub const TIER_MAX:        u8 = 4;
+
+// Anchor account discriminators of the battle-arena accounts we parse
+// in `record_chip_win` (sha256("account:<Name>")[0..8]).  These are
+// layout-frozen at deploy time; a battle-arena account-shape change is
+// already documented as a hard break (SEC-20).
+const BATTLE_DISC: [u8; 8] = [81, 148, 121, 71, 63, 166, 116, 24];
+const ROYALE_DISC: [u8; 8] = [236, 95, 128, 245, 19, 52, 28, 163];
+
+// Game statuses shared by Battle + BattleRoyale.
+const GAME_DECIDED: u8 = 2;
+const GAME_SETTLED: u8 = 3;
 
 #[program]
 pub mod chip_nft {
     use super::*;
 
-    /// One-shot init.  Sets default mint prices and max supplies that mirror
-    /// the EVM contract's tier ratios but in lamports.
+    /// One-shot init.  SEC-26: a single flat tier-0 mint price.
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let cfg = &mut ctx.accounts.config;
-        cfg.owner            = ctx.accounts.owner.key();
-        cfg.battle_authority = Pubkey::default();    // set later
-        cfg.mint_enabled     = false;
-        cfg.next_token_id    = 1;
-        cfg.bump             = ctx.bumps.config;
-        cfg.vault_bump       = ctx.bumps.vault;
+        cfg.owner                = ctx.accounts.owner.key();
+        cfg.battle_authority     = Pubkey::default();    // audit field, set later
+        cfg.battle_arena_program = Pubkey::default();    // set_battle_arena_program later
+        cfg.mint_enabled         = false;
+        cfg.next_token_id        = 1;
+        cfg.bump                 = ctx.bumps.config;
+        cfg.vault_bump           = ctx.bumps.vault;
 
-        // Default lamport prices (same ratios as EVM 2/10/40/100/400).
-        cfg.mint_price = [
-            20_000_000,        // Common    0.02 SOL
-            100_000_000,       // Uncommon  0.1
-            400_000_000,       // Rare      0.4
-            1_000_000_000,     // Epic      1.0
-            4_000_000_000,     // Legendary 4.0
-        ];
-
-        // Default supply caps.  0 = unlimited.
-        cfg.max_supply = [
-            0,                 // Common    unlimited
-            10_000,            // Uncommon
-            3_000,             // Rare
-            500,               // Epic
-            50,                // Legendary
-        ];
-        cfg.minted_count = [0; 5];
+        cfg.mint_price   = 20_000_000;   // 0.02 SOL — every chip mints at T0
+        cfg.max_supply   = 0;            // 0 = unlimited
+        cfg.minted_count = 0;
 
         emit!(ChipNftInitialized { owner: cfg.owner });
         Ok(())
@@ -85,34 +84,41 @@ pub mod chip_nft {
 
     pub fn set_mint_price(
         ctx: Context<OwnerOnly>,
-        rarity: u8,
         price_lamports: u64,
     ) -> Result<()> {
-        require!(rarity <= RARITY_MAX, ChipNftError::InvalidRarity);
-        ctx.accounts.config.mint_price[rarity as usize] = price_lamports;
-        emit!(MintPriceUpdated { rarity, new_price: price_lamports });
+        ctx.accounts.config.mint_price = price_lamports;
+        emit!(MintPriceUpdated { new_price: price_lamports });
         Ok(())
     }
 
     pub fn set_max_supply(
         ctx: Context<OwnerOnly>,
-        rarity: u8,
-        supply: u32,
+        supply: u64,
     ) -> Result<()> {
-        require!(rarity <= RARITY_MAX, ChipNftError::InvalidRarity);
-        ctx.accounts.config.max_supply[rarity as usize] = supply;
-        emit!(MaxSupplyUpdated { rarity, supply });
+        ctx.accounts.config.max_supply = supply;
+        emit!(MaxSupplyUpdated { supply });
         Ok(())
     }
 
-    /// Register the BattleArena's signing PDA.  Only this exact pubkey can
-    /// later call `record_battle` — no allowlist, no mapping, just identity.
+    /// Audit field — the BattleArena's signing PDA (kept for DevTools
+    /// visibility; nothing on-chain gates on it since SEC-9).
     pub fn set_battle_authority(
         ctx: Context<OwnerOnly>,
         authority: Pubkey,
     ) -> Result<()> {
         ctx.accounts.config.battle_authority = authority;
         emit!(BattleAuthorityUpdated { authority });
+        Ok(())
+    }
+
+    /// SEC-26 — register the battle-arena PROGRAM id.  `record_chip_win`
+    /// only accepts game accounts owned by this program.
+    pub fn set_battle_arena_program(
+        ctx: Context<OwnerOnly>,
+        program: Pubkey,
+    ) -> Result<()> {
+        ctx.accounts.config.battle_arena_program = program;
+        emit!(BattleArenaProgramUpdated { program });
         Ok(())
     }
 
@@ -144,42 +150,35 @@ pub mod chip_nft {
     // PUBLIC: MINT
     // ------------------------------------------------------------
 
-    /// Mint a single chip NFT.
+    /// Mint a single chip NFT — always tier 0 (SEC-26).
     /// `name` and `uri` come from the client (uri usually points at
     /// `ipfs://CID/<tokenId>.json` produced by chiptap-nft-metadata).
     pub fn mint_chip(
         ctx: Context<MintChip>,
-        rarity: u8,
         name: String,
         uri:  String,
     ) -> Result<()> {
         require!(ctx.accounts.config.mint_enabled, ChipNftError::MintDisabled);
-        require!(rarity <= RARITY_MAX,             ChipNftError::InvalidRarity);
         require!(name.len() <= 32,                 ChipNftError::NameTooLong);
         require!(uri.len()  <= 200,                ChipNftError::UriTooLong);
 
         // Snapshot all config we need so the &mut borrow can be released
         // before we hand `ctx.accounts.config.to_account_info()` to the
         // mpl-core CPI builder.
-        let idx        = rarity as usize;
         let price:    u64;
-        let cap:      u32;
-        let minted:   u32;
         let token_id: u64;
         let cfg_bump: u8;
         {
             let cfg = &mut ctx.accounts.config;
-            price  = cfg.mint_price[idx];
-            cap    = cfg.max_supply[idx];
-            minted = cfg.minted_count[idx];
-            if cap > 0 {
-                require!(minted < cap, ChipNftError::MaxSupplyReached);
+            price = cfg.mint_price;
+            if cfg.max_supply > 0 {
+                require!(cfg.minted_count < cfg.max_supply, ChipNftError::MaxSupplyReached);
             }
             // Allocate next token id and update counters BEFORE the CPI
             // to Metaplex Core, so a CPI failure leaves no half-state.
             token_id = cfg.next_token_id;
-            cfg.next_token_id     = cfg.next_token_id.checked_add(1).ok_or(ChipNftError::MathOverflow)?;
-            cfg.minted_count[idx] = minted.checked_add(1).ok_or(ChipNftError::MathOverflow)?;
+            cfg.next_token_id = cfg.next_token_id.checked_add(1).ok_or(ChipNftError::MathOverflow)?;
+            cfg.minted_count  = cfg.minted_count.checked_add(1).ok_or(ChipNftError::MathOverflow)?;
             cfg_bump = cfg.bump;
         }
 
@@ -213,29 +212,138 @@ pub mod chip_nft {
 
         // 4) Init our ChipData PDA with stats.
         let chip = &mut ctx.accounts.chip_data;
-        chip.asset     = ctx.accounts.asset.key();
-        chip.token_id  = token_id;
-        chip.rarity    = rarity;
-        chip.minted_at = Clock::get()?.unix_timestamp;
-        chip.bump      = ctx.bumps.chip_data;
+        chip.asset            = ctx.accounts.asset.key();
+        chip.token_id         = token_id;
+        chip.tier             = 0;
+        chip.progression_wins = 0;
+        chip.last_game_id     = 0;
+        chip.minted_at        = Clock::get()?.unix_timestamp;
+        chip.bump             = ctx.bumps.chip_data;
 
         emit!(ChipMinted {
             asset:    ctx.accounts.asset.key(),
             owner:    ctx.accounts.payer.key(),
             token_id,
-            rarity,
+            tier: 0,
             price,
         });
         Ok(())
     }
 
-    // SEC-9 — `record_battle` and its on-chain stat fields are gone.
-    // The counters were never incremented (`pay_ransom` would have hit
-    // the 4 KB BPF stack frame limit), so they always read 0 and tempted
-    // UI code into using broken data.  Authoritative win/loss tallies
-    // live in the indexer's `player_stats` table, computed from settle
-    // events.  `battle_authority` is now an audit field only (admin can
-    // still set it to display in DevTools).
+    // ------------------------------------------------------------
+    // SEC-26 — TIER PROGRESSION
+    // ------------------------------------------------------------
+
+    /// Record one win for the chip that won `game` (a battle-arena
+    /// `Battle` or `BattleRoyale` account) and auto-promote its tier
+    /// when a threshold is crossed.
+    ///
+    /// PERMISSIONLESS: any signer may submit — the winner's client does
+    /// it as a claim preinstruction, but a watcher/indexer can too.
+    /// Safety comes from verification, not identity:
+    ///   1. `game.owner` must be the registered battle-arena program.
+    ///   2. The 8-byte discriminator must match Battle / BattleRoyale.
+    ///   3. The game must be DECIDED or SETTLED.
+    ///   4. `chip_data.asset` must equal the WINNER's chip in that game.
+    ///   5. `game.id` must exceed `chip_data.last_game_id` — a chip is
+    ///      escrowed while it plays, so its game ids strictly increase;
+    ///      this makes the call idempotent (replay = WinAlreadyRecorded).
+    ///
+    /// SEC-9 note: this deliberately replaces the old `record_battle`
+    /// CPI-from-arena design — no battle-arena ix grows a CPI, so the
+    /// 4 KB BPF stack frame issue cannot resurface.
+    pub fn record_chip_win(ctx: Context<RecordChipWin>) -> Result<()> {
+        let cfg = &ctx.accounts.config;
+        require!(
+            cfg.battle_arena_program != Pubkey::default(),
+            ChipNftError::ArenaProgramNotSet
+        );
+
+        let game = &ctx.accounts.game;
+        require_keys_eq!(
+            *game.owner,
+            cfg.battle_arena_program,
+            ChipNftError::WrongGameProgram
+        );
+
+        let data = game.try_borrow_data()?;
+        require!(data.len() > 8, ChipNftError::BadGameAccount);
+
+        // Manual layout parse (offsets frozen at battle-arena deploy):
+        //   Battle:        id@8 player_a@16 chip_a@80 chip_b@112
+        //                  status@145 winner@146
+        //   BattleRoyale:  id@8 status@16 num_joined@19
+        //                  players@52+32i chips@308+32i winner@564
+        let (game_id, status, winner_chip): (u64, u8, Pubkey) =
+            if data[0..8] == BATTLE_DISC {
+                require!(data.len() >= 178 + 32, ChipNftError::BadGameAccount);
+                let id       = u64::from_le_bytes(data[8..16].try_into().unwrap());
+                let player_a = Pubkey::try_from(&data[16..48]).unwrap();
+                let chip_a   = Pubkey::try_from(&data[80..112]).unwrap();
+                let chip_b   = Pubkey::try_from(&data[112..144]).unwrap();
+                let status   = data[145];
+                let winner   = Pubkey::try_from(&data[146..178]).unwrap();
+                let wchip    = if winner == player_a { chip_a } else { chip_b };
+                (id, status, wchip)
+            } else if data[0..8] == ROYALE_DISC {
+                require!(data.len() >= 564 + 32, ChipNftError::BadGameAccount);
+                let id         = u64::from_le_bytes(data[8..16].try_into().unwrap());
+                let status     = data[16];
+                let num_joined = (data[19] as usize).min(8);
+                let winner     = Pubkey::try_from(&data[564..596]).unwrap();
+                let mut wchip  = Pubkey::default();
+                for i in 0..num_joined {
+                    let p_off = 52 + i * 32;
+                    let p = Pubkey::try_from(&data[p_off..p_off + 32]).unwrap();
+                    if p == winner {
+                        let c_off = 308 + i * 32;
+                        wchip = Pubkey::try_from(&data[c_off..c_off + 32]).unwrap();
+                        break;
+                    }
+                }
+                (id, status, wchip)
+            } else {
+                return err!(ChipNftError::BadGameAccount);
+            };
+
+        require!(
+            status == GAME_DECIDED || status == GAME_SETTLED,
+            ChipNftError::GameNotDecided
+        );
+
+        let chip = &mut ctx.accounts.chip_data;
+        require_keys_eq!(winner_chip, chip.asset, ChipNftError::NotWinnerChip);
+        require!(game_id > chip.last_game_id, ChipNftError::WinAlreadyRecorded);
+
+        chip.last_game_id     = game_id;
+        chip.progression_wins = chip.progression_wins.saturating_add(1);
+
+        let old_tier = chip.tier;
+        let mut new_tier = old_tier;
+        while new_tier < TIER_MAX
+            && chip.progression_wins >= TIER_THRESHOLDS[new_tier as usize]
+        {
+            new_tier += 1;
+        }
+
+        emit!(ChipWinRecorded {
+            asset:   chip.asset,
+            game_id,
+            wins:    chip.progression_wins,
+            tier:    new_tier,
+        });
+
+        if new_tier != old_tier {
+            chip.tier = new_tier;
+            emit!(ChipPromoted {
+                asset:    chip.asset,
+                old_tier,
+                new_tier,
+                wins: chip.progression_wins,
+            });
+        }
+        Ok(())
+    }
 }
 
 // ============================================================
@@ -244,54 +352,62 @@ pub mod chip_nft {
 
 #[account]
 pub struct ChipNftConfig {
-    pub owner:            Pubkey,
-    pub battle_authority: Pubkey,
-    pub mint_enabled:     bool,
-    pub next_token_id:    u64,        // monotonically increasing
-    pub mint_price:       [u64; 5],   // by rarity
-    pub max_supply:       [u32; 5],
-    pub minted_count:     [u32; 5],
-    pub bump:             u8,
-    pub vault_bump:       u8,
+    pub owner:                Pubkey,
+    pub battle_authority:     Pubkey,   // audit field (SEC-9)
+    // SEC-26 — trusted owner of the Battle/BattleRoyale accounts that
+    // `record_chip_win` parses.
+    pub battle_arena_program: Pubkey,
+    pub mint_enabled:         bool,
+    pub next_token_id:        u64,      // monotonically increasing
+    pub mint_price:           u64,      // SEC-26: single flat T0 price
+    pub max_supply:           u64,      // 0 = unlimited
+    pub minted_count:         u64,
+    pub bump:                 u8,
+    pub vault_bump:           u8,
     // SEC-20 — see TreasuryConfig and CLAUDE.md "PDA versioning".
-    pub _reserved:        [u8; 64],
+    pub _reserved:            [u8; 64],
 }
 
 impl Default for ChipNftConfig {
     fn default() -> Self {
         Self {
-            owner:            Pubkey::default(),
-            battle_authority: Pubkey::default(),
-            mint_enabled:     false,
-            next_token_id:    0,
-            mint_price:       [0; 5],
-            max_supply:       [0; 5],
-            minted_count:     [0; 5],
-            bump:             0,
-            vault_bump:       0,
-            _reserved:        [0u8; 64],
+            owner:                Pubkey::default(),
+            battle_authority:     Pubkey::default(),
+            battle_arena_program: Pubkey::default(),
+            mint_enabled:         false,
+            next_token_id:        0,
+            mint_price:           0,
+            max_supply:           0,
+            minted_count:         0,
+            bump:                 0,
+            vault_bump:           0,
+            _reserved:            [0u8; 64],
         }
     }
 }
 
 impl ChipNftConfig {
-    // 8 discr + 32 + 32 + 1 + 8 + 5*8 + 5*4 + 5*4 + 1 + 1 + 64 = 207
-    pub const SPACE: usize = 8 + 32 + 32 + 1 + 8 + (5 * 8) + (5 * 4) + (5 * 4) + 1 + 1 + 64;
+    // 8 discr + 32 + 32 + 32 + 1 + 8 + 8 + 8 + 8 + 1 + 1 + 64 = 195
+    pub const SPACE: usize = 8 + 32 + 32 + 32 + 1 + 8 + 8 + 8 + 8 + 1 + 1 + 64;
 }
 
 #[account]
 #[derive(Default)]
 pub struct ChipData {
-    pub asset:     Pubkey,
-    pub token_id:  u64,
-    pub rarity:    u8,
-    pub minted_at: i64,
-    pub bump:      u8,
+    pub asset:            Pubkey,
+    pub token_id:         u64,
+    // SEC-26 — tier (0..4) + win-based progression.
+    pub tier:             u8,
+    pub progression_wins: u32,
+    pub last_game_id:     u64,   // monotonic replay guard for record_chip_win
+    pub minted_at:        i64,
+    pub bump:             u8,
+    pub _reserved:        [u8; 16],
 }
 
 impl ChipData {
-    // 8 discr + 32 + 8 + 1 + 8 + 1 = 58
-    pub const SPACE: usize = 8 + 32 + 8 + 1 + 8 + 1;
+    // 8 discr + 32 + 8 + 1 + 4 + 8 + 8 + 1 + 16 = 86
+    pub const SPACE: usize = 8 + 32 + 8 + 1 + 4 + 8 + 8 + 1 + 16;
 }
 
 #[derive(Accounts)]
@@ -400,25 +516,64 @@ pub struct MintChip<'info> {
     pub system_program: Program<'info, System>,
 }
 
-// SEC-9 — `RecordBattle` Accounts struct removed along with the ix.
+// SEC-26 — permissionless win recording (see handler doc).
+#[derive(Accounts)]
+pub struct RecordChipWin<'info> {
+    #[account(
+        seeds = [b"chip_nft".as_ref()],
+        bump  = config.bump,
+    )]
+    pub config: Account<'info, ChipNftConfig>,
+
+    #[account(
+        mut,
+        seeds = [b"chip".as_ref(), chip_data.asset.as_ref()],
+        bump  = chip_data.bump,
+    )]
+    pub chip_data: Account<'info, ChipData>,
+
+    /// CHECK: a battle-arena `Battle` or `BattleRoyale` account.
+    /// Ownership, discriminator, status, winner-chip linkage and replay
+    /// protection are all verified in the handler.
+    pub game: AccountInfo<'info>,
+
+    pub caller: Signer<'info>,
+}
 
 // ============================================================
 //                          EVENTS
 // ============================================================
 
-#[event] pub struct ChipNftInitialized      { pub owner: Pubkey }
-#[event] pub struct MintPriceUpdated        { pub rarity: u8, pub new_price: u64 }
-#[event] pub struct BattleAuthorityUpdated  { pub authority: Pubkey }
+#[event] pub struct ChipNftInitialized        { pub owner: Pubkey }
+#[event] pub struct MintPriceUpdated          { pub new_price: u64 }
+#[event] pub struct BattleAuthorityUpdated    { pub authority: Pubkey }
 // SEC-19 — admin audit events.
-#[event] pub struct MintEnabledUpdated      { pub enabled: bool }
-#[event] pub struct MaxSupplyUpdated        { pub rarity:  u8, pub supply: u32 }
+#[event] pub struct MintEnabledUpdated        { pub enabled: bool }
+#[event] pub struct MaxSupplyUpdated          { pub supply: u64 }
+// SEC-26.
+#[event] pub struct BattleArenaProgramUpdated { pub program: Pubkey }
 #[event]
 pub struct ChipMinted {
     pub asset:    Pubkey,
     pub owner:    Pubkey,
     pub token_id: u64,
-    pub rarity:   u8,
+    pub tier:     u8,
     pub price:    u64,
+}
+// SEC-26 — progression events (indexer mirrors these into `chips`).
+#[event]
+pub struct ChipWinRecorded {
+    pub asset:   Pubkey,
+    pub game_id: u64,
+    pub wins:    u32,
+    pub tier:    u8,
+}
+#[event]
+pub struct ChipPromoted {
+    pub asset:    Pubkey,
+    pub old_tier: u8,
+    pub new_tier: u8,
+    pub wins:     u32,
 }
 
 // ============================================================
@@ -436,9 +591,10 @@ pub enum ChipNftError {
     NotBattleAuthorityDeprecated,
     #[msg("Mint is currently disabled")]
     MintDisabled,
-    #[msg("Invalid rarity")]
-    InvalidRarity,
-    #[msg("Maximum supply for this rarity has been reached")]
+    // SEC-26: rarity is gone; slot kept so codes don't shift.
+    #[msg("(deprecated)")]
+    InvalidRarityDeprecated,
+    #[msg("Maximum supply has been reached")]
     MaxSupplyReached,
     #[msg("Vault has insufficient lamports above rent minimum")]
     InsufficientBalance,
@@ -450,4 +606,17 @@ pub enum ChipNftError {
     UriTooLong,
     #[msg("Arithmetic overflow")]
     MathOverflow,
+    // SEC-26 — record_chip_win.
+    #[msg("battle_arena_program is not configured")]
+    ArenaProgramNotSet,
+    #[msg("Game account is not owned by the registered battle-arena program")]
+    WrongGameProgram,
+    #[msg("Account is not a Battle or BattleRoyale")]
+    BadGameAccount,
+    #[msg("Game is not decided yet")]
+    GameNotDecided,
+    #[msg("Chip is not the winner of this game")]
+    NotWinnerChip,
+    #[msg("Win for this game was already recorded")]
+    WinAlreadyRecorded,
 }
