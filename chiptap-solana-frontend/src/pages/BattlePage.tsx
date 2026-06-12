@@ -504,16 +504,32 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
   const arena    = useArenaProgram();
   const chipNft  = useChipNftProgram();
   const treasury = useTreasuryProgram();
+  const { data: cfg } = useArenaConfig();
+  const { data: user, refetch: refetchUser } = useUserAccount();
   const me = publicKey?.toBase58();
 
   const [battle, setBattle] = useState<any>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // The Battle account has no "winner chip claimed" flag — we read the
+  // chip asset's mpl-core owner instead (bytes 1..33 of AssetV1).  Once
+  // the owner equals battle.winner, the chip left escrow and the CLAIM
+  // panel must disappear (clicking again would fail inside mpl-core
+  // with a cryptic IncorrectOwner).
+  const [winnerChipClaimed, setWinnerChipClaimed] = useState(false);
 
   const fetchBattle = useCallback(async () => {
     if (!arena) return;
     try {
       const acc = await (arena.account as any).battle.fetchNullable(pda.battle(battleId));
       setBattle(acc);
+      if (acc && (acc.status === 2 || acc.status === 3) && acc.winner) {
+        const wChip = acc.winner.equals?.(acc.playerA) ? acc.chipA : acc.chipB;
+        const info = await (arena as any).provider.connection.getAccountInfo(wChip);
+        if (info?.data && info.data.length >= 33) {
+          const owner = new PublicKey(info.data.subarray(1, 33));
+          setWinnerChipClaimed(owner.equals(acc.winner));
+        }
+      }
     } catch { setBattle(null); }
   }, [arena, battleId]);
 
@@ -522,6 +538,17 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
     const id = setInterval(fetchBattle, 3000);
     return () => clearInterval(id);
   }, [fetchBattle]);
+
+  // 1 Hz ticker so the pay-window countdown stays live — only while
+  // there is actually a deadline on screen (loser at DECIDED).
+  const [, forceTick] = useState(0);
+  const battleStatus = battle ? Number(battle.status) : null;
+  const iAmLoser = !!(me && battle?.loser?.toBase58?.() === me);
+  useEffect(() => {
+    if (battleStatus !== 2 || !iAmLoser) return;
+    const id = setInterval(() => forceTick((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [battleStatus, iAmLoser]);
 
   if (!battle) {
     return (
@@ -566,22 +593,50 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
     finally { setBusy(null); }
   };
 
+  // pay_ransom debits the POOL from the loser's internal balance — but
+  // joining a 1v1 battle never moves SOL, so a loser who has not used
+  // the DEPOSIT banner has balance 0 (or no UserAccount at all) and the
+  // ix fails with InsufficientBalance / AccountNotInitialized.  Mirror
+  // the BR-join fix: bundle a deposit for the shortfall (deposit is
+  // init_if_needed, so it also creates the PDA on first use).
+  const poolLamports = battle && cfg
+    ? Number(cfg.poolAmounts[Number(battle.poolTier)]?.toString?.() ?? 0)
+    : 0;
+  const payShortfall = Math.max(0, poolLamports - (user?.balance?.toNumber?.() ?? 0));
+
   const pay = async () => {
     if (!arena || !chipNft || !treasury || !publicKey) return;
     setBusy("pay");
     try {
+      const preIxs: any[] = [];
+
+      if (payShortfall > 0) {
+        preIxs.push(
+          await (arena.methods as any).deposit(new BN(payShortfall))
+            .accounts({
+              config:        pda.arenaConfig(),
+              vault:         pda.arenaVault(),
+              user:          pda.userAccount(publicKey),
+              payer:         publicKey,
+              systemProgram: SystemProgram.programId,
+            }).instruction(),
+        );
+      }
+
       // SEC-10: bundle `ensure_user_account` in the same transaction so
       // the loser pays the rent for the winner's UserAccount PDA if it
       // doesn't exist yet.  No popup from the winner — one signature
       // total.  (init_if_needed inside pay_ransom would blow the 4 KB
       // BPF stack frame; this is the cheap workaround.)
-      const ensureWinnerUser = await (arena.methods as any).ensureUserAccount()
-        .accounts({
-          user:      pda.userAccount(battle.winner),
-          authority: battle.winner,
-          payer:     publicKey,
-          systemProgram: SystemProgram.programId,
-        }).instruction();
+      preIxs.push(
+        await (arena.methods as any).ensureUserAccount()
+          .accounts({
+            user:      pda.userAccount(battle.winner),
+            authority: battle.winner,
+            payer:     publicKey,
+            systemProgram: SystemProgram.programId,
+          }).instruction(),
+      );
 
       await (arena.methods as any).payRansom()
         .accounts({
@@ -600,10 +655,10 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           mplCore: MPL_CORE_PROGRAM,
           systemProgram: SystemProgram.programId,
         })
-        .preInstructions([ensureWinnerUser])
+        .preInstructions(preIxs)
         .rpc();
       notify("settled", `Paid ransom for battle #${battleId}!`);
-      await fetchBattle();
+      await Promise.all([fetchBattle(), refetchUser()]);
     } catch (e) { notifyTxError("Pay ransom", e); }
     finally { setBusy(null); }
   };
@@ -744,7 +799,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
                : t("battle.watch.winnerIs", { addr: shortAddr(battle.winner?.toBase58?.()) })}
             </div>
 
-            {isWinner && (
+            {isWinner && !winnerChipClaimed && (
               <div className="retro-panel mb-3" style={{ borderColor: "#00FF00", background: "#001a11" }}>
                 <div className="flex items-center justify-between">
                   <div>
@@ -761,34 +816,70 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
                 </div>
               </div>
             )}
-
-            {isLoser && (
-              <div className="retro-panel" style={{ borderColor: "#FF3333" }}>
-                <div className="font-pixel text-retro-red text-center mb-3" style={{ fontSize: 10 }}>
-                  {t("battle.watch.chooseFate")}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={pay} disabled={busy !== null}
-                    className="retro-btn retro-btn-gold py-4"
-                    style={{ fontSize: 9 }}
-                  >
-                    <div>{t("battle.watch.payToKeep")}</div>
-                    <div className="mt-1 text-xs opacity-70">{t("battle.watch.payToKeepSub", { pool: poolLabel })}</div>
-                    {busy === "pay" && <div className="mt-1 animate-blink">{t("battle.watch.paying")}</div>}
-                  </button>
-                  <button
-                    onClick={forfeit} disabled={busy !== null}
-                    className="retro-btn retro-btn-red py-4"
-                    style={{ fontSize: 9 }}
-                  >
-                    <div>{t("battle.watch.forfeitChip")}</div>
-                    <div className="mt-1 text-xs opacity-70">{t("battle.watch.forfeitSub")}</div>
-                    {busy === "forfeit" && <div className="mt-1 animate-blink">{t("battle.watch.forfeiting")}</div>}
-                  </button>
-                </div>
+            {isWinner && winnerChipClaimed && (
+              <div className="text-xs opacity-50 text-center mb-3">
+                {t("battle.watch.chipClaimed")}
               </div>
             )}
+
+            {isLoser && (() => {
+              // pay_ransom is rejected after decided_at + decision_timeout
+              // (DecisionPeriodExpired) — don't offer a button the program
+              // will bounce.  forfeit_chip has no time gate.
+              const now = Math.floor(Date.now() / 1000);
+              const deadline = cfg
+                ? (Number(battle.decidedAt) || 0) + cfg.decisionTimeout
+                : null;
+              const remaining = deadline != null ? deadline - now : null;
+              const payOpen = remaining == null || remaining > 0;
+              return (
+                <div className="retro-panel" style={{ borderColor: "#FF3333" }}>
+                  <div className="font-pixel text-retro-red text-center mb-3" style={{ fontSize: 10 }}>
+                    {t("battle.watch.chooseFate")}
+                  </div>
+                  <div className={payOpen ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
+                    {payOpen && (
+                      <button
+                        onClick={pay} disabled={busy !== null}
+                        className="retro-btn retro-btn-gold py-4"
+                        style={{ fontSize: 9 }}
+                      >
+                        <div>{t("battle.watch.payToKeep")}</div>
+                        <div className="mt-1 text-xs opacity-70">{t("battle.watch.payToKeepSub", { pool: poolLabel })}</div>
+                        {busy === "pay" && <div className="mt-1 animate-blink">{t("battle.watch.paying")}</div>}
+                      </button>
+                    )}
+                    <button
+                      onClick={forfeit} disabled={busy !== null}
+                      className="retro-btn retro-btn-red py-4"
+                      style={{ fontSize: 9 }}
+                    >
+                      <div>{t("battle.watch.forfeitChip")}</div>
+                      <div className="mt-1 text-xs opacity-70">{t("battle.watch.forfeitSub")}</div>
+                      {busy === "forfeit" && <div className="mt-1 animate-blink">{t("battle.watch.forfeiting")}</div>}
+                    </button>
+                  </div>
+                  {payOpen && remaining != null && (
+                    <div className="text-xs opacity-50 text-center mt-2">
+                      {t("battle.watch.payCloses", {
+                        h: Math.floor(remaining / 3600),
+                        m: Math.floor((remaining % 3600) / 60),
+                      })}
+                    </div>
+                  )}
+                  {payOpen && payShortfall > 0 && (
+                    <div className="text-xs text-retro-cyan text-center mt-1 opacity-80">
+                      {t("battle.watch.autoTopUp", { amount: fmtSol(payShortfall / LAMPORTS_PER_SOL) })}
+                    </div>
+                  )}
+                  {!payOpen && (
+                    <div className="text-xs text-retro-red text-center mt-2 opacity-80">
+                      {t("battle.watch.payExpired")}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
