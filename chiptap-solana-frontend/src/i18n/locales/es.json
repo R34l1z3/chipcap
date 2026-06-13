@@ -71,12 +71,20 @@
     "3": "Épica",
     "4": "Legendaria"
   },
+  "tier": {
+    "0": "T0",
+    "1": "T1",
+    "2": "T2",
+    "3": "T3",
+    "4": "T4"
+  },
   "mint": {
     "title": "ESTACIÓN DE ACUÑACIÓN",
     "connect": "CONECTA LA CARTERA PARA ACUÑAR",
     "wallets": "Phantom · Solflare · Backpack",
-    "selectRaritySub": "Elige rareza",
-    "selectRarity": "ELIGE RAREZA:",
+    "tierSub": "Cada ficha empieza en Tier 0",
+    "tierIntro": "TODAS LAS FICHAS SE ACUÑAN EN TIER 0",
+    "tierBody": "Gana partidas PvP y Battle Royale para subir de nivel tu ficha: T0→T1 con 100 victorias, luego 250, 550, 1550. Los tiers altos desbloquean ventajas. Los torneos no cuentan para el progreso.",
     "networkNotReady": "RED NO LISTA",
     "chipInfo": "INFO DE FICHA {{rarity}}:",
     "price": "Precio:",
@@ -84,9 +92,9 @@
     "total": "TOTAL:",
     "signing": "FIRMA EN LA CARTERA...",
     "disabled": "ACUÑACIÓN DESACTIVADA",
-    "cta": "ACUÑAR FICHA {{rarity}}",
+    "cta": "ACUÑAR FICHA",
     "footnote": "Cada acuñación crea un nuevo Metaplex Core Asset + ChipData PDA.",
-    "toast": "¡Ficha {{rarity}} acuñada!"
+    "toast": "¡Ficha acuñada!"
   },
   "status": {
     "0": "ESPERANDO",

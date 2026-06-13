@@ -29,6 +29,7 @@ import { LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
 
 import { useArenaProgram } from "../hooks/useArenaProgram";
 import { useTreasuryProgram } from "../hooks/useTreasuryProgram";
+import { useChipNftProgram } from "../hooks/useChipNftProgram";
 import { useArenaConfig } from "../hooks/useArenaConfig";
 import { useUserAccount } from "../hooks/useUserAccount";
 import { useChipsByOwner } from "../hooks/useChipsByOwner";
@@ -557,7 +558,8 @@ function Create({ onBack }: { onBack: () => void }) {
                   key={c.asset}
                   tokenId={c.token_id}
                   asset={c.asset}
-                  rarity={c.rarity}
+                  tier={c.tier}
+                  progressionWins={c.progression_wins}
                   battleCount={c.battle_count}
                   winCount={c.win_count}
                   selected={chip === c.asset}
@@ -600,6 +602,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
   const { publicKey } = useWallet();
   const arena    = useArenaProgram();
   const treasury = useTreasuryProgram();
+  const chipNft  = useChipNftProgram();
   const { data: cfg } = useArenaConfig();
   const me = publicKey?.toBase58();
 
@@ -678,6 +681,26 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
   const claimWinnings = async () => {
     if (!arena || !treasury || !publicKey) return;
     try {
+      // SEC-26 — a BR win counts toward the winner's chip tier.  Bundle
+      // record_chip_win for the winner's seat chip into the prize claim
+      // (only the winner reaches this button).  Permissionless +
+      // idempotent; best-effort so an unwired chip-nft can't block the
+      // payout.
+      const preIxs: any[] = [];
+      if (chipNft && mySeat?.chip) {
+        try {
+          preIxs.push(
+            await (chipNft.methods as any).recordChipWin()
+              .accounts({
+                config:   pda.chipNftConfig(),
+                chipData: pda.chipData(new PublicKey(mySeat.chip)),
+                game:     pda.royale(royaleId),
+                caller:   publicKey,
+              }).instruction(),
+          );
+        } catch { /* leave empty — prize claim still works */ }
+      }
+
       const sig = await (arena.methods as any).claimWinningsBr()
         .accounts({
           config:          pda.arenaConfig(),
@@ -690,7 +713,9 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
           treasuryProgram: treasury.programId,
           caller:          publicKey,
           systemProgram:   SystemProgram.programId,
-        }).rpc();
+        })
+        .preInstructions(preIxs)
+        .rpc();
       notify("settled", `Claimed winnings · ${sig.slice(0, 8)}…`);
       await fetchBr();
     } catch (e) { notifyTxError("Claim winnings", e); }

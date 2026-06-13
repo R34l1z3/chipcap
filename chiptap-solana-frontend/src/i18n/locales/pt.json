@@ -71,12 +71,20 @@
     "3": "Épica",
     "4": "Lendária"
   },
+  "tier": {
+    "0": "T0",
+    "1": "T1",
+    "2": "T2",
+    "3": "T3",
+    "4": "T4"
+  },
   "mint": {
     "title": "ESTAÇÃO DE CUNHAGEM",
     "connect": "CONECTE A CARTEIRA PARA CUNHAR",
     "wallets": "Phantom · Solflare · Backpack",
-    "selectRaritySub": "Escolha a raridade",
-    "selectRarity": "ESCOLHA A RARIDADE:",
+    "tierSub": "Cada ficha começa no Tier 0",
+    "tierIntro": "TODAS AS FICHAS SÃO CUNHADAS NO TIER 0",
+    "tierBody": "Vença partidas PvP e Battle Royale para subir o nível da sua ficha: T0→T1 com 100 vitórias, depois 250, 550, 1550. Tiers altos liberam vantagens. Torneios não contam para o progresso.",
     "networkNotReady": "REDE NÃO PRONTA",
     "chipInfo": "INFO DA FICHA {{rarity}}:",
     "price": "Preço:",
@@ -84,9 +92,9 @@
     "total": "TOTAL:",
     "signing": "ASSINE NA CARTEIRA...",
     "disabled": "CUNHAGEM DESATIVADA",
-    "cta": "CUNHAR FICHA {{rarity}}",
+    "cta": "CUNHAR FICHA",
     "footnote": "Cada cunhagem cria um novo Metaplex Core Asset + ChipData PDA.",
-    "toast": "Ficha {{rarity}} cunhada!"
+    "toast": "Ficha cunhada!"
   },
   "status": {
     "0": "AGUARDANDO",

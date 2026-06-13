@@ -12,22 +12,23 @@ import { useChipsByOwner } from "../hooks/useChipsByOwner";
 import { notify, notifyTxError } from "../lib/notifications";
 import * as pda from "../lib/pda";
 import { MPL_CORE_PROGRAM } from "../lib/mpl";
-import { RARITIES, DEFAULT_MINT_PRICE_SOL } from "../config";
+import { TIERS, DEFAULT_MINT_PRICE_SOL } from "../config";
 import { fmtSol } from "../lib/format";
 import ChipCard from "../components/ChipCard";
 
 interface ChipNftConfigView {
   mintEnabled: boolean;
   nextTokenId: bigint;
-  mintPrice:   number[];   // SOL
-  maxSupply:   number[];
-  mintedCount: number[];
+  mintPrice:   number;   // SOL — SEC-26: single flat tier-0 price
+  maxSupply:   number;   // 0 = unlimited
+  mintedCount: number;
 }
 
-function METADATA_URI(rarity: number) {
+function METADATA_URI() {
   // Placeholder.  Replace with `ipfs://CID/<token>.json` once the
-  // chiptap-nft-metadata project's outputs are pinned to IPFS.
-  return `https://chiptap.gg/metadata/rarity-${rarity}.json`;
+  // chiptap-nft-metadata project's outputs are pinned to IPFS.  All
+  // chips mint at tier 0 (SEC-26); higher-tier art is swapped client-side.
+  return `https://chiptap.gg/metadata/tier-0.json`;
 }
 
 export default function MintPage() {
@@ -37,7 +38,6 @@ export default function MintPage() {
   const owner   = publicKey?.toBase58();
   const { refetch: refetchChips } = useChipsByOwner(owner);
 
-  const [selectedRarity, setSelectedRarity] = useState(0);
   const [pending, setPending] = useState(false);
   const [cfg,     setCfg]     = useState<ChipNftConfigView | null>(null);
   const [cfgErr,  setCfgErr]  = useState<string | null>(null);
@@ -54,9 +54,9 @@ export default function MintPage() {
       setCfg({
         mintEnabled: acc.mintEnabled,
         nextTokenId: BigInt(acc.nextTokenId.toString()),
-        mintPrice:   (acc.mintPrice as any[]).map((p) => Number(p) / 1_000_000_000),
-        maxSupply:   (acc.maxSupply as any[]).map((m) => Number(m)),
-        mintedCount: (acc.mintedCount as any[]).map((m) => Number(m)),
+        mintPrice:   Number(acc.mintPrice) / 1_000_000_000,
+        maxSupply:   Number(acc.maxSupply),
+        mintedCount: Number(acc.mintedCount),
       });
     } catch (e) {
       setCfgErr((e as Error).message);
@@ -65,11 +65,11 @@ export default function MintPage() {
 
   useEffect(() => { fetchCfg(); }, [fetchCfg]);
 
-  const r = RARITIES[selectedRarity];
-  const rName = t(`rarity.${selectedRarity}`);
-  const priceSol = cfg?.mintPrice[selectedRarity] ?? DEFAULT_MINT_PRICE_SOL[selectedRarity];
-  const minted   = cfg?.mintedCount[selectedRarity] ?? 0;
-  const cap      = cfg?.maxSupply[selectedRarity]   ?? 0;
+  const t0 = TIERS[0];
+  const tierName = t("tier.0");
+  const priceSol = cfg?.mintPrice ?? DEFAULT_MINT_PRICE_SOL;
+  const minted   = cfg?.mintedCount ?? 0;
+  const cap      = cfg?.maxSupply   ?? 0;
   const capLabel = cap > 0 ? `${minted} / ${cap}` : `${minted} / ∞`;
 
   const handleMint = useCallback(async () => {
@@ -78,10 +78,10 @@ export default function MintPage() {
     try {
       const asset = Keypair.generate();
       const name  = "ChipTap";
-      const uri   = METADATA_URI(selectedRarity);
+      const uri   = METADATA_URI();
 
       const sig = await (program.methods as any)
-        .mintChip(selectedRarity, name, uri)
+        .mintChip(name, uri)
         .accounts({
           config:    pda.chipNftConfig(),
           vault:     pda.chipNftVault(),
@@ -94,14 +94,14 @@ export default function MintPage() {
         .signers([asset])
         .rpc();
 
-      notify("info", `${t("mint.toast", { rarity: rName })} ${sig.slice(0, 8)}…`);
+      notify("info", `${t("mint.toast")} ${sig.slice(0, 8)}…`);
       await Promise.all([fetchCfg(), refetchChips()]);
     } catch (e) {
       notifyTxError("Mint", e);
     } finally {
       setPending(false);
     }
-  }, [program, publicKey, selectedRarity, rName, t, fetchCfg, refetchChips]);
+  }, [program, publicKey, t, fetchCfg, refetchChips]);
 
   if (!connected) {
     return (
@@ -130,7 +130,7 @@ export default function MintPage() {
         <h1 className="font-pixel text-retro-gold animate-glow" style={{ fontSize: 18 }}>
           {t("mint.title")}
         </h1>
-        <div className="text-sm opacity-60 mt-1">{t("mint.selectRaritySub")}</div>
+        <div className="text-sm opacity-60 mt-1">{t("mint.tierSub")}</div>
       </div>
 
       {cfgErr && (
@@ -140,43 +140,29 @@ export default function MintPage() {
         </div>
       )}
 
-      <div className="retro-panel mb-4">
-        <div className="font-pixel text-xs text-retro-cyan mb-3" style={{ fontSize: 10 }}>
-          &gt; {t("mint.selectRarity")}
+      <div className="retro-panel mb-4" style={{ borderColor: t0.color }}>
+        <div className="font-pixel text-xs mb-1" style={{ fontSize: 10, color: t0.color }}>
+          &gt; {t("mint.tierIntro")}
         </div>
-        <div className="flex gap-2 flex-wrap justify-center">
-          {RARITIES.map((rar) => (
-            <button
-              key={rar.id}
-              onClick={() => setSelectedRarity(rar.id)}
-              className="retro-btn px-3 py-2"
-              style={{
-                fontSize: 9,
-                borderColor: selectedRarity === rar.id ? rar.color : "#4a4a8a",
-                color: selectedRarity === rar.id ? rar.color : "#4a4a8a",
-                textShadow: selectedRarity === rar.id ? `0 0 10px ${rar.color}` : "none",
-              }}
-            >
-              {t(`rarity.${rar.id}`)}
-            </button>
-          ))}
+        <div className="text-xs opacity-70" style={{ lineHeight: 1.4 }}>
+          {t("mint.tierBody")}
         </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-4">
         <div className="retro-panel flex-shrink-0 flex items-center justify-center mx-auto sm:mx-0" style={{ width: 160 }}>
-          <ChipCard tokenId={Number(cfg?.nextTokenId ?? 0)} rarity={selectedRarity} size="lg" />
+          <ChipCard tokenId={Number(cfg?.nextTokenId ?? 0)} tier={0} size="lg" />
         </div>
 
         <div className="retro-panel flex-1 w-full">
-          <div className="font-pixel text-xs mb-3" style={{ fontSize: 10, color: r.color }}>
-            &gt; {t("mint.chipInfo", { rarity: rName.toUpperCase() })}
+          <div className="font-pixel text-xs mb-3" style={{ fontSize: 10, color: t0.color }}>
+            &gt; {t("mint.chipInfo", { rarity: tierName.toUpperCase() })}
           </div>
           <table className="w-full text-sm">
             <tbody>
               <tr>
                 <td className="py-1 text-retro-cyan opacity-70">{t("mint.price")}</td>
-                <td className="py-1 text-right" style={{ color: r.color }}>
+                <td className="py-1 text-right" style={{ color: t0.color }}>
                   {fmtSol(priceSol)} SOL
                 </td>
               </tr>
@@ -205,7 +191,7 @@ export default function MintPage() {
           ? `>> ${t("mint.signing")}`
           : !cfg?.mintEnabled
           ? `>> ${t("mint.disabled")}`
-          : `>> ${t("mint.cta", { rarity: rName.toUpperCase() })} <<`}
+          : `>> ${t("mint.cta")} <<`}
       </button>
 
       <div className="text-xs opacity-40 mt-3 text-center">

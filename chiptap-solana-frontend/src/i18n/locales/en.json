@@ -71,12 +71,20 @@
     "3": "Epic",
     "4": "Legendary"
   },
+  "tier": {
+    "0": "T0",
+    "1": "T1",
+    "2": "T2",
+    "3": "T3",
+    "4": "T4"
+  },
   "mint": {
     "title": "CHIP MINT STATION",
     "connect": "CONNECT WALLET TO MINT",
     "wallets": "Phantom · Solflare · Backpack",
-    "selectRaritySub": "Select rarity",
-    "selectRarity": "SELECT RARITY:",
+    "tierSub": "Every chip starts at Tier 0",
+    "tierIntro": "ALL CHIPS MINT AT TIER 0",
+    "tierBody": "Win PvP and Battle Royale games to level your chip up: T0→T1 at 100 wins, then 250, 550, 1550. Higher tiers unlock perks. Tournaments don't count toward progression.",
     "networkNotReady": "NETWORK NOT READY",
     "chipInfo": "{{rarity}} CHIP INFO:",
     "price": "Price:",
@@ -84,9 +92,9 @@
     "total": "TOTAL:",
     "signing": "SIGN IN WALLET...",
     "disabled": "MINT DISABLED",
-    "cta": "MINT {{rarity}} CHIP",
+    "cta": "MINT CHIP",
     "footnote": "Each mint creates a fresh Metaplex Core Asset + ChipData PDA.",
-    "toast": "Minted {{rarity}}!"
+    "toast": "Minted a chip!"
   },
   "status": {
     "0": "WAITING",

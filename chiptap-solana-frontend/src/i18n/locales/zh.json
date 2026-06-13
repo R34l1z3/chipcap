@@ -71,12 +71,20 @@
     "3": "史诗",
     "4": "传说"
   },
+  "tier": {
+    "0": "T0",
+    "1": "T1",
+    "2": "T2",
+    "3": "T3",
+    "4": "T4"
+  },
   "mint": {
     "title": "筹码铸造站",
     "connect": "连接钱包以铸造",
     "wallets": "Phantom · Solflare · Backpack",
-    "selectRaritySub": "选择稀有度",
-    "selectRarity": "选择稀有度：",
+    "tierSub": "每个筹码都从 T0 开始",
+    "tierIntro": "所有筹码都在 T0 铸造",
+    "tierBody": "赢得对战和大逃杀来升级筹码：T0→T1 需 100 胜，之后 250、550、1550。更高层级解锁特权。锦标赛不计入进度。",
     "networkNotReady": "网络未就绪",
     "chipInfo": "{{rarity}} 筹码信息：",
     "price": "价格：",
@@ -84,9 +92,9 @@
     "total": "合计：",
     "signing": "在钱包中签名...",
     "disabled": "铸造已禁用",
-    "cta": "铸造 {{rarity}} 筹码",
+    "cta": "铸造筹码",
     "footnote": "每次铸造都会创建一个新的 Metaplex Core Asset + ChipData PDA。",
-    "toast": "已铸造 {{rarity}}！"
+    "toast": "已铸造筹码！"
   },
   "status": {
     "0": "等待中",

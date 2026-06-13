@@ -198,11 +198,11 @@ router.get("/tournaments/:id", async (req, res, next) => {
 
 router.get("/chips", async (req, res, next) => {
   try {
-    const { owner, rarity, limit = 100, offset = 0 } = req.query;
+    const { owner, tier, limit = 100, offset = 0 } = req.query;
     const conds = []; const params = []; let i = 1;
 
-    if (owner)               { conds.push(`owner = $${i++}`);  params.push(owner); }
-    if (rarity !== undefined) { conds.push(`rarity = $${i++}`); params.push(Number(rarity)); }
+    if (owner)             { conds.push(`owner = $${i++}`); params.push(owner); }
+    if (tier !== undefined) { conds.push(`tier = $${i++}`);  params.push(Number(tier)); }
 
     const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
     params.push(Math.min(Number(limit), 200));

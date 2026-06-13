@@ -41,14 +41,37 @@ export const CHIP_NFT_PROGRAM     = readProgramId("VITE_CHIP_NFT_PROGRAM",     "
 export const BATTLE_ARENA_PROGRAM = readProgramId("VITE_BATTLE_ARENA_PROGRAM", "battle_arena");
 export const TREASURY_PROGRAM     = readProgramId("VITE_TREASURY_PROGRAM",     "treasury");
 
-// Mirrors the EVM frontend RARITIES so existing UI code keeps working.
-export const RARITIES = [
-  { id: 0, name: "Common",    color: "#aaaaaa", bgClass: "rarity-common" },
-  { id: 1, name: "Uncommon",  color: "#00FF00", bgClass: "rarity-uncommon" },
-  { id: 2, name: "Rare",      color: "#3399FF", bgClass: "rarity-rare" },
-  { id: 3, name: "Epic",      color: "#AA44FF", bgClass: "rarity-epic" },
-  { id: 4, name: "Legendary", color: "#FFD700", bgClass: "rarity-legendary" },
+// SEC-26 — Tier system replaces the 5-level mint-time rarity.  Every
+// chip mints at T0 and climbs T0→T4 by winning PvP + Battle Royale
+// games (tournaments excluded).  The colour ramp is the old rarity
+// ramp (grey→green→blue→purple→gold) so index.css `.rarity-*` classes
+// are reused unchanged.  Tier display names come from i18n `tier.<id>`.
+export const TIERS = [
+  { id: 0, color: "#aaaaaa", bgClass: "rarity-common" },
+  { id: 1, color: "#00FF00", bgClass: "rarity-uncommon" },
+  { id: 2, color: "#3399FF", bgClass: "rarity-rare" },
+  { id: 3, color: "#AA44FF", bgClass: "rarity-epic" },
+  { id: 4, color: "#FFD700", bgClass: "rarity-legendary" },
 ] as const;
+
+// Cumulative win thresholds — MUST match `TIER_THRESHOLDS` in
+// chip-nft/src/lib.rs.  Index = current tier; a chip at tier N with
+// `progression_wins >= TIER_THRESHOLDS[N]` is at tier N+1.
+export const TIER_THRESHOLDS = [100, 250, 550, 1550] as const;
+export const TIER_MAX = 4;
+
+// Progress of a chip toward its next tier, for the inventory progress bar.
+// Returns the wins floor of the current tier, the next threshold (or null
+// at T4), and a 0..1 fraction across the current band.
+export function tierProgress(wins: number, tier: number): {
+  floor: number; next: number | null; pct: number;
+} {
+  if (tier >= TIER_MAX) return { floor: TIER_THRESHOLDS[3], next: null, pct: 1 };
+  const floor = tier === 0 ? 0 : TIER_THRESHOLDS[tier - 1];
+  const next  = TIER_THRESHOLDS[tier];
+  const pct   = Math.max(0, Math.min(1, (wins - floor) / (next - floor)));
+  return { floor, next, pct };
+}
 
 // Pool tier labels in SOL — match the on-chain `pool_amounts` defaults.
 export const POOL_TIERS = [
@@ -60,10 +83,10 @@ export const POOL_TIERS = [
   { id: 5, label: "5 SOL",     sol: 5     },
 ] as const;
 
-// Numeric defaults for mint prices (used when a Phantom-not-connected
-// MintPage just wants to show stub prices).  Real prices come from the
-// chip-nft Config PDA.
-export const DEFAULT_MINT_PRICE_SOL = [0.02, 0.1, 0.4, 1, 4];
+// Default flat mint price (SEC-26 — single tier-0 price).  Used as a
+// stub before the chip-nft Config PDA loads; the real price comes from
+// `config.mintPrice`.
+export const DEFAULT_MINT_PRICE_SOL = 0.02;
 
 // Same name conventions as EVM
 export const BATTLE_STATUS = { 0: "WAITING", 1: "ROLLING", 2: "DECIDED", 3: "SETTLED", 4: "CANCELLED" } as const;

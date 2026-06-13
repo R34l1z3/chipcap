@@ -618,7 +618,8 @@ function Create({ onBack }: { onBack: () => void }) {
                   key={c.asset}
                   tokenId={c.token_id}
                   asset={c.asset}
-                  rarity={c.rarity}
+                  tier={c.tier}
+                  progressionWins={c.progression_wins}
                   battleCount={c.battle_count}
                   winCount={c.win_count}
                   selected={chip === c.asset}

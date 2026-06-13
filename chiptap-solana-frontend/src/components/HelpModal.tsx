@@ -56,7 +56,7 @@ export default function HelpModal({ onClose }: { onClose: () => void }) {
   const isDevnet = CLUSTER !== "mainnet";
   const faucetUrl = "https://faucet.solana.com/";
   const cheapestTier = POOL_TIERS[0]?.label ?? "0.05 SOL";
-  const cheapestMint = DEFAULT_MINT_PRICE_SOL[0] ?? 0.02;
+  const cheapestMint = DEFAULT_MINT_PRICE_SOL;
 
   // Step numbers shift down by one on mainnet (no faucet step).
   const sMint = isDevnet ? 3 : 2;

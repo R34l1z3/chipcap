@@ -9,20 +9,24 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Indexed chips
 -- ============================================================
 CREATE TABLE IF NOT EXISTS chips (
-  asset           VARCHAR(44) PRIMARY KEY,
-  token_id        BIGINT      NOT NULL,
-  owner           VARCHAR(44) NOT NULL,
-  rarity          SMALLINT    NOT NULL DEFAULT 0,
-  battle_count    INT         NOT NULL DEFAULT 0,
-  win_count       INT         NOT NULL DEFAULT 0,
-  minted_at       TIMESTAMPTZ,
-  mint_tx         VARCHAR(88),
-  indexed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  asset            VARCHAR(44) PRIMARY KEY,
+  token_id         BIGINT      NOT NULL,
+  owner            VARCHAR(44) NOT NULL,
+  -- SEC-26 — rarity replaced by tier (0..4) + win-based progression.
+  -- rarity kept (deprecated) so older rows / replays don't error.
+  rarity           SMALLINT    NOT NULL DEFAULT 0,
+  tier             SMALLINT    NOT NULL DEFAULT 0,
+  progression_wins INT         NOT NULL DEFAULT 0,
+  battle_count     INT         NOT NULL DEFAULT 0,
+  win_count        INT         NOT NULL DEFAULT 0,
+  minted_at        TIMESTAMPTZ,
+  mint_tx          VARCHAR(88),
+  indexed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (token_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_chips_owner          ON chips(owner);
-CREATE INDEX IF NOT EXISTS idx_chips_rarity         ON chips(rarity);
+CREATE INDEX IF NOT EXISTS idx_chips_tier           ON chips(tier);
 -- SEC-15: composite for "list owner's chips newest-first" — the
 -- inventory / profile pages hit this on every page load.
 CREATE INDEX IF NOT EXISTS idx_chips_owner_token_id ON chips(owner, token_id DESC);
@@ -67,6 +71,10 @@ CREATE INDEX IF NOT EXISTS idx_battles_created  ON battles(created_at DESC);
 -- the UI can link to it on solscan for independent audit.
 ALTER TABLE battles ADD COLUMN IF NOT EXISTS vrf_method        VARCHAR(16);
 ALTER TABLE battles ADD COLUMN IF NOT EXISTS randomness_account VARCHAR(44);
+
+-- SEC-26: tier progression columns on existing DBs (no-op on fresh ones).
+ALTER TABLE chips ADD COLUMN IF NOT EXISTS tier             SMALLINT NOT NULL DEFAULT 0;
+ALTER TABLE chips ADD COLUMN IF NOT EXISTS progression_wins INT      NOT NULL DEFAULT 0;
 
 -- ============================================================
 -- SEC-22: Battle Royale (8-player single-VRF mode)

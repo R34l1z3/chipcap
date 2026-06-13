@@ -105,7 +105,9 @@ export interface IndexedChip {
   asset:        string;
   token_id:     number;
   owner:        string;
-  rarity:       number;
+  // SEC-26 — tier (0..4) + cumulative PvP/BR wins driving promotion.
+  tier:             number;
+  progression_wins: number;
   battle_count: number;
   win_count:    number;
 }

@@ -467,7 +467,8 @@ function CreateBattle({ onBack }: { onBack: () => void }) {
                   key={c.asset}
                   tokenId={c.token_id}
                   asset={c.asset}
-                  rarity={c.rarity}
+                  tier={c.tier}
+                  progressionWins={c.progression_wins}
                   battleCount={c.battle_count}
                   winCount={c.win_count}
                   selected={chip === c.asset}
@@ -577,6 +578,27 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
     if (!arena || !publicKey) return;
     setBusy("claim");
     try {
+      // SEC-26 — record the win toward this chip's tier progression in
+      // the SAME tx as the claim.  record_chip_win is permissionless +
+      // idempotent (monotonic last_game_id guard), so bundling it here
+      // is the natural moment: the winner is already signing, the battle
+      // is DECIDED, and the chip is theirs.  Best-effort: if the chip-nft
+      // program isn't wired yet (older deploy) we still let the claim go.
+      const preIxs: any[] = [];
+      if (chipNft) {
+        try {
+          preIxs.push(
+            await (chipNft.methods as any).recordChipWin()
+              .accounts({
+                config:    pda.chipNftConfig(),
+                chipData:  pda.chipData(winnerChip),
+                game:      pda.battle(battleId),
+                caller:    publicKey,
+              }).instruction(),
+          );
+        } catch { /* leave preIxs empty — claim still works */ }
+      }
+
       await (arena.methods as any).claimWinnerChip()
         .accounts({
           config: pda.arenaConfig(),
@@ -586,7 +608,9 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           winner: publicKey,
           mplCore: MPL_CORE_PROGRAM,
           systemProgram: SystemProgram.programId,
-        }).rpc();
+        })
+        .preInstructions(preIxs)
+        .rpc();
       notify("info", `Claimed chip from battle #${battleId}!`);
       await fetchBattle();
     } catch (e) { notifyTxError("Claim", e); }
@@ -743,7 +767,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
             <div className="font-pixel mb-1 truncate" style={{ fontSize: 8, color: isPlayerA ? "#FFD700" : "#00FFFF" }}>
               {isPlayerA ? t("common.you") : shortAddr(battle.playerA?.toBase58?.())}
             </div>
-            <ChipCard asset={battle.chipA?.toBase58?.()} rarity={0} size="md" />
+            <ChipCard asset={battle.chipA?.toBase58?.()} tier={0} size="md" />
           </div>
 
           <div className="flex flex-col items-center flex-shrink-0">
@@ -764,7 +788,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
                 ? t("battle.watch.unknown")
                 : isPlayerB ? t("common.you") : shortAddr(battle.playerB?.toBase58?.())}
             </div>
-            <ChipCard asset={battle.chipB?.toBase58?.()} rarity={0} size="md" />
+            <ChipCard asset={battle.chipB?.toBase58?.()} tier={0} size="md" />
           </div>
         </div>
 

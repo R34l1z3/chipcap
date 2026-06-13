@@ -57,21 +57,52 @@ export async function handleChipMinted(data, ctx) {
   const asset    = asPubkey(data.asset);
   const owner    = asPubkey(data.owner);
   const tokenId  = asNum(data.tokenId ?? data.token_id);
-  const rarity   = asNum(data.rarity);
+  const tier     = asNum(data.tier);   // SEC-26 — always 0 at mint
   const price    = lamportsToSol(data.price);
 
-  if (!await claimEvent("ChipMinted", ctx, { asset, owner, tokenId, rarity, price })) return;
+  if (!await claimEvent("ChipMinted", ctx, { asset, owner, tokenId, tier, price })) return;
 
   await db.query(
-    `INSERT INTO chips (asset, token_id, owner, rarity, minted_at, mint_tx)
-     VALUES ($1,$2,$3,$4,NOW(),$5)
+    `INSERT INTO chips (asset, token_id, owner, tier, progression_wins, minted_at, mint_tx)
+     VALUES ($1,$2,$3,$4,0,NOW(),$5)
      ON CONFLICT (asset) DO UPDATE
-       SET owner = $3, rarity = $4`,
-    [asset, tokenId, owner, rarity, ctx.signature],
+       SET owner = $3, tier = $4`,
+    [asset, tokenId, owner, tier, ctx.signature],
   );
 
   await upsertPlayer(owner);
-  broadcast("chip:minted", { asset, tokenId, owner, rarity });
+  broadcast("chip:minted", { asset, tokenId, owner, tier });
+}
+
+// SEC-26 — per-chip win progression.  ChipWinRecorded fires on every
+// counted (PvP + BR) victory; ChipPromoted fires only when a threshold
+// is crossed.  Both carry the authoritative on-chain counters, so we
+// SET (not increment) — idempotent under replay without claimEvent
+// bookkeeping (the chip-nft program already deduped via last_game_id).
+export async function handleChipWinRecorded(data, ctx) {
+  const asset = asPubkey(data.asset);
+  const wins  = asNum(data.wins);
+  const tier  = asNum(data.tier);
+  if (!asset) return;
+
+  await db.query(
+    `UPDATE chips SET progression_wins = $1, tier = $2 WHERE asset = $3`,
+    [wins, tier, asset],
+  );
+  broadcast("chip:progress", { asset, wins, tier, tx: ctx.signature });
+}
+
+export async function handleChipPromoted(data, ctx) {
+  const asset   = asPubkey(data.asset);
+  const newTier = asNum(data.newTier ?? data.new_tier);
+  const wins    = asNum(data.wins);
+  if (!asset) return;
+
+  await db.query(
+    `UPDATE chips SET tier = $1, progression_wins = $2 WHERE asset = $3`,
+    [newTier, wins, asset],
+  );
+  broadcast("chip:promoted", { asset, tier: newTier, wins, tx: ctx.signature });
 }
 
 // ============================================================
@@ -901,6 +932,9 @@ export async function handleWithdrawnUser(data, ctx) {
 
 const DISPATCH = {
   ChipMinted:               handleChipMinted,
+  // SEC-26 — tier progression
+  ChipWinRecorded:          handleChipWinRecorded,
+  ChipPromoted:             handleChipPromoted,
   BattleCreated:            handleBattleCreated,
   BattleJoined:             handleBattleJoined,
   BattleDecided:            handleBattleDecided,
