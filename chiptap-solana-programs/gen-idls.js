@@ -131,7 +131,7 @@ const treasuryIdl = {
 //                          CHIP-NFT
 // ============================================================
 
-const CHIP_NFT_ID = "A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ";
+const CHIP_NFT_ID = "5opz7a9RhLLDtsqXsMxWsiuJp9Nnz71nUHkQFqv3SFGT";
 
 const chipNftIdl = {
   address: CHIP_NFT_ID,

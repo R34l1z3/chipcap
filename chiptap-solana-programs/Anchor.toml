@@ -3,12 +3,12 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-chip_nft      = "A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ"
+chip_nft      = "5opz7a9RhLLDtsqXsMxWsiuJp9Nnz71nUHkQFqv3SFGT"
 battle_arena  = "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8"
 treasury      = "wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp"
 
 [programs.devnet]
-chip_nft      = "A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ"
+chip_nft      = "5opz7a9RhLLDtsqXsMxWsiuJp9Nnz71nUHkQFqv3SFGT"
 battle_arena  = "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8"
 treasury      = "wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp"
 

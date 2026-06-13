@@ -31,7 +31,7 @@ use mpl_core::{
     ID as MPL_CORE_ID,
 };
 
-declare_id!("A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ");
+declare_id!("5opz7a9RhLLDtsqXsMxWsiuJp9Nnz71nUHkQFqv3SFGT");
 
 // SEC-26 — cumulative win thresholds; index = current tier.
 // tier N promotes to N+1 once progression_wins >= TIER_THRESHOLDS[N].
