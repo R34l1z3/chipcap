@@ -534,14 +534,26 @@ Gotcha found en route: `build-direct.sh` actually ran `anchor build` WITH IDL (c
 - **Batch 5 — BattleAuditPanel + `notify(...)` toast messages** (~40): audit row labels, VRF badges, the scattered `notify("type", "…")` strings (translate the static part; many are template literals with sig/id).
 - **Batch 6 — final**: re-subset Zpix against the complete zh.json, full `vite build`, smoke the language switch on every page, commit.
 
-## Where we are right now (2026-05-29)
+## Where we are right now (2026-07-04)
 
-Last work: SEC-24 (code-review hardening + tutorial + design-pass header).  All committed + pushed to `R34l1z3/chipcap` `main` (HEAD ~ `803c653`).  Program redeployed to devnet with the cancel→refund fix.
+Last full session shipped a LOT — all committed + pushed to `R34l1z3/chipcap` `main` (HEAD `c40eb64`). In order:
 
-**Pending user / ops actions (NOT code):**
-- **Render manual deploy of the indexer** — the SEC-24 `vrf_method` default change is committed but Render doesn't auto-deploy; until the user clicks Manual Deploy, freshly-decided BR/Tournament rows briefly show the wrong VRF badge.  Not data-corrupting; SwitchboardVerified still corrects it.
-- **Relayer is still on the user's PC (WSL)** — restarted this session (it had died on a reboot; that's how T #20 needed `kick-tournament.js`).  Putting it on a VPS is the next infra task.
+1. **SEC-25 i18n Batches 2 + 3** — BattlePage, BattleRoyalePage, TournamentPage all `t()`-ified across 6 langs (see SEC-25 section). Foundation + Batch 1 were prior. **Remaining i18n: Batch 4** (Inventory/Profile/Leaderboard/History) + **Batch 5** (BattleAuditPanel + `notify(...)` toasts) + final Zpix re-subset. The `notify(...)`/`notifyTxError(...)` strings across all pages are STILL English — that's Batch 5. `rarity.*` locale keys are now dead (SEC-26 replaced them with `tier.*`) but kept for parity — prune when convenient.
+2. **PvP claim/pay UX fixes** (commit `a74e4fc`) — pay-ransom now auto-deposits the shortfall (loser who never used DEPOSIT was hitting InsufficientBalance/AccountNotInitialized); CLAIM panel hides once the winner's chip left escrow (reads mpl-core owner); pay window shows a live countdown and drops to forfeit-only after `decision_timeout`. `debug-battle-txs.cjs` / `debug-tx-ix.cjs` are the forensics helpers (no on-chain tx had actually failed — it was all client-side gating).
+3. **CI repair** (commit `25eae41`) — EVM CI is now GREEN. Fixed the empty `public/` dir (`.gitkeep`), the anchor-CLI install (crates.io pin not avm-from-master), and WS_TOKEN scoping. **Solana CI still RED** on the `Programs (anchor build --no-idl)` job — never passed in 26 runs; a heavy integration job fighting the fragile anchor toolchain. Task #15 open. Not a regression; low priority vs. launch.
+4. **SEC-26 tier system — DESIGNED, BUILT, LOCALNET-SMOKED, DEPLOYED, VERIFIED LIVE.** See the full SEC-26 section above. chip_nft got a NEW devnet id `5opz7a9RhLLDtsqXsMxWsiuJp9Nnz71nUHkQFqv3SFGT` (minimal wipe — battle_arena + treasury untouched). End-to-end verified (mint→index with tier). This ate most of the session incl. 4 Render redeploys chasing migration gotchas (all documented in the SEC-26 section — READ THEM before touching the Render indexer again).
 
-**Next agreed step:** finish the **design pass** — user will connect a wallet at `chipcap.vercel.app`, screenshot the Battle Lobby + Watch (and ideally BR/Tournament), and send them so the Lobby/Watch density + CTA-hierarchy can be tuned against the real render (can't be eyeballed in-tool — wallet-gated).  After that: **relayer on VPS** (last infra blocker before friends-test), then secret rotation / verifiable build / Squads / mainnet.
+**Live infra state at session end:**
+- Frontend `chipcap.vercel.app` — tier system live (new chip_nft).
+- Indexer `chiptap-indexer-re8t.onrender.com` — new code, migrated, indexing tier. (The OTHER Render service `chiptap-indexer` is a Failed Blueprint dup — ignore it.)
+- **Relayer — status UNKNOWN / assume DEAD.** Still on the user's PC in WSL; dies on every reboot. **First thing next session if doing anything battle-related: check `wsl -u root pgrep -af "node.*relayer.*src/index"` and restart via a persistent `Start-Process wsl` window if dead.** Playbook + `kick-battle.js`/`kick-tournament.js` in the regression-suite section.
 
-**Friends-test is the near-term goal** (not public launch).  Referral system explicitly deferred until after friends-test.
+**Pending / next (nothing blocking, user to pick):**
+- **Relayer on Fly.io** — THE friends-test blocker. `fly.toml` ready in `chiptap-solana-relayer/`. Needs user `flyctl login`. Recurring pain (battles hang every PC reboot — #20/#23/#25/#28 needed manual kicks).
+- **Solana CI Programs job** (task #15) — still red; optional.
+- **Product backlog** (user-requested, see "Active product backlog" section): (1) referral, ✅(2) tier now DONE, (3) Web2 onboarding + P2P, (4) visual/animation/sound/menu polish. Also the deferred **design pass** (Lobby/Watch density — needs user screenshots of wallet-connected screens).
+- Optional SEC-26 cleanups: `TRUNCATE chips` on Render to drop old rarity-era rows; `solana program close` the orphaned old chip_nft `A8fqF…` to reclaim ~2 SOL.
+
+**Friends-test is the near-term goal** (not public launch). Sequencing rec (not locked): Fly.io relayer → then Web2 onramp / referral / visual polish per user priority. Mainnet is far off, gated on audit + the legal reality of a real-money provably-fair betting game (flagged to user; external, non-technical blocker).
+
+**Browser note:** user's default browser is Yandex; they installed **Google Chrome + the Claude extension** this session (used it to drive the Render dashboard). For future wallet-gated screenshots (design pass), the extension works but the user must be logged into the target site IN Chrome (their Render/Vercel sessions live in Yandex separately).
