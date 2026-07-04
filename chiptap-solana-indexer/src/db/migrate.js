@@ -21,8 +21,12 @@ CREATE TABLE IF NOT EXISTS chips (
   win_count        INT         NOT NULL DEFAULT 0,
   minted_at        TIMESTAMPTZ,
   mint_tx          VARCHAR(88),
-  indexed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (token_id)
+  indexed_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  -- SEC-26: token_id is NO LONGER globally unique.  Each chip_nft
+  -- program generation restarts token_id at 1, so after a program
+  -- rotation new chips collide with old rows on a UNIQUE(token_id).
+  -- The asset pubkey (PK) is the real unique id; the constraint is
+  -- dropped below for existing DBs.
 );
 
 CREATE INDEX IF NOT EXISTS idx_chips_owner          ON chips(owner);
@@ -79,6 +83,9 @@ ALTER TABLE chips ADD COLUMN IF NOT EXISTS tier             SMALLINT NOT NULL DE
 ALTER TABLE chips ADD COLUMN IF NOT EXISTS progression_wins INT      NOT NULL DEFAULT 0;
 -- Index on tier created HERE (after the column is guaranteed to exist).
 CREATE INDEX IF NOT EXISTS idx_chips_tier ON chips(tier);
+-- SEC-26: drop the now-wrong UNIQUE(token_id) (see chips table note).
+-- Postgres auto-names a table-level UNIQUE as <table>_<col>_key.
+ALTER TABLE chips DROP CONSTRAINT IF EXISTS chips_token_id_key;
 
 -- ============================================================
 -- SEC-22: Battle Royale (8-player single-VRF mode)
