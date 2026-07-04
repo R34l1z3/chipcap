@@ -37,4 +37,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -q -O - "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "src/index.js"]
+# SEC-26 — run the (idempotent) schema migration on every boot, THEN start
+# the server.  Render free tier has no preDeployCommand, so baking migrate
+# into CMD guarantees new columns (tier/progression_wins, …) exist before
+# the indexer inserts rows.  `exec` hands PID/signals to node.
+CMD ["sh", "-c", "node src/db/migrate.js && exec node src/index.js"]
