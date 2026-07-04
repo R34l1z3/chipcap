@@ -29,8 +29,9 @@ services:
         value: https://api.devnet.solana.com
       - key: SOLANA_WS
         value: wss://api.devnet.solana.com
+      # SEC-26 — new chip_nft id (tier system).  Old was A8fqF…k5qQ.
       - key: CHIP_NFT_PROGRAM
-        value: A8fqFHnTHAAq3B5t22S8RAix4neNTXTp7RaZ6aQbk5qQ
+        value: 5opz7a9RhLLDtsqXsMxWsiuJp9Nnz71nUHkQFqv3SFGT
       - key: BATTLE_ARENA_PROGRAM
         value: Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8
       - key: TREASURY_PROGRAM
