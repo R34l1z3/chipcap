@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS chips (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chips_owner          ON chips(owner);
-CREATE INDEX IF NOT EXISTS idx_chips_tier           ON chips(tier);
+-- NB: idx_chips_tier is created LATER, after the ADD COLUMN tier ALTER --
+-- on an existing DB the CREATE TABLE above is a no-op so the tier column
+-- does not exist yet here, and indexing a missing column errors (SEC-26).
 -- SEC-15: composite for "list owner's chips newest-first" — the
 -- inventory / profile pages hit this on every page load.
 CREATE INDEX IF NOT EXISTS idx_chips_owner_token_id ON chips(owner, token_id DESC);
@@ -75,6 +77,8 @@ ALTER TABLE battles ADD COLUMN IF NOT EXISTS randomness_account VARCHAR(44);
 -- SEC-26: tier progression columns on existing DBs (no-op on fresh ones).
 ALTER TABLE chips ADD COLUMN IF NOT EXISTS tier             SMALLINT NOT NULL DEFAULT 0;
 ALTER TABLE chips ADD COLUMN IF NOT EXISTS progression_wins INT      NOT NULL DEFAULT 0;
+-- Index on tier created HERE (after the column is guaranteed to exist).
+CREATE INDEX IF NOT EXISTS idx_chips_tier ON chips(tier);
 
 -- ============================================================
 -- SEC-22: Battle Royale (8-player single-VRF mode)
