@@ -401,6 +401,39 @@ The four items below were explicitly added to "near-term tasks" by the user (aft
 - **Then**: Referral (#1) — once player flow is smooth enough that referees actually retain.
 - **P2P marketplace** is its own multi-week project — defer past first public devnet wave.
 
+## Tech-debt register (read-only audit, 2026-07-04)
+
+Full sweep done at user request; nothing was changed. Ordered by severity. Numbers were measured, not guessed.
+
+**🔴 HIGH — money/users at risk:**
+1. **Tournament cancel does NOT refund entry fees** — the ONLY real `TODO` in the codebase and it's in a money path: `expire_tournament_registration` (battle-arena lib.rs ~1418) sets CANCELLED, players reclaim chips, but entry fees stay in `pool_amount` ("admin can do a manual refund script post-cancel"). **Same bug class as the SEC-24 CRITICAL BR cancel-refund** (which WAS fixed — `claim_chip_br` refunds stake on CANCELLED). The tournament equivalent was left out of MVP scope. Fix shape: mirror the BR fix — refund `entry_fee` to `player_user.balance` inside `claim_tournament_chip` when status==CANCELLED, gated per-slot by `chips_claimed_mask`. Est. 1-2h + smoke. **Close before friends-test.**
+2. **Relayer on user's PC** — recurring outage (#20/#23/#25/#28 all hand-kicked). `fly.toml` ready. The friends-test blocker.
+3. **Leaked secrets unrotated** — Neon password, Render WS_TOKEN, Fly token (in chat verbatim since May). Listed in "Credential hygiene" above; still open.
+
+**🟠 MEDIUM — scale/maintainability:**
+4. `record_chip_win` byte-parse couples chip_nft to battle-arena's FROZEN account layouts — any Battle/BattleRoyale struct change silently breaks tier progression. Known + smoked (tier-smoke.js), but every arena layout change must re-run that smoke.
+5. No typed Anchor clients — **48 `as any`** in frontend; account/method typos surface only at wallet-popup time. Root cause = broken anchor IDL stage; fix = node-side type generator from our gen-idls JSONs.
+6. Solana CI Programs job: **0 green runs in 26** — programs have no CI safety net; only devnet smokes (cost SOL, run rarely).
+7. Test coverage: frontend **0 tests**, indexer 3 regression tests, programs e2e-smokes only (no unit tests for tier thresholds / fee math).
+8. Watch pages poll RPC every 3s per client — the #1 future RPC cost driver; indexer WS topics already exist but aren't used for battle-state pushes.
+9. Page monoliths + copy-paste: TournamentPage **1206** lines / BR 1022 / Battle 1013; the `ensureUserAccount+deposit(shortfall)` preIx chain duplicated 4+×, chip-picker 3× — fixes must be applied in 2-3 places every time (happened this session).
+10. DB migration = one giant idempotent SQL blob, no versioning — bit us twice in one session (index-before-column order; backticks in comments terminating the JS template literal).
+11. Duplicate Render service `chiptap-indexer` (Failed, Blueprint dup) next to the live `-re8t` — cost an hour of confusion; should be deleted in the dashboard.
+
+**🟡 LOW — hygiene:**
+- Dead config exports: `BATTLE_STATUS`, `RESOLUTION`, `T_STATUS`, `T_MATCH_STATUS`, `T_ROUND_LABEL`, `T_CANCEL_REASON`, `BR_CANCEL_REASON` — 0 uses outside config after the i18n migration.
+- Dead i18n `rarity.*` keys ×6 locales; deprecated `rarity` DB column (intentional).
+- 22 untranslated `notify()` strings + 4 pages = the known i18n Batches 4/5.
+- NFT metadata URI is a placeholder (`https://chiptap.gg/metadata/tier-0.json`) — IPFS pinning from chiptap-nft-metadata never done.
+- Orphaned old chip_nft program on devnet (~2 SOL reclaimable via `solana program close`, keypair backed up); junk `CHIP_NFT_PROGRAMA8fq…` env key on Render.
+- GH Actions unpinned (@v4 not SHAs) + running on deprecated Node 20 runners (forced Node 24 since 2026-06-16; Node 20 removed from runners 2026-09-16 — bump before then).
+- Untracked junk in programs/ working tree (`@switchboard-xyz/`, `package-lock.json`).
+- Free-tier infra: Render sleeps after 15 min (~50s cold start for the first user), Neon free — fine for friends-test, not beyond.
+
+**⚪ STRATEGIC:** the whole EVM stack (contracts/indexer/frontend) is maintained + CI'd but dormant — every CI run and doc page pays tax on a dead branch. Decide: archive or keep.
+
+**Recommended order: #1 → #2 → #3; everything else can wait past friends-test.**
+
 ## How to resume
 
 1. **Read this file first.** Don't read every program/test/page unless touching it.
