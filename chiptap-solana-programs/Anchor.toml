@@ -6,11 +6,13 @@ skip-lint = false
 chip_nft      = "5opz7a9RhLLDtsqXsMxWsiuJp9Nnz71nUHkQFqv3SFGT"
 battle_arena  = "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8"
 treasury      = "wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp"
+marketplace   = "4xHdVGgRKnNu3bCSJY9CRz9fnrvxiJuZU2uc9kfHxJ1P"
 
 [programs.devnet]
 chip_nft      = "5opz7a9RhLLDtsqXsMxWsiuJp9Nnz71nUHkQFqv3SFGT"
 battle_arena  = "Ae65nkzg2DD4dFUttxUXPpVfZT7kMPX1L9Uk9GDxkBU8"
 treasury      = "wGAqdvJJV2DTHUgkDxdMkWotTvg8Q7r5kz5NntWESPp"
+marketplace   = "4xHdVGgRKnNu3bCSJY9CRz9fnrvxiJuZU2uc9kfHxJ1P"
 
 [registry]
 url = "https://api.apr.dev"

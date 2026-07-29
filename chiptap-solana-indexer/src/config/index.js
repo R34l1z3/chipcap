@@ -23,6 +23,12 @@ const config = {
     chipNft:     required("CHIP_NFT_PROGRAM"),
     battleArena: required("BATTLE_ARENA_PROGRAM"),
     treasury:    required("TREASURY_PROGRAM"),
+    // SEC-27 — deliberately OPTIONAL, not required().  Existing
+    // deployments (Render dashboard env, local .env files) predate the
+    // marketplace; making it required would hard-crash them at boot the
+    // way SEC-4 crashed the frontend.  Empty = marketplace not indexed,
+    // logged loudly at startup by eventListener.
+    marketplace: process.env.MARKETPLACE_PROGRAM || "",
   },
 
   indexer: {

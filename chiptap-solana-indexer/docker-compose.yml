@@ -54,6 +54,9 @@ services:
       CHIP_NFT_PROGRAM:     ${CHIP_NFT_PROGRAM:?required}
       BATTLE_ARENA_PROGRAM: ${BATTLE_ARENA_PROGRAM:?required}
       TREASURY_PROGRAM:     ${TREASURY_PROGRAM:?required}
+      # SEC-27 — optional on purpose (no :?required): an existing stack
+      # must keep booting without it; the indexer just skips listings.
+      MARKETPLACE_PROGRAM:  ${MARKETPLACE_PROGRAM:-}
       START_SLOT:           ${START_SLOT:-0}
     ports:
       - "3002:3002"

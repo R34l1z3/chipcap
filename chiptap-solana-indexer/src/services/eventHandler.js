@@ -927,6 +927,120 @@ export async function handleWithdrawnUser(data, ctx) {
 }
 
 // ============================================================
+//  SEC-27 — P2P MARKETPLACE
+// ============================================================
+//
+// Three terminal-ish states per listing row: 0=active, 1=filled,
+// 2=cancelled.  `chips.listed` is a denormalised cache kept in sync
+// here so the inventory page can badge a listed chip without a join.
+//
+// NOTE on ids: listings.id comes from the marketplace program's OWN
+// `next_listing_id` counter — it is NOT the shared arena battle-id
+// space.  Don't cross-reference them.
+
+export async function handleListingCreated(data, ctx) {
+  const id      = asNum(data.id);
+  const seller  = asPubkey(data.seller);
+  const asset   = asPubkey(data.asset);
+  const feeBps  = asNum(data.feeBps ?? data.fee_bps);
+  const priceLamports = data.price?.toString?.() ?? String(data.price ?? 0);
+  const price   = lamportsToSol(data.price);
+
+  if (!await claimEvent("ListingCreated", ctx, { id, seller, asset, price, feeBps })) return;
+
+  const client = await db.getClient();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `INSERT INTO listings
+         (id, asset, seller, price_lamports, price, fee_bps, status, created_at, create_tx)
+       VALUES ($1,$2,$3,$4,$5,$6,0,NOW(),$7)
+       ON CONFLICT (id) DO UPDATE
+         SET asset = $2, seller = $3, price_lamports = $4, price = $5,
+             fee_bps = $6, status = 0, create_tx = $7`,
+      [id, asset, seller, priceLamports, price, feeBps, ctx.signature],
+    );
+    await client.query("UPDATE chips SET listed = TRUE WHERE asset = $1", [asset]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  await upsertPlayer(seller);
+  broadcast("market:listed", { id, asset, seller, price, feeBps, tx: ctx.signature });
+}
+
+export async function handleListingCancelled(data, ctx) {
+  const id     = asNum(data.id);
+  const seller = asPubkey(data.seller);
+  const asset  = asPubkey(data.asset);
+
+  if (!await claimEvent("ListingCancelled", ctx, { id, seller, asset })) return;
+
+  const client = await db.getClient();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `UPDATE listings SET status = 2, cancelled_at = NOW(), cancel_tx = $1 WHERE id = $2`,
+      [ctx.signature, id],
+    );
+    await client.query("UPDATE chips SET listed = FALSE WHERE asset = $1", [asset]);
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  broadcast("market:cancelled", { id, asset, seller, tx: ctx.signature });
+}
+
+export async function handleListingFilled(data, ctx) {
+  const id           = asNum(data.id);
+  const seller       = asPubkey(data.seller);
+  const buyer        = asPubkey(data.buyer);
+  const asset        = asPubkey(data.asset);
+  const price        = lamportsToSol(data.price);
+  const fee          = lamportsToSol(data.fee);
+  const paidToSeller = lamportsToSol(data.paidToSeller ?? data.paid_to_seller);
+
+  if (!await claimEvent("ListingFilled", ctx, { id, seller, buyer, asset, price, fee })) return;
+
+  const client = await db.getClient();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      `UPDATE listings
+          SET status = 1, buyer = $1, fee = $2, paid_to_seller = $3,
+              filled_at = NOW(), fill_tx = $4
+        WHERE id = $5`,
+      [buyer, fee, paidToSeller, ctx.signature, id],
+    );
+    // The chip really changed hands on-chain (mpl-core TransferV1 out of
+    // market_authority), so the indexer's ownership must follow or the
+    // buyer's inventory would never show it.
+    await client.query(
+      "UPDATE chips SET owner = $1, listed = FALSE WHERE asset = $2",
+      [buyer, asset],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+
+  await upsertPlayer(buyer);
+  broadcast("market:filled", { id, asset, seller, buyer, price, fee, paidToSeller, tx: ctx.signature });
+  broadcastToPlayers("market:sold", { id, asset, price, paidToSeller }, [seller]);
+}
+
+// ============================================================
 //  Dispatcher — called by eventListener for every decoded event
 // ============================================================
 
@@ -965,6 +1079,10 @@ const DISPATCH = {
   TournamentPrizeClaimed:   handleTournamentPrizeClaimed,
   TournamentChipClaimed:    handleTournamentChipClaimed,
   TournamentCancelled:      handleTournamentCancelled,
+  // SEC-27 — P2P marketplace
+  ListingCreated:           handleListingCreated,
+  ListingCancelled:         handleListingCancelled,
+  ListingFilled:            handleListingFilled,
 };
 
 export async function dispatchEvent(event, data, ctx) {

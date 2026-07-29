@@ -987,6 +987,186 @@ const arenaIdl = {
 };
 
 // ============================================================
+//                        MARKETPLACE  (SEC-27)
+// ============================================================
+//
+// Account ORDER below must mirror the Rust `#[derive(Accounts)]`
+// structs field-for-field — Anchor serialises accounts positionally,
+// so a reordering here fails at runtime, not at build time.
+
+const MARKETPLACE_ID = "4xHdVGgRKnNu3bCSJY9CRz9fnrvxiJuZU2uc9kfHxJ1P";
+
+const marketplaceIdl = {
+  address: MARKETPLACE_ID,
+  metadata: { name: "marketplace", version: "0.1.0", spec: "0.1.0" },
+  instructions: [
+    ix("initialize", [
+      W ("config"),
+      W ("vault"),
+      W ("market_authority"),
+      WS("owner"),
+      SP,
+    ], [{ name: "fee_bps", type: "u16" }]),
+
+    ix("set_paused", [
+      W("config"),
+      S("owner"),
+    ], [{ name: "paused", type: "bool" }]),
+
+    ix("set_fee_bps", [
+      W("config"),
+      S("owner"),
+    ], [{ name: "fee_bps", type: "u16" }]),
+
+    ix("withdraw_fees", [
+      A ("config"),
+      W ("vault"),
+      WS("owner"),
+      SP,
+    ], [{ name: "amount", type: "u64" }]),
+
+    ix("make_listing", [
+      W ("config"),
+      W ("listing"),
+      W ("market_authority"),
+      W ("chip"),
+      WS("seller"),
+      MPL,
+      SP,
+    ], [{ name: "price", type: "u64" }]),
+
+    ix("cancel_listing", [
+      A ("config"),
+      W ("listing"),
+      W ("market_authority"),
+      W ("chip"),
+      WS("seller"),
+      MPL,
+      SP,
+    ]),
+
+    // max_price = slippage guard.  The Listing PDA is seeded by the
+    // asset, so its address is reused across re-listings; without this
+    // the seller could cancel+relist higher between sign and execution.
+    ix("fill_listing", [
+      W ("config"),
+      W ("listing"),
+      W ("vault"),
+      W ("market_authority"),
+      W ("seller"),
+      W ("chip"),
+      WS("buyer"),
+      MPL,
+      SP,
+    ], [{ name: "max_price", type: "u64" }]),
+  ],
+  accounts: [acc("MarketConfig"), acc("Listing")],
+  events: [
+    ev("MarketInitialized"),
+    ev("MarketPausedUpdated"),
+    ev("MarketFeeBpsUpdated"),
+    ev("FeesWithdrawn"),
+    ev("ListingCreated"),
+    ev("ListingCancelled"),
+    ev("ListingFilled"),
+  ],
+  errors: [
+    { code: 6000, name: "NotOwner",            msg: "Caller is not the marketplace owner" },
+    { code: 6001, name: "Paused",              msg: "Marketplace is paused" },
+    { code: 6002, name: "ZeroPrice",           msg: "Listing price must be greater than zero" },
+    { code: 6003, name: "FeeTooHigh",          msg: "Fee exceeds the hard ceiling" },
+    { code: 6004, name: "NotSeller",           msg: "Account is not the seller of this listing" },
+    { code: 6005, name: "WrongChip",           msg: "Chip does not match the listing asset" },
+    { code: 6006, name: "CannotBuyOwnListing", msg: "Seller cannot buy their own listing" },
+    { code: 6007, name: "MathOverflow",        msg: "Arithmetic overflow" },
+    { code: 6008, name: "ZeroAmount",          msg: "Amount must be greater than zero" },
+    { code: 6009, name: "VaultInsufficient",   msg: "Vault has insufficient lamports above rent minimum" },
+    { code: 6010, name: "PriceExceedsMax",     msg: "Listing price is higher than the buyer's accepted maximum" },
+  ],
+  types: [
+    {
+      name: "MarketConfig",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "owner",           type: PUBKEY },
+          { name: "fee_bps",         type: "u16" },
+          { name: "paused",          type: "bool" },
+          { name: "next_listing_id", type: "u64" },
+          { name: "total_volume",    type: "u64" },
+          { name: "total_fees",      type: "u64" },
+          { name: "bump",            type: "u8" },
+          { name: "vault_bump",      type: "u8" },
+          { name: "authority_bump",  type: "u8" },
+          // SEC-20 forward-compat padding (see CLAUDE.md)
+          { name: "_reserved",       type: arr("u8", 64) },
+        ],
+      },
+    },
+    {
+      // No padding, deliberately — short-lived per-item account, same
+      // call as `Battle`.  Shape changes ship as a new account type.
+      name: "Listing",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "id",         type: "u64" },
+          { name: "seller",     type: PUBKEY },
+          { name: "asset",      type: PUBKEY },
+          { name: "price",      type: "u64" },
+          { name: "fee_bps",    type: "u16" },
+          { name: "created_at", type: "i64" },
+          { name: "bump",       type: "u8" },
+        ],
+      },
+    },
+    { name: "MarketInitialized",   type: { kind: "struct", fields: [{ name: "owner", type: PUBKEY }, { name: "fee_bps", type: "u16" }] } },
+    { name: "MarketPausedUpdated", type: { kind: "struct", fields: [{ name: "paused", type: "bool" }] } },
+    { name: "MarketFeeBpsUpdated", type: { kind: "struct", fields: [{ name: "fee_bps", type: "u16" }] } },
+    { name: "FeesWithdrawn",       type: { kind: "struct", fields: [{ name: "to", type: PUBKEY }, { name: "amount", type: "u64" }] } },
+    {
+      name: "ListingCreated",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "id",      type: "u64" },
+          { name: "seller",  type: PUBKEY },
+          { name: "asset",   type: PUBKEY },
+          { name: "price",   type: "u64" },
+          { name: "fee_bps", type: "u16" },
+        ],
+      },
+    },
+    {
+      name: "ListingCancelled",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "id",     type: "u64" },
+          { name: "seller", type: PUBKEY },
+          { name: "asset",  type: PUBKEY },
+        ],
+      },
+    },
+    {
+      name: "ListingFilled",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "id",             type: "u64" },
+          { name: "seller",         type: PUBKEY },
+          { name: "buyer",          type: PUBKEY },
+          { name: "asset",          type: PUBKEY },
+          { name: "price",          type: "u64" },
+          { name: "fee",            type: "u64" },
+          { name: "paid_to_seller", type: "u64" },
+        ],
+      },
+    },
+  ],
+};
+
+// ============================================================
 //                       WRITE OUTPUT
 // ============================================================
 
@@ -997,6 +1177,7 @@ for (const [name, idl] of Object.entries({
   treasury: treasuryIdl,
   chip_nft: chipNftIdl,
   battle_arena: arenaIdl,
+  marketplace: marketplaceIdl,
 })) {
   const file = path.join(outDir, `${name}.json`);
   fs.writeFileSync(file, JSON.stringify(idl, null, 2));

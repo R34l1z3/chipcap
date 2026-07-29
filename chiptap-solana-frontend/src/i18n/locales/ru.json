@@ -1,5 +1,7 @@
 {
-  "lang": { "switch": "Язык" },
+  "lang": {
+    "switch": "Язык"
+  },
   "header": {
     "tabs": {
       "mint": "ЧЕКАН",
@@ -9,7 +11,8 @@
       "tournament": "ТУРНИР",
       "leaderboard": "ТОП",
       "profile": "Я",
-      "history": "ИСТОРИЯ"
+      "history": "ИСТОРИЯ",
+      "market": "МАРКЕТ"
     },
     "tabsShort": {
       "mint": "ЧЕКАН",
@@ -19,7 +22,8 @@
       "tournament": "ТРН",
       "leaderboard": "ТОП",
       "profile": "Я",
-      "history": "ЛОГ"
+      "history": "ЛОГ",
+      "market": "МКТ"
     },
     "howToPlay": "Как играть"
   },
@@ -355,5 +359,35 @@
       "claimChip": "ЗАБРАТЬ МОЙ ЧИП (место {{slot}})",
       "reclaimed": "Ты забрал свой чип ✓"
     }
+  },
+  "market": {
+    "title": "МАРКЕТ",
+    "notConfigured": "Маркетплейс не включён в этой сборке.",
+    "connect": "Подключите кошелёк, чтобы покупать и продавать фишки.",
+    "tab_browse": "КУПИТЬ",
+    "tab_sell": "ПРОДАТЬ",
+    "browseTitle": "ФИШКИ В ПРОДАЖЕ",
+    "listTitle": "ВЫСТАВИТЬ ФИШКУ",
+    "myListings": "МОИ ЛОТЫ",
+    "empty": "Сейчас нет фишек в продаже.",
+    "emptyMine": "У вас нет активных лотов.",
+    "noChips": "Нет свободных фишек для продажи.",
+    "selectChip": "Выберите фишку для продажи:",
+    "pricePlaceholder": "Цена в SOL",
+    "list": "ВЫСТАВИТЬ",
+    "listingPending": "ВЫСТАВЛЯЕМ…",
+    "cancel": "ОТМЕНИТЬ",
+    "cancelling": "ОТМЕНА…",
+    "buy": "КУПИТЬ",
+    "buying": "ПОКУПКА…",
+    "feeNote": "Комиссия {{pct}}%",
+    "youReceive": "Вы получите {{amount}} SOL после комиссии",
+    "toastListed": "Фишка выставлена за {{price}} SOL",
+    "toastCancelled": "Лот отменён — фишка возвращена",
+    "toastBought": "Фишка куплена за {{price}} SOL",
+    "errBadPrice": "Введите цену больше нуля",
+    "errList": "Не удалось выставить",
+    "errCancel": "Не удалось отменить",
+    "errBuy": "Не удалось купить"
   }
 }

@@ -31,14 +31,17 @@ export function loadIdls() {
   const battleArena = load("battle_arena");
   const chipNft     = load("chip_nft");
   const treasury    = load("treasury");
+  const marketplace = load("marketplace");   // SEC-27
   return {
     battleArena,
     chipNft,
     treasury,
+    marketplace,
     coders: {
       battleArena: new BorshEventCoder(battleArena),
       chipNft:     new BorshEventCoder(chipNft),
       treasury:    new BorshEventCoder(treasury),
+      marketplace: new BorshEventCoder(marketplace),
     },
   };
 }

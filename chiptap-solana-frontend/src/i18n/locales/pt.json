@@ -1,5 +1,7 @@
 {
-  "lang": { "switch": "Idioma" },
+  "lang": {
+    "switch": "Idioma"
+  },
   "header": {
     "tabs": {
       "mint": "CUNHAR",
@@ -9,7 +11,8 @@
       "tournament": "TORNEIO",
       "leaderboard": "TOP",
       "profile": "EU",
-      "history": "HISTÓRICO"
+      "history": "HISTÓRICO",
+      "market": "MERCADO"
     },
     "tabsShort": {
       "mint": "CUNHAR",
@@ -19,7 +22,8 @@
       "tournament": "TRN",
       "leaderboard": "TOP",
       "profile": "EU",
-      "history": "LOG"
+      "history": "LOG",
+      "market": "MERC"
     },
     "howToPlay": "Como jogar"
   },
@@ -355,5 +359,35 @@
       "claimChip": "RESGATAR MINHA FICHA (assento {{slot}})",
       "reclaimed": "Você recuperou sua ficha ✓"
     }
+  },
+  "market": {
+    "title": "MERCADO",
+    "notConfigured": "O mercado não está ativado nesta implantação.",
+    "connect": "Conecte sua carteira para comprar e vender fichas.",
+    "tab_browse": "COMPRAR",
+    "tab_sell": "VENDER",
+    "browseTitle": "FICHAS À VENDA",
+    "listTitle": "ANUNCIAR FICHA",
+    "myListings": "MEUS ANÚNCIOS",
+    "empty": "Nenhuma ficha à venda no momento.",
+    "emptyMine": "Você não tem anúncios ativos.",
+    "noChips": "Você não tem fichas disponíveis para vender.",
+    "selectChip": "Escolha uma ficha para vender:",
+    "pricePlaceholder": "Preço em SOL",
+    "list": "ANUNCIAR",
+    "listingPending": "ANUNCIANDO…",
+    "cancel": "CANCELAR",
+    "cancelling": "CANCELANDO…",
+    "buy": "COMPRAR",
+    "buying": "COMPRANDO…",
+    "feeNote": "Taxa {{pct}}%",
+    "youReceive": "Você receberá {{amount}} SOL após a taxa",
+    "toastListed": "Ficha anunciada por {{price}} SOL",
+    "toastCancelled": "Anúncio cancelado — ficha devolvida",
+    "toastBought": "Ficha comprada por {{price}} SOL",
+    "errBadPrice": "Digite um preço maior que zero",
+    "errList": "Falha ao anunciar",
+    "errCancel": "Falha ao cancelar",
+    "errBuy": "Falha na compra"
   }
 }

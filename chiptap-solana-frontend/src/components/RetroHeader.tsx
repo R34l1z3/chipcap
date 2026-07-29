@@ -7,7 +7,11 @@ import { useTranslation } from "react-i18next";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import LanguageSwitcher from "./LanguageSwitcher";
 
-type Tab = "mint" | "inventory" | "battle" | "royale" | "tournament" | "history" | "leaderboard" | "profile";
+import { MARKET_ENABLED } from "../config";
+
+type Tab =
+  | "mint" | "inventory" | "battle" | "royale" | "tournament"
+  | "market" | "history" | "leaderboard" | "profile";
 
 export default function RetroHeader({
   tab, setTab, onHelp,
@@ -24,6 +28,10 @@ export default function RetroHeader({
     { id: "battle",      icon: "!" },
     { id: "royale",      icon: "%" },
     { id: "tournament",  icon: "T" },
+    // SEC-27 — hidden entirely when VITE_MARKETPLACE_PROGRAM is unset,
+    // so a deployment that hasn't enabled the marketplace shows no
+    // dead tab rather than a tab that explains why it doesn't work.
+    ...(MARKET_ENABLED ? [{ id: "market" as Tab, icon: "$" }] : []),
     { id: "leaderboard", icon: "*" },
     { id: "profile",     icon: "@" },
     { id: "history",     icon: "?" },

@@ -1,5 +1,7 @@
 {
-  "lang": { "switch": "Idioma" },
+  "lang": {
+    "switch": "Idioma"
+  },
   "header": {
     "tabs": {
       "mint": "ACUÑAR",
@@ -9,7 +11,8 @@
       "tournament": "TORNEO",
       "leaderboard": "TOP",
       "profile": "YO",
-      "history": "HISTORIAL"
+      "history": "HISTORIAL",
+      "market": "MERCADO"
     },
     "tabsShort": {
       "mint": "ACUÑAR",
@@ -19,7 +22,8 @@
       "tournament": "TRN",
       "leaderboard": "TOP",
       "profile": "YO",
-      "history": "LOG"
+      "history": "LOG",
+      "market": "MERC"
     },
     "howToPlay": "Cómo jugar"
   },
@@ -355,5 +359,35 @@
       "claimChip": "RECLAMAR MI FICHA (asiento {{slot}})",
       "reclaimed": "Recuperaste tu ficha ✓"
     }
+  },
+  "market": {
+    "title": "MERCADO",
+    "notConfigured": "El mercado no está habilitado en este despliegue.",
+    "connect": "Conecta tu billetera para comprar y vender fichas.",
+    "tab_browse": "COMPRAR",
+    "tab_sell": "VENDER",
+    "browseTitle": "FICHAS EN VENTA",
+    "listTitle": "PUBLICAR FICHA",
+    "myListings": "MIS ANUNCIOS",
+    "empty": "No hay fichas en venta ahora.",
+    "emptyMine": "No tienes anuncios activos.",
+    "noChips": "No tienes fichas disponibles para vender.",
+    "selectChip": "Elige una ficha para vender:",
+    "pricePlaceholder": "Precio en SOL",
+    "list": "PUBLICAR",
+    "listingPending": "PUBLICANDO…",
+    "cancel": "CANCELAR",
+    "cancelling": "CANCELANDO…",
+    "buy": "COMPRAR",
+    "buying": "COMPRANDO…",
+    "feeNote": "Comisión {{pct}}%",
+    "youReceive": "Recibirás {{amount}} SOL tras la comisión",
+    "toastListed": "Ficha publicada por {{price}} SOL",
+    "toastCancelled": "Anuncio cancelado — ficha devuelta",
+    "toastBought": "Ficha comprada por {{price}} SOL",
+    "errBadPrice": "Introduce un precio mayor que cero",
+    "errList": "Error al publicar",
+    "errCancel": "Error al cancelar",
+    "errBuy": "Error en la compra"
   }
 }

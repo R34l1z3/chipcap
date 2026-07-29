@@ -226,6 +226,81 @@ router.get("/chips/:asset", async (req, res, next) => {
 });
 
 // ============================================================
+//  SEC-27 — P2P MARKETPLACE
+// ============================================================
+//
+//   GET /listings              — paginated; filter status / seller / buyer / asset
+//   GET /listings/active       — status=0, cheapest first (the market page)
+//   GET /listings/:id          — single listing
+//   GET /listings/asset/:asset — full history for one chip (many rows)
+//
+// status: 0=active 1=filled 2=cancelled.  Listing ids live in the
+// marketplace program's own counter, NOT the shared arena battle-id space.
+// Rows are joined to `chips` so the market grid can render tier/token_id
+// without a second round-trip.
+
+const LISTING_SELECT = `
+  SELECT l.*, c.token_id, c.tier, c.progression_wins
+    FROM listings l
+    LEFT JOIN chips c ON c.asset = l.asset`;
+
+router.get("/listings", async (req, res, next) => {
+  try {
+    const { status, seller, buyer, asset, limit = 50, offset = 0 } = req.query;
+    const conds = []; const params = []; let i = 1;
+
+    if (status !== undefined) { conds.push(`l.status = $${i++}`); params.push(Number(status)); }
+    if (seller)               { conds.push(`l.seller = $${i++}`); params.push(seller); }
+    if (buyer)                { conds.push(`l.buyer  = $${i++}`); params.push(buyer); }
+    if (asset)                { conds.push(`l.asset  = $${i++}`); params.push(asset); }
+
+    const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+    params.push(Math.min(Number(limit), 100));
+    params.push(Number(offset));
+
+    const { rows } = await db.query(
+      `${LISTING_SELECT} ${where} ORDER BY l.id DESC LIMIT $${i++} OFFSET $${i}`,
+      params,
+    );
+    const { rows: countRows } = await db.query(
+      `SELECT COUNT(*) as total FROM listings l ${where}`, params.slice(0, -2),
+    );
+    res.json({ listings: rows, total: countRows[0].total });
+  } catch (err) { next(err); }
+});
+
+router.get("/listings/active", async (req, res, next) => {
+  try {
+    // sort=price (default, cheapest first) | newest
+    const newest = req.query.sort === "newest";
+    const { rows } = await db.query(
+      `${LISTING_SELECT} WHERE l.status = 0
+        ORDER BY ${newest ? "l.id DESC" : "l.price ASC"} LIMIT 100`,
+    );
+    res.json({ listings: rows });
+  } catch (err) { next(err); }
+});
+
+router.get("/listings/asset/:asset", async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `${LISTING_SELECT} WHERE l.asset = $1 ORDER BY l.id DESC LIMIT 50`,
+      [req.params.asset],
+    );
+    res.json({ listings: rows });
+  } catch (err) { next(err); }
+});
+
+router.get("/listings/:id", async (req, res, next) => {
+  try {
+    const { rows } = await db.query(
+      `${LISTING_SELECT} WHERE l.id = $1`, [Number(req.params.id)]);
+    if (!rows.length) return res.status(404).json({ error: "Listing not found" });
+    res.json({ listing: rows[0] });
+  } catch (err) { next(err); }
+});
+
+// ============================================================
 //  PLAYERS
 // ============================================================
 

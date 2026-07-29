@@ -20,8 +20,11 @@ import TournamentPage from "./pages/TournamentPage";
 import HistoryPage from "./pages/HistoryPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import ProfilePage from "./pages/ProfilePage";
+import MarketPage from "./pages/MarketPage";
 
-type Tab = "mint" | "inventory" | "battle" | "royale" | "tournament" | "history" | "leaderboard" | "profile";
+export type Tab =
+  | "mint" | "inventory" | "battle" | "royale" | "tournament"
+  | "market" | "history" | "leaderboard" | "profile";
 
 export default function App() {
   const { t } = useTranslation();
@@ -81,6 +84,7 @@ export default function App() {
         {tab === "battle"      && <BattlePage initialWatchId={watchBattleId} />}
         {tab === "royale"      && <BattleRoyalePage initialWatchId={watchRoyaleId} />}
         {tab === "tournament"  && <TournamentPage initialWatchId={watchTournamentId} />}
+        {tab === "market"      && <MarketPage />}
         {tab === "leaderboard" && <LeaderboardPage onViewPlayer={openProfile} />}
         {tab === "history"     && <HistoryPage onViewPlayer={openProfile} onWatchBattle={openBattle} />}
         {tab === "profile"     && (

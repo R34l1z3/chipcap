@@ -1,5 +1,7 @@
 {
-  "lang": { "switch": "Language" },
+  "lang": {
+    "switch": "Language"
+  },
   "header": {
     "tabs": {
       "mint": "MINT",
@@ -9,7 +11,8 @@
       "tournament": "TOURNEY",
       "leaderboard": "TOP",
       "profile": "ME",
-      "history": "HISTORY"
+      "history": "HISTORY",
+      "market": "MARKET"
     },
     "tabsShort": {
       "mint": "MINT",
@@ -19,7 +22,8 @@
       "tournament": "TRN",
       "leaderboard": "TOP",
       "profile": "ME",
-      "history": "LOG"
+      "history": "LOG",
+      "market": "MKT"
     },
     "howToPlay": "How to play"
   },
@@ -355,5 +359,35 @@
       "claimChip": "CLAIM MY CHIP BACK (slot {{slot}})",
       "reclaimed": "You've reclaimed your chip ✓"
     }
+  },
+  "market": {
+    "title": "MARKETPLACE",
+    "notConfigured": "The marketplace is not enabled on this deployment.",
+    "connect": "Connect your wallet to buy and sell chips.",
+    "tab_browse": "BROWSE",
+    "tab_sell": "SELL",
+    "browseTitle": "CHIPS FOR SALE",
+    "listTitle": "LIST A CHIP",
+    "myListings": "MY LISTINGS",
+    "empty": "No chips for sale right now.",
+    "emptyMine": "You have no active listings.",
+    "noChips": "You have no chips available to list.",
+    "selectChip": "Select a chip to sell:",
+    "pricePlaceholder": "Price in SOL",
+    "list": "LIST",
+    "listingPending": "LISTING…",
+    "cancel": "CANCEL",
+    "cancelling": "CANCELLING…",
+    "buy": "BUY",
+    "buying": "BUYING…",
+    "feeNote": "Fee {{pct}}%",
+    "youReceive": "You receive {{amount}} SOL after fee",
+    "toastListed": "Chip listed for {{price}} SOL",
+    "toastCancelled": "Listing cancelled — chip returned",
+    "toastBought": "Chip bought for {{price}} SOL",
+    "errBadPrice": "Enter a price greater than zero",
+    "errList": "List failed",
+    "errCancel": "Cancel failed",
+    "errBuy": "Purchase failed"
   }
 }

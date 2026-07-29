@@ -4,6 +4,7 @@ members = [
     "programs/chip-nft",
     "programs/battle-arena",
     "programs/treasury",
+    "programs/marketplace",
 ]
 
 [profile.release]

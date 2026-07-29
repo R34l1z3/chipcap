@@ -87,6 +87,12 @@ CREATE INDEX IF NOT EXISTS idx_chips_tier ON chips(tier);
 -- Postgres auto-names a table-level UNIQUE as <table>_<col>_key.
 ALTER TABLE chips DROP CONSTRAINT IF EXISTS chips_token_id_key;
 
+-- SEC-27: denormalised "is this chip currently on the marketplace"
+-- flag, so the inventory page can badge a listed chip without joining
+-- listings on every render.  Authoritative source is still the
+-- listings table; this is a cache the 3 marketplace handlers maintain.
+ALTER TABLE chips ADD COLUMN IF NOT EXISTS listed BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- ============================================================
 -- SEC-22: Battle Royale (8-player single-VRF mode)
 -- ============================================================
@@ -183,6 +189,47 @@ CREATE INDEX IF NOT EXISTS idx_t_creator  ON tournaments(creator);
 CREATE INDEX IF NOT EXISTS idx_t_created  ON tournaments(created_at DESC);
 -- "tournaments I played in" via JSONB containment.
 CREATE INDEX IF NOT EXISTS idx_t_players  ON tournaments USING gin (players jsonb_path_ops);
+
+-- ============================================================
+-- SEC-27: P2P chip marketplace listings
+-- ============================================================
+-- id comes from MarketConfig.next_listing_id, which is its OWN counter
+-- in the separate marketplace program -- it is NOT in the same id-space
+-- as battles / battle_royales / tournaments (those share
+-- arena.next_battle_id).  Never join listings.id to a battle id.
+--
+-- asset is deliberately NOT unique: the on-chain Listing PDA is
+-- [b"listing", asset] and gets closed on cancel/fill, so the same chip
+-- can be listed many times over its life, each with a fresh id.
+CREATE TABLE IF NOT EXISTS listings (
+  id             BIGINT      PRIMARY KEY,
+  asset          VARCHAR(44) NOT NULL,
+  seller         VARCHAR(44) NOT NULL,
+  buyer          VARCHAR(44),                        -- set on fill
+  price_lamports BIGINT      NOT NULL,               -- exact on-chain value
+  price          NUMERIC     NOT NULL,               -- SOL, for display/sort
+  fee_bps        SMALLINT    NOT NULL,               -- snapshotted at list time
+  fee            NUMERIC,                            -- SOL, actual on fill
+  paid_to_seller NUMERIC,                            -- SOL, actual on fill
+  status         SMALLINT    NOT NULL DEFAULT 0,     -- 0=active 1=filled 2=cancelled
+  created_at     TIMESTAMPTZ,
+  filled_at      TIMESTAMPTZ,
+  cancelled_at   TIMESTAMPTZ,
+  create_tx      VARCHAR(88),
+  fill_tx        VARCHAR(88),
+  cancel_tx      VARCHAR(88),
+  indexed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_listings_status  ON listings(status);
+CREATE INDEX IF NOT EXISTS idx_listings_seller  ON listings(seller);
+CREATE INDEX IF NOT EXISTS idx_listings_buyer   ON listings(buyer);
+CREATE INDEX IF NOT EXISTS idx_listings_asset   ON listings(asset);
+CREATE INDEX IF NOT EXISTS idx_listings_created ON listings(created_at DESC);
+-- The market page's hot query is "active listings, cheapest first".
+-- Partial index keeps it small as filled/cancelled rows accumulate.
+CREATE INDEX IF NOT EXISTS idx_listings_active_price
+  ON listings(price) WHERE status = 0;
 
 -- ============================================================
 -- Player stats (aggregated)

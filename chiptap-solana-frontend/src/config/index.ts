@@ -41,6 +41,20 @@ export const CHIP_NFT_PROGRAM     = readProgramId("VITE_CHIP_NFT_PROGRAM",     "
 export const BATTLE_ARENA_PROGRAM = readProgramId("VITE_BATTLE_ARENA_PROGRAM", "battle_arena");
 export const TREASURY_PROGRAM     = readProgramId("VITE_TREASURY_PROGRAM",     "treasury");
 
+// SEC-27 — the marketplace is OPTIONAL, unlike the three above.  A
+// missing var must NOT crash the whole bundle the way SEC-4 did: the
+// deployed Vercel/Render envs predate this program, so `readProgramId`
+// here would take the entire app down on the next deploy.  Absent =>
+// null => the MARKET tab hides itself.  Present but malformed still
+// throws, because that IS a misconfiguration worth surfacing loudly.
+export const MARKETPLACE_PROGRAM: PublicKey | null = (() => {
+  const raw = import.meta.env.VITE_MARKETPLACE_PROGRAM;
+  if (!raw || typeof raw !== "string") return null;
+  return readProgramId("VITE_MARKETPLACE_PROGRAM", "marketplace");
+})();
+
+export const MARKET_ENABLED = MARKETPLACE_PROGRAM !== null;
+
 // SEC-26 — Tier system replaces the 5-level mint-time rarity.  Every
 // chip mints at T0 and climbs T0→T4 by winning PvP + Battle Royale
 // games (tournaments excluded).  The colour ramp is the old rarity

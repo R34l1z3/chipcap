@@ -4,7 +4,9 @@
 
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { BATTLE_ARENA_PROGRAM, CHIP_NFT_PROGRAM, TREASURY_PROGRAM } from "../config";
+import {
+  BATTLE_ARENA_PROGRAM, CHIP_NFT_PROGRAM, TREASURY_PROGRAM, MARKETPLACE_PROGRAM,
+} from "../config";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 
@@ -73,3 +75,34 @@ export const ticketMint = () =>
 // Mint+freeze authority for the ticket SPL.  PDA-only; never holds data.
 export const ticketAuthority = () =>
   PublicKey.findProgramAddressSync([enc("ticket_authority")], BATTLE_ARENA_PROGRAM)[0];
+
+// ============================================================
+// SEC-27 — P2P marketplace (its OWN program, not battle-arena)
+// ============================================================
+// MARKETPLACE_PROGRAM is nullable by design (see config/index.ts), so
+// these throw rather than silently deriving against the wrong program.
+// Callers should gate on MARKET_ENABLED first.
+function marketProgram(): PublicKey {
+  if (!MARKETPLACE_PROGRAM) {
+    throw new Error(
+      "[pda] marketplace PDA requested but VITE_MARKETPLACE_PROGRAM is not set",
+    );
+  }
+  return MARKETPLACE_PROGRAM;
+}
+
+export const marketConfig = () =>
+  PublicKey.findProgramAddressSync([enc("market")], marketProgram())[0];
+
+export const marketVault = () =>
+  PublicKey.findProgramAddressSync([enc("market"), enc("vault")], marketProgram())[0];
+
+/// Escrow owner for listed chips — the marketplace's analogue of
+/// battle-arena's `chip_authority`.
+export const marketAuthority = () =>
+  PublicKey.findProgramAddressSync([enc("market"), enc("authority")], marketProgram())[0];
+
+/// One live listing per asset: the seed IS the asset, and the account is
+/// closed on cancel/fill so the seed frees up for a re-listing.
+export const listing = (asset: PublicKey) =>
+  PublicKey.findProgramAddressSync([enc("listing"), asset.toBuffer()], marketProgram())[0];

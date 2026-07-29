@@ -148,12 +148,23 @@ function subscribeLive(programIdStr) {
 // ============================================================
 
 // All program IDs we listen to — used both at start and during reconnect.
+// SEC-27: `marketplace` is optional (see config/index.js), so filter out
+// blanks rather than subscribing to "" and blowing up in PublicKey().
 function getProgramIds() {
-  return [
+  const ids = [
     config.programs.battleArena,
     config.programs.chipNft,
     config.programs.treasury,
-  ];
+    config.programs.marketplace,
+  ].filter(Boolean);
+
+  if (!config.programs.marketplace) {
+    console.warn(
+      "[IDX] MARKETPLACE_PROGRAM is not set — P2P marketplace events " +
+      "(ListingCreated/Cancelled/Filled) will NOT be indexed.",
+    );
+  }
+  return ids;
 }
 
 export async function start() {

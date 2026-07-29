@@ -13,6 +13,7 @@ import { Connection } from "@solana/web3.js";
 import battleArenaIdl from "../idl/battle_arena.json";
 import chipNftIdl     from "../idl/chip_nft.json";
 import treasuryIdl    from "../idl/treasury.json";
+import marketplaceIdl from "../idl/marketplace.json";
 
 export function buildProvider(
   connection: Connection,
@@ -41,4 +42,12 @@ export function getChipNftProgram(provider: anchor.AnchorProvider) {
 
 export function getTreasuryProgram(provider: anchor.AnchorProvider) {
   return new anchor.Program(idl(treasuryIdl), provider);
+}
+
+// SEC-27.  The program ID comes from the IDL's `address` field, so this
+// works regardless of VITE_MARKETPLACE_PROGRAM — but callers should gate
+// on MARKET_ENABLED anyway so a half-configured deploy doesn't send txs
+// to a program the operator never meant to enable.
+export function getMarketplaceProgram(provider: anchor.AnchorProvider) {
+  return new anchor.Program(idl(marketplaceIdl), provider);
 }

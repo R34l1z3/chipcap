@@ -1,5 +1,7 @@
 {
-  "lang": { "switch": "भाषा" },
+  "lang": {
+    "switch": "भाषा"
+  },
   "header": {
     "tabs": {
       "mint": "मिंट",
@@ -9,7 +11,8 @@
       "tournament": "टूर्नामेंट",
       "leaderboard": "टॉप",
       "profile": "मैं",
-      "history": "इतिहास"
+      "history": "इतिहास",
+      "market": "बाज़ार"
     },
     "tabsShort": {
       "mint": "मिंट",
@@ -19,7 +22,8 @@
       "tournament": "TRN",
       "leaderboard": "टॉप",
       "profile": "मैं",
-      "history": "लॉग"
+      "history": "लॉग",
+      "market": "बाज़ार"
     },
     "howToPlay": "कैसे खेलें"
   },
@@ -355,5 +359,35 @@
       "claimChip": "मेरा चिप वापस लें (सीट {{slot}})",
       "reclaimed": "तुमने चिप वापस लिया ✓"
     }
+  },
+  "market": {
+    "title": "बाज़ार",
+    "notConfigured": "इस परिनियोजन में बाज़ार सक्षम नहीं है।",
+    "connect": "चिप्स खरीदने और बेचने के लिए अपना वॉलेट कनेक्ट करें।",
+    "tab_browse": "खरीदें",
+    "tab_sell": "बेचें",
+    "browseTitle": "बिक्री के लिए चिप्स",
+    "listTitle": "चिप सूचीबद्ध करें",
+    "myListings": "मेरी लिस्टिंग",
+    "empty": "अभी कोई चिप बिक्री के लिए नहीं है।",
+    "emptyMine": "आपकी कोई सक्रिय लिस्टिंग नहीं है।",
+    "noChips": "सूचीबद्ध करने के लिए कोई चिप उपलब्ध नहीं है।",
+    "selectChip": "बेचने के लिए चिप चुनें:",
+    "pricePlaceholder": "SOL में कीमत",
+    "list": "सूचीबद्ध करें",
+    "listingPending": "सूचीबद्ध हो रहा है…",
+    "cancel": "रद्द करें",
+    "cancelling": "रद्द हो रहा है…",
+    "buy": "खरीदें",
+    "buying": "खरीद रहे हैं…",
+    "feeNote": "शुल्क {{pct}}%",
+    "youReceive": "शुल्क के बाद आपको {{amount}} SOL मिलेंगे",
+    "toastListed": "चिप {{price}} SOL में सूचीबद्ध",
+    "toastCancelled": "लिस्टिंग रद्द — चिप वापस",
+    "toastBought": "चिप {{price}} SOL में खरीदी",
+    "errBadPrice": "शून्य से बड़ी कीमत दर्ज करें",
+    "errList": "सूचीबद्ध करना विफल",
+    "errCancel": "रद्द करना विफल",
+    "errBuy": "खरीद विफल"
   }
 }

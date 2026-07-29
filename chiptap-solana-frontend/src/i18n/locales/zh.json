@@ -1,5 +1,7 @@
 {
-  "lang": { "switch": "语言" },
+  "lang": {
+    "switch": "语言"
+  },
   "header": {
     "tabs": {
       "mint": "铸造",
@@ -9,7 +11,8 @@
       "tournament": "锦标赛",
       "leaderboard": "排行",
       "profile": "我",
-      "history": "记录"
+      "history": "记录",
+      "market": "市场"
     },
     "tabsShort": {
       "mint": "铸造",
@@ -19,7 +22,8 @@
       "tournament": "锦标",
       "leaderboard": "排行",
       "profile": "我",
-      "history": "记录"
+      "history": "记录",
+      "market": "市场"
     },
     "howToPlay": "玩法说明"
   },
@@ -355,5 +359,35 @@
       "claimChip": "领回我的筹码（座位 {{slot}}）",
       "reclaimed": "你已领回筹码 ✓"
     }
+  },
+  "market": {
+    "title": "市场",
+    "notConfigured": "此部署未启用市场。",
+    "connect": "连接钱包以买卖筹码。",
+    "tab_browse": "购买",
+    "tab_sell": "出售",
+    "browseTitle": "在售筹码",
+    "listTitle": "上架筹码",
+    "myListings": "我的挂单",
+    "empty": "目前没有在售筹码。",
+    "emptyMine": "你没有有效挂单。",
+    "noChips": "没有可上架的筹码。",
+    "selectChip": "选择要出售的筹码：",
+    "pricePlaceholder": "价格（SOL）",
+    "list": "上架",
+    "listingPending": "上架中…",
+    "cancel": "取消",
+    "cancelling": "取消中…",
+    "buy": "购买",
+    "buying": "购买中…",
+    "feeNote": "手续费 {{pct}}%",
+    "youReceive": "扣除手续费后你将获得 {{amount}} SOL",
+    "toastListed": "筹码已以 {{price}} SOL 上架",
+    "toastCancelled": "挂单已取消 — 筹码已退回",
+    "toastBought": "已以 {{price}} SOL 购买筹码",
+    "errBadPrice": "请输入大于零的价格",
+    "errList": "上架失败",
+    "errCancel": "取消失败",
+    "errBuy": "购买失败"
   }
 }

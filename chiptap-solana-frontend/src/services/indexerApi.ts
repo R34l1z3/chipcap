@@ -110,7 +110,39 @@ export interface IndexedChip {
   progression_wins: number;
   battle_count: number;
   win_count:    number;
+  // SEC-27 — denormalised "currently on the marketplace" flag kept in
+  // sync by the listing handlers.  Optional: older indexer builds and
+  // rows fetched before the migration won't carry it.
+  listed?:      boolean;
 }
+
+// SEC-27 — a marketplace listing.  The REST layer LEFT JOINs `chips`,
+// so token_id/tier/progression_wins ride along and the grid needs no
+// second round-trip.  They are nullable because the join can miss if a
+// chip predates the indexer's chip table.
+export interface IndexedListing {
+  id:               number;
+  asset:            string;
+  seller:           string;
+  buyer:            string | null;
+  price_lamports:   string;   // BIGINT — comes back as a string from pg
+  price:            number;   // SOL
+  fee_bps:          number;
+  fee:              number | null;
+  paid_to_seller:   number | null;
+  status:           number;   // 0=active 1=filled 2=cancelled
+  created_at:       string | null;
+  filled_at:        string | null;
+  cancelled_at:     string | null;
+  create_tx:        string | null;
+  fill_tx:          string | null;
+  cancel_tx:        string | null;
+  token_id:         number | null;
+  tier:             number | null;
+  progression_wins: number | null;
+}
+
+export const LISTING_STATUS = { ACTIVE: 0, FILLED: 1, CANCELLED: 2 } as const;
 
 export interface PlayerStats {
   address:         string;
@@ -140,6 +172,26 @@ export const indexerApi = {
   },
   getChips: (owner: string) => get<{ chips: IndexedChip[] }>(`/chips?owner=${owner}`),
   getChip:  (asset: string) => get<{ chip:  IndexedChip }>(`/chips/${asset}`),
+
+  // SEC-27 — marketplace
+  getActiveListings: (sort: "price" | "newest" = "price") =>
+    get<{ listings: IndexedListing[] }>(`/listings/active?sort=${sort}`),
+  getListing: (id: number) => get<{ listing: IndexedListing }>(`/listings/${id}`),
+  getListingsForAsset: (asset: string) =>
+    get<{ listings: IndexedListing[] }>(`/listings/asset/${asset}`),
+  getListings: (p?: {
+    status?: number; seller?: string; buyer?: string; asset?: string;
+    limit?: number; offset?: number;
+  }) => {
+    const q = new URLSearchParams();
+    if (p?.status !== undefined) q.set("status", String(p.status));
+    if (p?.seller)               q.set("seller", p.seller);
+    if (p?.buyer)                q.set("buyer",  p.buyer);
+    if (p?.asset)                q.set("asset",  p.asset);
+    if (p?.limit)                q.set("limit",  String(p.limit));
+    if (p?.offset)               q.set("offset", String(p.offset));
+    return get<{ listings: IndexedListing[]; total: number }>(`/listings?${q}`);
+  },
   getPlayer: (addr: string) =>
     get<{
       address: string;
