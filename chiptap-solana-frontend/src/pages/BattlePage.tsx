@@ -769,8 +769,16 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
         <BattleClash
           status={status}
           winnerSide={
-            status >= 2 && battle.winner
-              ? (battle.winner.equals?.(battle.playerA) ? "a" : "b")
+            // Compare base58 rather than trusting `.equals` to exist —
+            // a silent false here would flag the WRONG chip as winner,
+            // which is worse than flagging none.  Null when the sides
+            // can't be resolved, and the flourish simply doesn't run.
+            status >= 2 && battle.winner?.toBase58?.()
+              ? (battle.winner.toBase58() === battle.playerA?.toBase58?.()
+                  ? "a"
+                  : battle.winner.toBase58() === battle.playerB?.toBase58?.()
+                    ? "b"
+                    : null)
               : null
           }
           vsLabel={t("battle.watch.vs")}

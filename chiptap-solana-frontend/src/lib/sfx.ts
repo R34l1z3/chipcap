@@ -108,6 +108,16 @@ function begin(): number | null {
   return c.currentTime + 0.02;
 }
 
+/**
+ * Audio must never be able to take down the battle screen.  Every
+ * public sound goes through here, so an exotic Web Audio failure
+ * (context in a bad state, node limit hit, autoplay policy edge) is
+ * swallowed as silence rather than thrown into the React render path.
+ */
+function safe(fn: () => void): void {
+  try { fn(); } catch { /* silence beats a broken screen */ }
+}
+
 // ---- the two stings ------------------------------------------------
 
 /**
@@ -115,14 +125,16 @@ function begin(): number | null {
  * doubled a fifth up for a bit of shine.  Short, bright, celebratory.
  */
 export function playWin(): void {
-  const t = begin();
-  if (t === null) return;
-  const C5 = 523.25, E5 = 659.25, G5 = 783.99, C6 = 1046.5, G6 = 1568.0;
-  note(C5, t,        0.10);
-  note(E5, t + 0.09, 0.10);
-  note(G5, t + 0.18, 0.10);
-  note(C6, t + 0.27, 0.38);
-  note(G6, t + 0.27, 0.38, "triangle", 0.5);   // sparkle on top
+  safe(() => {
+    const t = begin();
+    if (t === null) return;
+    const C5 = 523.25, E5 = 659.25, G5 = 783.99, C6 = 1046.5, G6 = 1568.0;
+    note(C5, t,        0.10);
+    note(E5, t + 0.09, 0.10);
+    note(G5, t + 0.18, 0.10);
+    note(C6, t + 0.27, 0.38);
+    note(G6, t + 0.27, 0.38, "triangle", 0.5);   // sparkle on top
+  });
 }
 
 /**
@@ -131,11 +143,13 @@ export function playWin(): void {
  * it reads as deflating rather than harsh.
  */
 export function playLose(): void {
-  const t = begin();
-  if (t === null) return;
-  const G4 = 392.0, Eb4 = 311.13, C4 = 261.63;
-  note(G4,  t,        0.14);
-  note(Eb4, t + 0.15, 0.16);
-  note(C4,  t + 0.33, 0.20);
-  bend(C4, 110, t + 0.55, 0.55, "triangle", 0.9);
+  safe(() => {
+    const t = begin();
+    if (t === null) return;
+    const G4 = 392.0, Eb4 = 311.13, C4 = 261.63;
+    note(G4,  t,        0.14);
+    note(Eb4, t + 0.15, 0.16);
+    note(C4,  t + 0.33, 0.20);
+    bend(C4, 110, t + 0.55, 0.55, "triangle", 0.9);
+  });
 }
