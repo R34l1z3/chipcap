@@ -25,7 +25,9 @@
       "history": "记录",
       "market": "市场"
     },
-    "howToPlay": "玩法说明"
+    "howToPlay": "玩法说明",
+    "soundOn": "开启声音",
+    "soundOff": "关闭声音"
   },
   "footer": {
     "version": "ChipTap Solana v0.1",

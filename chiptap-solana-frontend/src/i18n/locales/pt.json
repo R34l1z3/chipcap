@@ -25,7 +25,9 @@
       "history": "LOG",
       "market": "MERC"
     },
-    "howToPlay": "Como jogar"
+    "howToPlay": "Como jogar",
+    "soundOn": "Ativar som",
+    "soundOff": "Silenciar"
   },
   "footer": {
     "version": "ChipTap Solana v0.1",

@@ -24,6 +24,7 @@ import { POOL_TIERS } from "../config";
 import { fmtSol, lamportsToSol, shortAddr } from "../lib/format";
 import ChipCard from "../components/ChipCard";
 import BattleAuditPanel from "../components/BattleAuditPanel";
+import BattleClash from "../components/BattleClash";
 
 type View = "lobby" | "create" | "watch";
 
@@ -761,36 +762,40 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           </div>
         </div>
 
-        {/* Players */}
-        <div className="flex items-center justify-center gap-2 sm:gap-4 mb-4">
-          <div className="text-center min-w-0">
-            <div className="font-pixel mb-1 truncate" style={{ fontSize: 8, color: isPlayerA ? "#FFD700" : "#00FFFF" }}>
-              {isPlayerA ? t("common.you") : shortAddr(battle.playerA?.toBase58?.())}
-            </div>
-            <ChipCard asset={battle.chipA?.toBase58?.()} tier={0} size="md" />
-          </div>
-
-          <div className="flex flex-col items-center flex-shrink-0">
-            <div className="font-pixel animate-glow" style={{
-              fontSize: 20,
-              color: status === 1 ? "#FF00FF" : status === 2 ? "#FFD700" : "#4a4a8a",
-            }}>{t("battle.watch.vs")}</div>
-            {status === 1 && (
-              <div className="animate-blink text-retro-magenta mt-1 text-center" style={{ fontSize: 11 }}>
-                {t("battle.watch.rolling")}
+        {/* Players — SEC-28 wraps this row in the clash animation, which
+            owns the motion but not the content.  Winner side is derived
+            from battle.winner; it stays null until DECIDED, so nothing
+            can leak the outcome before the VRF actually lands. */}
+        <BattleClash
+          status={status}
+          winnerSide={
+            status >= 2 && battle.winner
+              ? (battle.winner.equals?.(battle.playerA) ? "a" : "b")
+              : null
+          }
+          vsLabel={t("battle.watch.vs")}
+          rollingLabel={t("battle.watch.rolling")}
+          seed={status >= 2 ? battle.randomSeed?.toString?.() : null}
+          outcome={isWinner ? "win" : isLoser ? "lose" : "neutral"}
+          left={
+            <>
+              <div className="font-pixel mb-1 truncate" style={{ fontSize: 8, color: isPlayerA ? "#FFD700" : "#00FFFF" }}>
+                {isPlayerA ? t("common.you") : shortAddr(battle.playerA?.toBase58?.())}
               </div>
-            )}
-          </div>
-
-          <div className="text-center min-w-0">
-            <div className="font-pixel mb-1 truncate" style={{ fontSize: 8, color: isPlayerB ? "#FFD700" : "#00FFFF" }}>
-              {battle.playerB?.equals?.(new PublicKey("11111111111111111111111111111111"))
-                ? t("battle.watch.unknown")
-                : isPlayerB ? t("common.you") : shortAddr(battle.playerB?.toBase58?.())}
-            </div>
-            <ChipCard asset={battle.chipB?.toBase58?.()} tier={0} size="md" />
-          </div>
-        </div>
+              <ChipCard asset={battle.chipA?.toBase58?.()} tier={0} size="md" />
+            </>
+          }
+          right={
+            <>
+              <div className="font-pixel mb-1 truncate" style={{ fontSize: 8, color: isPlayerB ? "#FFD700" : "#00FFFF" }}>
+                {battle.playerB?.equals?.(new PublicKey("11111111111111111111111111111111"))
+                  ? t("battle.watch.unknown")
+                  : isPlayerB ? t("common.you") : shortAddr(battle.playerB?.toBase58?.())}
+              </div>
+              <ChipCard asset={battle.chipB?.toBase58?.()} tier={0} size="md" />
+            </>
+          }
+        />
 
         {/* Status-specific actions */}
         {status === 1 && (

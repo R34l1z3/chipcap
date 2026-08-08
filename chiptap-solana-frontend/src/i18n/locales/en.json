@@ -25,7 +25,9 @@
       "history": "LOG",
       "market": "MKT"
     },
-    "howToPlay": "How to play"
+    "howToPlay": "How to play",
+    "soundOn": "Sound on",
+    "soundOff": "Sound off"
   },
   "footer": {
     "version": "ChipTap Solana v0.1",

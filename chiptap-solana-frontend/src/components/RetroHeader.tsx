@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import LanguageSwitcher from "./LanguageSwitcher";
+import SfxToggle from "./SfxToggle";
 
 import { MARKET_ENABLED } from "../config";
 
@@ -56,6 +57,7 @@ export default function RetroHeader({
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <LanguageSwitcher />
+          <SfxToggle />
           {/* How-to-play — opens the same modal that auto-shows on first visit. */}
           {onHelp && (
             <button

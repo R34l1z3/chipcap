@@ -133,6 +133,126 @@ body::after {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ============================================================
+   SEC-28 — 1v1 clash animation (BattleClash.tsx)
+   ============================================================
+   Pure CSS, no assets, so the bundle stays flat.  Every rule here is
+   motion-only: the layout and the end state are identical without it,
+   which is what makes the reduced-motion override at the bottom safe. */
+
+.clash-stage { position: relative; }
+
+/* --- ROLLING: anticipation while the VRF is in flight --- */
+@keyframes clashTrembleA {
+  0%, 100% { transform: translateX(0)    rotate(0deg); }
+  25%      { transform: translateX(-2px) rotate(-1.5deg); }
+  75%      { transform: translateX(2px)  rotate(1.5deg); }
+}
+@keyframes clashTrembleB {
+  0%, 100% { transform: translateX(0)    rotate(0deg); }
+  25%      { transform: translateX(2px)  rotate(1.5deg); }
+  75%      { transform: translateX(-2px) rotate(-1.5deg); }
+}
+.clash-tremble-a { animation: clashTrembleA 0.22s ease-in-out infinite; }
+.clash-tremble-b { animation: clashTrembleB 0.22s ease-in-out infinite; }
+
+/* The die: a rotating square with scrambling digits. */
+@keyframes clashDieSpin {
+  0%   { transform: rotate(0deg)   scale(1); }
+  50%  { transform: rotate(180deg) scale(1.15); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+.clash-die {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid #FF00FF;
+  box-shadow: 0 0 10px #FF00FF88, inset 0 0 6px #FF00FF44;
+  animation: clashDieSpin 0.9s linear infinite;
+}
+.clash-die-face {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px; color: #FF00FF;
+}
+
+/* --- IMPACT: the one-shot hit when randomness lands --- */
+@keyframes clashLungeA {
+  0%   { transform: translateX(0); }
+  35%  { transform: translateX(26px) scale(1.06); }
+  55%  { transform: translateX(18px); }
+  100% { transform: translateX(0); }
+}
+@keyframes clashLungeB {
+  0%   { transform: translateX(0); }
+  35%  { transform: translateX(-26px) scale(1.06); }
+  55%  { transform: translateX(-18px); }
+  100% { transform: translateX(0); }
+}
+.clash-lunge-a { animation: clashLungeA 0.55s cubic-bezier(.4,0,.2,1) 2; }
+.clash-lunge-b { animation: clashLungeB 0.55s cubic-bezier(.4,0,.2,1) 2; }
+
+@keyframes clashShake {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-4px, 2px); }
+  40% { transform: translate(4px, -2px); }
+  60% { transform: translate(-3px, -1px); }
+  80% { transform: translate(3px, 1px); }
+}
+.clash-shake { animation: clashShake 0.35s linear 3; }
+
+@keyframes clashVsHit {
+  0%   { transform: scale(1);   text-shadow: 0 0 6px currentColor; }
+  30%  { transform: scale(1.9); text-shadow: 0 0 30px currentColor, 0 0 60px currentColor; }
+  100% { transform: scale(1);   text-shadow: 0 0 6px currentColor; }
+}
+.clash-vs-hit { animation: clashVsHit 0.5s ease-out 3; }
+
+/* Radial pixel sparks.  Each span is rotated by --a then thrown out. */
+.clash-sparks {
+  position: absolute; top: 50%; left: 50%;
+  width: 0; height: 0; pointer-events: none;
+}
+@keyframes clashSpark {
+  0%   { transform: rotate(var(--a)) translateX(0)    scale(1); opacity: 1; }
+  100% { transform: rotate(var(--a)) translateX(46px) scale(0); opacity: 0; }
+}
+.clash-spark {
+  position: absolute;
+  width: 4px; height: 4px;
+  background: #FFD700;
+  box-shadow: 0 0 6px #FFD700;
+  animation: clashSpark 0.6s ease-out 2;
+}
+
+.clash-seed { font-family: 'Press Start 2P', monospace; letter-spacing: 1px; }
+
+/* --- RESULT: winner swells, loser drops out of the fight --- */
+@keyframes clashVictor {
+  0%   { transform: scale(1);    filter: brightness(1); }
+  40%  { transform: scale(1.18); filter: brightness(1.6) drop-shadow(0 0 14px #FFD700); }
+  100% { transform: scale(1);    filter: brightness(1.1); }
+}
+.clash-victor { animation: clashVictor 0.7s ease-out 1 both; }
+
+@keyframes clashFallen {
+  0%   { transform: translateY(0)    rotate(0deg);  filter: grayscale(0)   brightness(1);   opacity: 1; }
+  100% { transform: translateY(10px) rotate(-7deg); filter: grayscale(0.9) brightness(0.55); opacity: 0.6; }
+}
+.clash-fallen { animation: clashFallen 0.7s ease-out 1 both; }
+
+/* Accessibility: kill every clash animation, keep the end state.
+   `both` fill on victor/fallen means the result still reads correctly
+   with motion off -- nothing here encodes information in movement
+   alone. */
+@media (prefers-reduced-motion: reduce) {
+  .clash-tremble-a, .clash-tremble-b,
+  .clash-lunge-a,   .clash-lunge-b,
+  .clash-shake, .clash-vs-hit, .clash-spark, .clash-die {
+    animation: none !important;
+  }
+  .clash-victor { animation: none !important; filter: brightness(1.1); }
+  .clash-fallen { animation: none !important; filter: grayscale(0.9) brightness(0.55); opacity: 0.6; }
+}
+
 .rarity-common    { color: #aaaaaa; border-color: #666666; }
 .rarity-uncommon  { color: #00FF00; border-color: #00AA00; }
 .rarity-rare      { color: #3399FF; border-color: #2266CC; }

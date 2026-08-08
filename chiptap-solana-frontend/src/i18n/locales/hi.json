@@ -25,7 +25,9 @@
       "history": "लॉग",
       "market": "बाज़ार"
     },
-    "howToPlay": "कैसे खेलें"
+    "howToPlay": "कैसे खेलें",
+    "soundOn": "ध्वनि चालू करें",
+    "soundOff": "ध्वनि बंद करें"
   },
   "footer": {
     "version": "ChipTap Solana v0.1",

@@ -25,7 +25,9 @@
       "history": "ЛОГ",
       "market": "МКТ"
     },
-    "howToPlay": "Как играть"
+    "howToPlay": "Как играть",
+    "soundOn": "Включить звук",
+    "soundOff": "Выключить звук"
   },
   "footer": {
     "version": "ChipTap Solana v0.1",

@@ -583,7 +583,11 @@ Track A1 of the product queue.  **Architecture picked: a SEPARATE `marketplace` 
 - ⚠️ **Zpix subset NOT re-run** — `C:/Temp/zpix/Zpix.ttf` (the source the script needs) is missing on this machine.  Consequence is cosmetic only: `index.css` falls through to `'Noto Sans SC'` for the new Chinese market strings, so they render cleanly but not in the pixel face.  Re-run `python3 scripts/subset-zpix.py` after fetching Zpix v3.1.11 to fix.
 - ✅ **LIVE ON DEVNET (2026-07-26).**  Program `4xHdVGgRKnNu3bCSJY9CRz9fnrvxiJuZU2uc9kfHxJ1P`, 329 448 bytes (the slippage-FIXED binary — the vulnerable one was never deployed), upgrade authority `Dkq4Vi…CJ5s`, deploy sig `576TuHPm…F16J`.  Initialized with `fee_bps = 250` (2.5 %).  **`market-smoke.js` passes 23/23 against devnet**, including `PriceExceedsMax` proving the front-running guard works on the real deployed bytecode.  PDAs are cluster-independent: `market_authority EwTY9uHf…28aZz`, `market_vault 3M3rCG2o…URsAW`.
 - ⬜ Tickets (SPL, fungible) deliberately out of v1 — chips only.
-- ⬜ **Not yet wired into the hosted stack**: Render indexer needs `MARKETPLACE_PROGRAM` in its DASHBOARD env (the `-re8t` service — see the SEC-26 gotchas), and Vercel needs `VITE_MARKETPLACE_PROGRAM` **plus a redeploy** (Vite inlines it at build time).  Until both, the live site has no MARKET tab and listings are unindexed.
+- ✅ **FULLY LIVE ON THE HOSTED STACK (2026-07-29, commit `ace10fd`).**  `MARKETPLACE_PROGRAM` set on Render `-re8t`, `VITE_MARKETPLACE_PROGRAM` set on Vercel, both auto-deployed from `main`.  Verified end-to-end against the real hosts:
+  - `GET /api/listings` returns the **actual devnet smoke rows** — listing #2 filled at 0.05 SOL with fee 0.00125 / paid_to_seller 0.04875 and real create/fill signatures, #1 cancelled.  So real devnet txs → Render indexer → REST works.
+  - `/api/indexer/status` shows a live cursor for `4xHdVGgR…` (slot 479118424).
+  - `chipcap.vercel.app` renders the `[$] МАРКЕТ` tab (short form `[$] МКТ`) and the MarketPage connect gate with the new i18n strings.  The bundle contains the program id, proving Vite inlined the env var.
+- ⚠️ **Found while verifying — pre-existing, NOT caused by SEC-27: the indexer's chip_nft cursor is stuck at 2026-07-04.**  A chip minted on devnet minutes earlier is absent from `chips` (`/api/chips/<asset>` → 404), which is why the marketplace REST rows come back with `token_id/tier/progression_wins = null` (the LEFT JOIN misses).  The frontend degrades gracefully (`tier ?? 0`), so this is cosmetic for the market grid — but it means **newly minted chips are not being indexed at all**.  Likely cause: `eventListener.start()` swallows a failed backfill (`catch { console.error("backfill failed") }`), so a cursor that is far behind never advances, and on Render free the service sleeps through the live subscription window.  Worth its own fix.
 
 **Devnet deploy was painful — read before the next one:**
 - `solana program deploy` from WSL **panics** with `PubsubError(ConnectionError(TimedOut))` — it tries the TPU/QUIC path directly to validators, which does not survive WSL's NAT.  **Always pass `--use-rpc`.**
@@ -604,6 +608,27 @@ Anchor 0.30's **raw `BorshCoder`/`BorshEventCoder` use the IDL's literal field n
 - **Frontend** (via `anchor.Program`) → **camelCase** (`feeBps`, `createdAt`, `paidToSeller`).
 
 **Next steps, in order:** localnet deploy + init + a `market-smoke.js` (mint → list → cancel → list → fill, asserting fee split, escrow ownership at each stage, and that `fill_listing` by the seller is rejected) → indexer `listings` table + 3 handlers + REST/WS → frontend market page + hooks → devnet deploy.
+
+## SEC-28 — 1v1 clash animation + chiptune SFX — DONE (not deployed)
+
+First slice of backlog #4 (visual polish).  Before this, the whole fight was a blinking "ROLLING" label between two static chips; the VRF wait was dead air.
+
+**`components/BattleClash.tsx`** wraps the versus row and owns the motion.  It does NOT own the content — the parent still renders the labels and `ChipCard`s and passes them as `left`/`right`, so the component is reusable for BR / tournament later and `BattlePage` (already 1000+ lines, flagged in the tech-debt register) didn't grow another inline block.
+
+Phases: `idle` (WAITING) → `rolling` (chips tremble, a VRF die spins with scrambling digits) → `impact` (one-shot: chips lunge, panel shakes, 10 radial sparks, VS flares, seed digits scramble) → `result` (real seed snaps in, winner swells + glows gold, loser desaturates and tilts away).
+
+**The rule that matters: the fight only plays for a transition the component actually WITNESSED** (`prevStatus.current === 1 && status >= 2`).  Opening a finished battle from history goes straight to the result state with no replay — staging a fight that happened an hour ago would be the UI lying.  A consequence worth knowing: if the 1 Hz poll never observes status 1 (both join and VRF land inside one tick), no animation plays.  That is the correct failure direction — silence, not a fake fight.
+
+**`lib/sfx.ts`** — SFX are **synthesised via Web Audio, not sampled**.  Square/triangle oscillators *are* the 8-bit sound, so generating is more authentic than a sample, and it costs **~2.4 KB of code instead of any audio assets** (bundle 1051 → 1053 KB; CLAUDE.md's perf note warned that audio + sprites could double it).  No licensing or attribution to track.  `playWin()` = rising C-E-G arpeggio onto a held octave with a triangle sparkle a fifth up; `playLose()` = descending G-Eb-C with a pitch sag on the tail.
+- **Muted by default**, persisted in `localStorage` (`chiptap_sfx_on`).  `components/SfxToggle.tsx` (♪ / ×) sits next to the language switcher.  Bonus: the click that enables sound IS the user gesture that unlocks the AudioContext, so the first sting after enabling actually fires.
+- **The sting plays from the VIEWER's seat**, not the winner's — `outcome` is `win|lose|neutral`, and spectators hear nothing.  Firing a defeat sound at someone who wasn't playing would be nonsense.
+- It lands on the **reveal**, not the punch — the seed settling is the emotional beat.
+
+**Accessibility**: every clash rule is disabled under `prefers-reduced-motion` (index.css), and the victor/fallen states use `both` fill so the outcome still reads with motion off.  No information is encoded in movement alone.
+
+**Verified**: `tsc --noEmit` 0, `vite build` 0, i18n parity **325 × 6** (2 new `header.sound*` keys).  Motion + audio were reviewed through a standalone demo harness (`clash-demo.html`, sent to the user), which runs the identical CSS and synthesis.  **NOT yet exercised inside the real app** — the watch screen is wallet-gated and this session's browser tooling couldn't reach a connected state, so the React transition logic is reasoned-correct rather than observed.  Worth one live battle before trusting it.
+
+**Not done (rest of backlog #4)**: SFX hooks for CONNECT / MINT / JOIN / ROLL / CLAIM (only WIN/LOSE exist), BR + tournament reuse of `BattleClash`, menu rework.
 
 ## SEC-25 — i18n (multi-language) — IN PROGRESS
 
