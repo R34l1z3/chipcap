@@ -17,7 +17,7 @@ const { Connection, PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL, Transac
 
 const RPC = process.env.SOLANA_RPC || "https://api.devnet.solana.com";
 const MPL_CORE = new PublicKey("CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d");
-const WAIT_NEW_MS = 15 * 60 * 1000;   // how long to wait for the UI battle
+const WAIT_NEW_MS = Number(process.env.WAIT_MIN || 30) * 60 * 1000;   // how long to wait for the UI battle
 const WAIT_DECIDE_MS = 10 * 60 * 1000;
 
 const owner = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(
@@ -43,6 +43,14 @@ const battlePda   = (id) => pda([enc("battle"), new anchor.BN(id).toArrayLike(Bu
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), "•", ...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Polling reads must survive the public RPC's 429s — a transient error
+// while waiting shouldn't end the session.
+async function poll(fn) {
+  for (let wait = 3000; ; wait = Math.min(wait * 2, 30_000)) {
+    try { return await fn(); }
+    catch (e) { log(`rpc: ${String(e.message || e).slice(0, 60)} — retry in ${wait / 1000}s`); await sleep(wait); }
+  }
+}
 
 async function findBattle() {
   if (process.env.B_ID) return Number(process.env.B_ID);
@@ -50,14 +58,14 @@ async function findBattle() {
   log(`waiting for a new battle (id >= ${start}) — create one in the UI now`);
   const deadline = Date.now() + WAIT_NEW_MS;
   while (Date.now() < deadline) {
-    const next = Number((await arena.account.arenaConfig.fetch(arenaConfig)).nextBattleId);
+    const next = Number((await poll(() => arena.account.arenaConfig.fetch(arenaConfig))).nextBattleId);
     for (let id = start; id < next; id++) {
-      const b = await arena.account.battle.fetchNullable(battlePda(id));
+      const b = await poll(() => arena.account.battle.fetchNullable(battlePda(id)));
       if (b && b.status === 0) return id;   // a 1v1 still WAITING (ids are shared with BR/tournaments)
     }
     await sleep(3000);
   }
-  throw new Error("no new WAITING battle appeared");
+  throw new Error(`no new WAITING battle appeared in ${WAIT_NEW_MS / 60000} min`);
 }
 
 (async () => {
@@ -86,7 +94,7 @@ async function findBattle() {
   const deadline = Date.now() + WAIT_DECIDE_MS;
   let b;
   while (Date.now() < deadline) {
-    b = await arena.account.battle.fetch(battlePda(id));
+    b = await poll(() => arena.account.battle.fetch(battlePda(id)));
     if (b.status >= 2) break;
     await sleep(3000);
   }
