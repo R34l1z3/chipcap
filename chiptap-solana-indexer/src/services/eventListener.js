@@ -16,6 +16,7 @@ import db from "../db/pool.js";
 import { loadIdls } from "../utils/idl.js";
 import { decodeEventsFromLogs } from "../utils/events.js";
 import { dispatchEvent } from "./eventHandler.js";
+import { reconcileChipOwners } from "./chipOwnerReconcile.js";
 
 let connection = null;
 let coders     = null;
@@ -23,6 +24,29 @@ const subscriptions = new Map();   // programId -> subscription id
 let isRunning = false;
 let watchdog  = null;
 let reconnecting = false;
+
+// SEC-29 — backfill health.  A failed backfill used to be logged once
+// and forgotten; the cursor then sat weeks behind while the live
+// subscription only saw events from boot onward (chip_nft was stuck
+// from 2026-07-04 to 08-06).  Now each failure retries with backoff and
+// the state per program is served by /api/indexer/status.
+const backfillState = new Map();   // programId -> { state, attempts, lastError, lastErrorAt, caughtUpAt }
+const BACKOFF_MS = [5_000, 15_000, 60_000, 120_000, 300_000];
+// Bumped on every start(), so retry loops from before a reconnect stop.
+let generation = 0;
+
+const RECONCILE_MS = parseInt(process.env.CHIP_RECONCILE_MS || "600000", 10);  // 10 min
+let reconcileTimer = null;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function setBackfillState(pid, patch) {
+  backfillState.set(pid, { ...(backfillState.get(pid) ?? {}), ...patch });
+}
+
+export function getBackfillState() {
+  return Object.fromEntries(backfillState);
+}
 
 // ============================================================
 // cursor helpers
@@ -133,7 +157,14 @@ function subscribeLive(programIdStr) {
           program:   programIdStr,
         });
       }
-      await setCursor(programIdStr, logsResult.signature, ctx.slot);
+      // SEC-29 — only move the cursor once backfill has caught up.  If
+      // it jumped forward while a backfill was still failing, the gap
+      // between the old cursor and this event would never be walked.
+      // The event itself is processed either way (handlers are
+      // idempotent), so nothing is lost by holding the cursor back.
+      if (backfillState.get(programIdStr)?.state === "ok") {
+        await setCursor(programIdStr, logsResult.signature, ctx.slot);
+      }
     } catch (err) {
       console.error("[IDX] live process failed:", err.message);
     }
@@ -151,9 +182,12 @@ function subscribeLive(programIdStr) {
 // SEC-27: `marketplace` is optional (see config/index.js), so filter out
 // blanks rather than subscribing to "" and blowing up in PublicKey().
 function getProgramIds() {
+  // chip_nft FIRST: everything else (market fills, forfeits, win
+  // progression) updates rows that ChipMinted creates, and backfill
+  // runs one program at a time.
   const ids = [
-    config.programs.battleArena,
     config.programs.chipNft,
+    config.programs.battleArena,
     config.programs.treasury,
     config.programs.marketplace,
   ].filter(Boolean);
@@ -187,11 +221,25 @@ export async function start() {
     // 1. Subscribe FIRST so we don't lose anything that happens during backfill.
     for (const pid of programIds) subscribeLive(pid);
 
-    // 2. Backfill the gap.
+    // 2. Backfill the gap — one program at a time to go easy on a
+    //    rate-limited public RPC.  A failure no longer ends there: that
+    //    program gets its own retry loop in the background, and the
+    //    others carry on.
+    const gen = ++generation;
     for (const pid of programIds) {
-      try { await backfill(pid); }
-      catch (err) { console.error("[IDX] backfill failed:", pid, err.message); }
+      setBackfillState(pid, { state: "running", attempts: 1 });
+      try {
+        await backfill(pid);
+        setBackfillState(pid, { state: "ok", caughtUpAt: new Date().toISOString(), lastError: null });
+      } catch (err) {
+        noteBackfillFailure(pid, 1, err);
+        retryBackfill(pid, gen);   // not awaited
+      }
     }
+
+    // 2b. Ask the chain who actually holds each chip — events can't see
+    //     order-inverted backfills or wallet-to-wallet transfers.
+    scheduleReconcile();
 
     // 3. Health-watchdog: pings RPC every 15s.  On 2 consecutive misses
     //    we tear down (sub IDs are dead anyway after a validator restart)
@@ -206,6 +254,49 @@ export async function start() {
     console.log("[IDX] retrying in 10s...");
     setTimeout(() => start(), 10_000);
   }
+}
+
+function noteBackfillFailure(pid, attempt, err) {
+  const wait = BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)];
+  console.error(
+    `[IDX] backfill failed for ${pid.slice(0, 8)} (attempt ${attempt}): ${err.message}` +
+    ` — retrying in ${wait / 1000}s`,
+  );
+  setBackfillState(pid, {
+    state: "retrying", attempts: attempt,
+    lastError: err.message, lastErrorAt: new Date().toISOString(),
+  });
+  return wait;
+}
+
+async function retryBackfill(pid, gen) {
+  let attempt = backfillState.get(pid)?.attempts ?? 1;
+  for (;;) {
+    await sleep(BACKOFF_MS[Math.min(attempt - 1, BACKOFF_MS.length - 1)]);
+    if (gen !== generation || !connection) return;   // a reconnect took over
+    attempt += 1;
+    setBackfillState(pid, { state: "running", attempts: attempt });
+    try {
+      await backfill(pid);
+      setBackfillState(pid, { state: "ok", caughtUpAt: new Date().toISOString(), lastError: null });
+      console.log(`[IDX] backfill recovered for ${pid.slice(0, 8)} after ${attempt} attempts`);
+      reconcileNow();   // the late events may have moved chips
+      return;
+    } catch (err) {
+      noteBackfillFailure(pid, attempt, err);
+    }
+  }
+}
+
+function reconcileNow() {
+  if (!connection) return;
+  reconcileChipOwners(connection).catch(() => {});   // logs + records its own errors
+}
+
+function scheduleReconcile() {
+  if (reconcileTimer) clearInterval(reconcileTimer);
+  reconcileNow();
+  if (RECONCILE_MS > 0) reconcileTimer = setInterval(reconcileNow, RECONCILE_MS);
 }
 
 function startWatchdog() {
@@ -254,6 +345,7 @@ export async function stop({ keepWatchdog = false } = {}) {
     try { await connection.removeOnLogsListener(subId); } catch {}
   }
   subscriptions.clear();
+  if (reconcileTimer) { clearInterval(reconcileTimer); reconcileTimer = null; }
   if (!keepWatchdog && watchdog) {
     clearInterval(watchdog);
     watchdog = null;

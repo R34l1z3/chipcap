@@ -244,6 +244,9 @@ jobs:
       - name: Event-prefix regression (SEC-12)
         run: node test/events-prefix.test.js
 
+      - name: Chip ownership regression (SEC-29)
+        run: node test/chip-owner.test.js
+
       - name: Boot + healthcheck + WS auth (SEC-6, SEC-13)
         # WS_TOKEN must be visible to BOTH the server and ws-auth.test.js —
         # the test connects with `?token=$WS_TOKEN` (defaults to secret123

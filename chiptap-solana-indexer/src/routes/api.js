@@ -4,6 +4,8 @@
 
 import { Router } from "express";
 import db from "../db/pool.js";
+import { getBackfillState } from "../services/eventListener.js";
+import { getReconcileState } from "../services/chipOwnerReconcile.js";
 
 const router = Router();
 
@@ -392,7 +394,14 @@ router.get("/indexer/status", async (_req, res, next) => {
       db.query("SELECT program, last_signature, last_slot, updated_at FROM indexer_cursor ORDER BY program"),
       db.query("SELECT COUNT(*) as total FROM events"),
     ]);
-    res.json({ cursors, totalEvents: ev[0].total });
+    // SEC-29 — backfill + ownership-reconcile health, so a stuck
+    // program shows up here instead of only in the logs.
+    res.json({
+      cursors,
+      totalEvents: ev[0].total,
+      backfill: getBackfillState(),
+      chipReconcile: getReconcileState(),
+    });
   } catch (err) { next(err); }
 });
 

@@ -331,6 +331,18 @@ export async function handleBattleSettledForfeited(data, ctx) {
       );
       await bumpChipStats(client, b.chip_a, b.winner === b.player_a);
       await bumpChipStats(client, b.chip_b, b.winner === b.player_b);
+      // SEC-29 — the forfeited chip physically moved to the winner
+      // (execute_forfeit → mpl-core transfer).  Without this the loser
+      // kept seeing it in their inventory and the winner never did.
+      // Covers expire_decision too: it runs execute_forfeit and emits
+      // this event before BattleExpired.
+      const lostChip = chipForfeited || (b.loser === b.player_a ? b.chip_a : b.chip_b);
+      if (lostChip && b.winner) {
+        await client.query(
+          "UPDATE chips SET owner = $1, listed = FALSE WHERE asset = $2",
+          [b.winner, lostChip],
+        );
+      }
     }
     await client.query("COMMIT");
   } catch (e) {
