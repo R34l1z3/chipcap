@@ -20,7 +20,7 @@
 // ============================================================
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { playTick, playSuspense } from "../lib/sfx";
+import { playTick, playDrumroll, playImpact } from "../lib/sfx";
 
 /** Pause before the FINAL elimination — the last-two beat. */
 const FINAL_GAP_MS = 1200;
@@ -110,9 +110,14 @@ export function useSeatNarrowing(
       at += isLast
         ? FINAL_GAP_MS
         : Math.max(MIN_GAP_MS, FIRST_GAP_MS - i * 70);
+      // The last-two hold gets a drumroll across its whole length, and
+      // the final elimination lands as the impact.
+      if (isLast) {
+        timers.push(setTimeout(() => playDrumroll(FINAL_GAP_MS / 1000), at - FINAL_GAP_MS));
+      }
       timers.push(setTimeout(() => {
         setEliminated((prevE) => [...prevE, slot]);
-        if (isLast) playSuspense();
+        if (isLast) playImpact();
         else playTick(i / Math.max(1, order.length - 1));
       }, at));
     });

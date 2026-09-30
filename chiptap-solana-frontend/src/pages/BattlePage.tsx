@@ -795,6 +795,10 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           rollingLabel={t("battle.watch.rolling")}
           seed={status >= 2 ? battle.randomSeed?.toString?.() : null}
           outcome={isWinner ? "win" : isLoser ? "lose" : "neutral"}
+          mySide={isPlayerA ? "a" : isPlayerB ? "b" : null}
+          youLabel={t("common.you")}
+          winText={t("battle.watch.youWon")}
+          loseText={t("battle.watch.youLost")}
           onRevealChange={setRevealing}
           left={
             <>

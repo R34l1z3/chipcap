@@ -145,7 +145,24 @@ body::after {
    instead of each element drifting at its own unrelated rate.  It
    ramps over ~8s and saturates, because the VRF wait has no known
    length to pace against. */
-.clash-stage { position: relative; --heat: 0; }
+.clash-stage { position: relative; --heat: 0; --hit: #FFD700; isolation: isolate; }
+
+/* Heartbeat glow: one element per beat (React re-keys it), so the pulse
+   and the thump share a clock.  Brighter and faster as --heat rises. */
+@keyframes clashBeat {
+  0%   { opacity: calc(0.25 + var(--heat) * 0.55); transform: scale(0.98); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+.clash-beat {
+  position: absolute; inset: -8px; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(255, 0, 255, 0.55) 0%, rgba(255, 0, 255, 0) 70%);
+  animation: clashBeat 0.42s ease-out 1 both;
+}
+@keyframes clashVsBeat {
+  0%, 100% { transform: scale(1); }
+  30%      { transform: scale(calc(1.15 + var(--heat) * 0.2)); }
+}
+.clash-vs-beat { animation: clashVsBeat 0.3s ease-out 1; }
 
 /* --- ROLLING: anticipation while the VRF is in flight --- */
 @keyframes clashTrembleA {
@@ -187,59 +204,104 @@ body::after {
 /* --- THE REVEAL: a tug-of-war unfolded from the seed ---------------
    The chain decides with one bit, which is over instantly.  So the
    reveal replays the SAME number slowly: higher bits drive a marker
-   that really does swing to one side and back, and the deciding bit
-   lands it.  Every "you were ahead" beat is a true property of the
-   seed and can be recomputed from it — which is the difference
-   between suspense and a slot machine's weighted near-miss. */
+   that swings to one side and back, it hangs in the middle to a
+   drumroll (for both outcomes alike), and the deciding bit drops it.
+   Every position is a property of the seed and can be recomputed —
+   the difference between suspense and a slot machine's weighted
+   near-miss. */
 .clash-side { transition: transform 0.28s ease-out, filter 0.28s ease-out; }
 /* Leading right now: the chip swells and warms. */
-.clash-ahead  { transform: scale(1.10); filter: brightness(1.35) drop-shadow(0 0 12px #FFD700); }
+.clash-ahead  { transform: scale(1.14); filter: brightness(1.5) drop-shadow(0 0 16px #FFD700); }
 /* Trailing right now: it shrinks back, but stays fully legible — being
    behind is not the same as having lost. */
-.clash-behind { transform: scale(0.94); filter: brightness(0.72) saturate(0.85); }
+.clash-behind { transform: scale(0.92); filter: brightness(0.65) saturate(0.8); }
+/* The hang: both chips braced, lit from the rim. */
+.clash-brace  { transform: scale(0.97); filter: brightness(1.2) drop-shadow(0 0 8px #FFFFFF); }
 
 .clash-tug {
   position: relative;
-  width: 116px; height: 10px;
-  border: 1px solid #4a4a8a;
-  background: linear-gradient(90deg, #2a1a3a 0%, #1a1a4e 50%, #1a2a3a 100%);
+  width: 150px; height: 14px;
+  border: 1px solid #6a6aaa;
+  background: linear-gradient(90deg, #3a1a4a 0%, #1a1a4e 50%, #1a2a4a 100%);
+  box-shadow: inset 0 0 6px #000;
 }
 .clash-tug-mid {
-  position: absolute; left: 50%; top: -3px;
-  width: 1px; height: 14px; background: #4a4a8a;
+  position: absolute; left: 50%; top: -4px;
+  width: 2px; height: 22px; margin-left: -1px; background: #8a8aca;
 }
 .clash-tug-mark {
-  position: absolute; top: -3px;
-  width: 8px; height: 14px;
-  margin-left: -4px;
-  background: #FFD700;
-  box-shadow: 0 0 9px #FFD700;
+  position: absolute; top: -5px;
+  width: 10px; height: 22px;
+  margin-left: -5px;
+  background: var(--mark, #FFD700);
+  box-shadow: 0 0 10px var(--mark, #FFD700), 0 0 22px var(--mark, #FFD700);
   /* --lean is -100..100; map onto the bar's width. */
   left: calc(50% + var(--lean, 0) * 0.5%);
-  transition: left 0.30s cubic-bezier(.34, 1.4, .5, 1);
+  transition: left 0.30s cubic-bezier(.34, 1.4, .5, 1), background 0.2s linear;
 }
-/* The last swing arrives harder and stops dead. */
-.clash-tug-lock {
-  transition: left 0.22s cubic-bezier(.9, 0, .2, 1);
-  width: 10px; margin-left: -5px;
-  box-shadow: 0 0 16px #FFD700, 0 0 30px #FFD700;
+/* The hang: the bar runs hot and the marker trembles on the centre line. */
+@keyframes clashTugHot {
+  from { box-shadow: inset 0 0 6px #000, 0 0 6px #FFFFFF; border-color: #FFFFFF; }
+  to   { box-shadow: inset 0 0 6px #000, 0 0 16px #FFFFFF; border-color: #FFD700; }
+}
+.clash-tug-hot { animation: clashTugHot 0.22s ease-in-out infinite alternate; }
+@keyframes clashHover {
+  0%   { transform: translateX(-2px); }
+  100% { transform: translateX(2px); }
+}
+.clash-tug-hover { animation: clashHover 0.08s steps(2) infinite; background: #FFFFFF; box-shadow: 0 0 14px #FFFFFF; }
+/* The fall accelerates like a dropped weight and lands dead — its
+   duration is FALL_MS in BattleClash.tsx; the impact fires on arrival. */
+.clash-tug-lock { transition: left 0.45s cubic-bezier(.55, 0, 1, .45); }
+.clash-tug-landed {
+  width: 12px; margin-left: -6px;
+  background: var(--hit);
+  box-shadow: 0 0 16px var(--hit), 0 0 34px var(--hit);
+}
+.clash-tug-labels {
+  display: flex; justify-content: space-between;
+  width: 150px; margin-top: 4px;
+  font-family: 'Press Start 2P', monospace; font-size: 7px; color: #FFD700;
 }
 
 @keyframes clashShake {
   0%, 100% { transform: translate(0, 0); }
-  20% { transform: translate(-4px, 2px); }
-  40% { transform: translate(4px, -2px); }
-  60% { transform: translate(-3px, -1px); }
-  80% { transform: translate(3px, 1px); }
+  20% { transform: translate(-7px, 3px); }
+  40% { transform: translate(6px, -3px); }
+  60% { transform: translate(-4px, -2px); }
+  80% { transform: translate(3px, 2px); }
 }
-.clash-shake { animation: clashShake 0.35s linear 3; }
+.clash-shake { animation: clashShake 0.3s linear 2; }
 
 @keyframes clashVsHit {
   0%   { transform: scale(1);   text-shadow: 0 0 6px currentColor; }
-  30%  { transform: scale(1.9); text-shadow: 0 0 30px currentColor, 0 0 60px currentColor; }
+  30%  { transform: scale(2.2); text-shadow: 0 0 30px currentColor, 0 0 60px currentColor; }
   100% { transform: scale(1);   text-shadow: 0 0 6px currentColor; }
 }
-.clash-vs-hit { animation: clashVsHit 0.5s ease-out 3; }
+.clash-vs-hit { animation: clashVsHit 0.5s ease-out 2; }
+
+/* Impact: ONE flash (no strobing), a shockwave ring, sparks. */
+@keyframes clashFlash {
+  0%   { opacity: 0; }
+  15%  { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+.clash-flash {
+  position: absolute; inset: -12px; z-index: 3; pointer-events: none;
+  background: radial-gradient(ellipse at center, var(--hit) 0%, rgba(0, 0, 0, 0) 72%);
+  animation: clashFlash 0.6s ease-out 1 both;
+}
+@keyframes clashRing {
+  0%   { transform: scale(0.2); opacity: 1; }
+  100% { transform: scale(7);   opacity: 0; }
+}
+.clash-ring {
+  position: absolute; top: 50%; left: 50%;
+  width: 20px; height: 20px; margin: -10px 0 0 -10px;
+  border: 3px solid var(--hit); border-radius: 50%;
+  pointer-events: none;
+  animation: clashRing 0.65s ease-out 1 both;
+}
 
 /* Radial pixel sparks.  Each span is rotated by --a then thrown out. */
 .clash-sparks {
@@ -247,15 +309,49 @@ body::after {
   width: 0; height: 0; pointer-events: none;
 }
 @keyframes clashSpark {
-  0%   { transform: rotate(var(--a)) translateX(0)    scale(1); opacity: 1; }
-  100% { transform: rotate(var(--a)) translateX(46px) scale(0); opacity: 0; }
+  0%   { transform: rotate(var(--a)) translateX(0)    scale(1.2); opacity: 1; }
+  100% { transform: rotate(var(--a)) translateX(84px) scale(0);   opacity: 0; }
 }
 .clash-spark {
   position: absolute;
-  width: 4px; height: 4px;
-  background: #FFD700;
-  box-shadow: 0 0 6px #FFD700;
-  animation: clashSpark 0.6s ease-out 2;
+  width: 5px; height: 5px;
+  background: var(--hit);
+  box-shadow: 0 0 8px var(--hit);
+  animation: clashSpark 0.7s ease-out 1 both;
+}
+
+/* The stamp: the result slammed onto the stage, then it clears so the
+   chips stay readable (the page banner below carries it on). */
+@keyframes clashStamp {
+  0%   { transform: translate(-50%, -50%) scale(3.2) rotate(-8deg); opacity: 0; }
+  12%  { transform: translate(-50%, -50%) scale(0.92) rotate(-3deg); opacity: 1; }
+  18%  { transform: translate(-50%, -50%) scale(1.06) rotate(-3deg); }
+  24%  { transform: translate(-50%, -50%) scale(1) rotate(-3deg); }
+  80%  { opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1) rotate(-3deg); opacity: 0; }
+}
+.clash-stamp {
+  position: absolute; top: 42%; left: 50%; z-index: 5;
+  white-space: nowrap; pointer-events: none;
+  font-size: 18px; color: var(--hit);
+  text-shadow: 0 0 12px var(--hit), 0 0 28px var(--hit), 3px 3px 0 #000;
+  animation: clashStamp 2.4s ease-out 1 both;
+}
+@media (max-width: 480px) { .clash-stamp { font-size: 13px; } }
+
+/* Confetti — only ever rendered for the viewer's own win. */
+.clash-confetti {
+  position: absolute; left: 0; right: 0; top: -12px; height: 200px;
+  z-index: 4; pointer-events: none; overflow: hidden;
+}
+@keyframes clashConfetti {
+  0%   { transform: translateY(-12px) rotate(var(--r)); opacity: 1; }
+  100% { transform: translateY(190px) rotate(calc(var(--r) + 540deg)); opacity: 0; }
+}
+.clash-confetti span {
+  position: absolute; top: 0; left: var(--x);
+  width: 5px; height: 8px; background: var(--c);
+  animation: clashConfetti 1.7s ease-in var(--d) 1 both;
 }
 
 .clash-seed { font-family: 'Press Start 2P', monospace; letter-spacing: 1px; }
@@ -281,26 +377,30 @@ body::after {
 /* --- RESULT: winner swells, loser drops out of the fight --- */
 @keyframes clashVictor {
   0%   { transform: scale(1);    filter: brightness(1); }
-  40%  { transform: scale(1.18); filter: brightness(1.6) drop-shadow(0 0 14px #FFD700); }
-  100% { transform: scale(1);    filter: brightness(1.1); }
+  35%  { transform: scale(1.26); filter: brightness(1.8) drop-shadow(0 0 22px var(--hit)); }
+  100% { transform: scale(1.06); filter: brightness(1.2) drop-shadow(0 0 10px #FFD700); }
 }
-.clash-victor { animation: clashVictor 0.7s ease-out 1 both; }
+.clash-victor { animation: clashVictor 0.8s ease-out 1 both; }
 
 @keyframes clashFallen {
-  0%   { transform: translateY(0)    rotate(0deg);  filter: grayscale(0)   brightness(1);   opacity: 1; }
-  100% { transform: translateY(10px) rotate(-7deg); filter: grayscale(0.9) brightness(0.55); opacity: 0.6; }
+  0%   { transform: translateY(0)    rotate(0deg);   filter: grayscale(0)   brightness(1);   opacity: 1; }
+  15%  { transform: translateX(-4px) rotate(-2deg);  filter: grayscale(0)   brightness(1.9); opacity: 1; }
+  100% { transform: translateY(14px) rotate(-10deg); filter: grayscale(1)   brightness(0.45); opacity: 0.55; }
 }
-.clash-fallen { animation: clashFallen 0.7s ease-out 1 both; }
+.clash-fallen { animation: clashFallen 0.8s ease-out 1 both; }
 
 /* Accessibility: kill every clash animation, keep the end state.
    `both` fill on victor/fallen means the result still reads correctly
    with motion off -- nothing here encodes information in movement
-   alone. */
+   alone.  The flash, ring, confetti and stamp are pure decoration and
+   are simply not drawn. */
 @media (prefers-reduced-motion: reduce) {
   .clash-tremble-a, .clash-tremble-b,
-  .clash-shake, .clash-vs-hit, .clash-spark, .clash-die {
+  .clash-shake, .clash-vs-hit, .clash-vs-beat, .clash-spark, .clash-die,
+  .clash-tug-hot, .clash-tug-hover {
     animation: none !important;
   }
+  .clash-beat, .clash-flash, .clash-ring, .clash-confetti, .clash-stamp { display: none !important; }
   /* The marker still MOVES — its position is information, not
      decoration — it just snaps instead of easing, and the chips stop
      pulsing. */
@@ -311,6 +411,7 @@ body::after {
   .seat-out   { animation: none !important; opacity: 0.32; filter: grayscale(1) brightness(0.55); }
   .clash-ahead  { transform: none; filter: brightness(1.25); }
   .clash-behind { transform: none; filter: brightness(0.75); }
+  .clash-brace  { transform: none; filter: brightness(1.1); }
   .clash-victor { animation: none !important; filter: brightness(1.1); }
   .clash-fallen { animation: none !important; filter: grayscale(0.9) brightness(0.55); opacity: 0.6; }
 }
