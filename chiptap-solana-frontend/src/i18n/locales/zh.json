@@ -359,7 +359,10 @@
       "cancelReason": "原因：{{reason}}",
       "claimPrize": "领取 {{amount}} SOL — 名次 {{rank}}",
       "claimChip": "领回我的筹码（座位 {{slot}}）",
-      "reclaimed": "你已领回筹码 ✓"
+      "reclaimed": "你已领回筹码 ✓",
+      "runPlace": "第 {{place}} 名",
+      "runWins": "{{total}} 场中赢下 {{wins}} 场",
+      "runOneAway": "距离冠军仅一场"
     }
   },
   "market": {

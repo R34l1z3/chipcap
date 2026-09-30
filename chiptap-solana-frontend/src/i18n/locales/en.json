@@ -359,7 +359,10 @@
       "cancelReason": "reason: {{reason}}",
       "claimPrize": "CLAIM {{amount}} SOL — RANK {{rank}}",
       "claimChip": "CLAIM MY CHIP BACK (slot {{slot}})",
-      "reclaimed": "You've reclaimed your chip ✓"
+      "reclaimed": "You've reclaimed your chip ✓",
+      "runPlace": "PLACE {{place}}",
+      "runWins": "Won {{wins}} of {{total}} matches",
+      "runOneAway": "ONE MATCH FROM THE TITLE"
     }
   },
   "market": {

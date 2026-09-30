@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import wsClient from "../services/wsClient";
-import { notify, dismiss, subscribe, type Notification } from "../lib/notifications";
+import { notify, dismiss, subscribe, isWatchingBattle, type Notification } from "../lib/notifications";
 
 export type { Notification };
 
@@ -21,6 +21,8 @@ export function useWsNotifications() {
     const unsubs: (() => void)[] = [];
 
     unsubs.push(wsClient.on("battle:decided", (d: any) => {
+      // The open Watch screen reveals it; a toast would spoil the reveal.
+      if (isWatchingBattle(Number(d.id))) return;
       if (d.winner === me) notify("win", `You won battle #${d.id}! Claim your chip.`);
       else if (d.loser === me) notify("loss", `You lost battle #${d.id}. Pay or forfeit within 24h.`);
     }));

@@ -118,7 +118,41 @@ function safe(fn: () => void): void {
   try { fn(); } catch { /* silence beats a broken screen */ }
 }
 
-// ---- the two stings ------------------------------------------------
+// ---- the stings ----------------------------------------------------
+
+/**
+ * SUSPENSE — the deciding swing: the last tug-of-war step in a 1v1,
+ * the last elimination in a royale.
+ *
+ * A tone that rises while getting quieter: the ear tracks the pitch
+ * climbing toward something and then the answer arrives.  Deliberately
+ * short (450 ms) — a riser that outstays the beat turns tension into
+ * annoyance.
+ */
+export function playSuspense(): void {
+  safe(() => {
+    const t = begin();
+    if (t === null) return;
+    bend(330, 1180, t, 0.45, "square", 0.55);
+    bend(165, 590,  t, 0.45, "triangle", 0.35);   // an octave below, for body
+  });
+}
+
+/**
+ * TICK — one swing of the tug-of-war.  `p` is 0..1 through the
+ * sequence and raises the pitch, so the run of ticks reads as a
+ * ratchet tightening rather than a metronome.  Short and dry; the
+ * tension comes from the rising interval, not from any one hit.
+ */
+export function playTick(p: number): void {
+  safe(() => {
+    const t = begin();
+    if (t === null) return;
+    const f = 420 + Math.max(0, Math.min(1, p)) * 620;   // 420 -> 1040 Hz
+    note(f, t, 0.055, "square", 0.5);
+    note(f / 2, t, 0.05, "triangle", 0.25);              // body underneath
+  });
+}
 
 /**
  * VICTORY — rising major arpeggio (C-E-G) landing on a held octave C,

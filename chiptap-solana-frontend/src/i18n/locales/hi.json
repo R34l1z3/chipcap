@@ -359,7 +359,10 @@
       "cancelReason": "कारण: {{reason}}",
       "claimPrize": "{{amount}} SOL लें — रैंक {{rank}}",
       "claimChip": "मेरा चिप वापस लें (सीट {{slot}})",
-      "reclaimed": "तुमने चिप वापस लिया ✓"
+      "reclaimed": "तुमने चिप वापस लिया ✓",
+      "runPlace": "{{place}} स्थान",
+      "runWins": "{{total}} में से {{wins}} मैच जीते",
+      "runOneAway": "खिताब से एक मैच दूर"
     }
   },
   "market": {

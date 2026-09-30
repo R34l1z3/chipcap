@@ -140,55 +140,90 @@ body::after {
    motion-only: the layout and the end state are identical without it,
    which is what makes the reduced-motion override at the bottom safe. */
 
-.clash-stage { position: relative; }
+/* --heat is 0..1, set from React while rolling.  Every tempo and
+   amplitude below derives from it, so the scene tightens as ONE thing
+   instead of each element drifting at its own unrelated rate.  It
+   ramps over ~8s and saturates, because the VRF wait has no known
+   length to pace against. */
+.clash-stage { position: relative; --heat: 0; }
 
 /* --- ROLLING: anticipation while the VRF is in flight --- */
 @keyframes clashTrembleA {
-  0%, 100% { transform: translateX(0)    rotate(0deg); }
-  25%      { transform: translateX(-2px) rotate(-1.5deg); }
-  75%      { transform: translateX(2px)  rotate(1.5deg); }
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25%      { transform: translateX(calc(-2px * (1 + var(--heat) * 1.6))) rotate(calc(-1.5deg * (1 + var(--heat)))); }
+  75%      { transform: translateX(calc( 2px * (1 + var(--heat) * 1.6))) rotate(calc( 1.5deg * (1 + var(--heat)))); }
 }
 @keyframes clashTrembleB {
-  0%, 100% { transform: translateX(0)    rotate(0deg); }
-  25%      { transform: translateX(2px)  rotate(1.5deg); }
-  75%      { transform: translateX(-2px) rotate(-1.5deg); }
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25%      { transform: translateX(calc( 2px * (1 + var(--heat) * 1.6))) rotate(calc( 1.5deg * (1 + var(--heat)))); }
+  75%      { transform: translateX(calc(-2px * (1 + var(--heat) * 1.6))) rotate(calc(-1.5deg * (1 + var(--heat)))); }
 }
-.clash-tremble-a { animation: clashTrembleA 0.22s ease-in-out infinite; }
-.clash-tremble-b { animation: clashTrembleB 0.22s ease-in-out infinite; }
+/* 0.30s down to 0.13s as the heat rises — the shiver visibly quickens. */
+.clash-tremble-a { animation: clashTrembleA calc(0.30s - var(--heat) * 0.17s) ease-in-out infinite; }
+.clash-tremble-b { animation: clashTrembleB calc(0.30s - var(--heat) * 0.17s) ease-in-out infinite; }
 
 /* The die: a rotating square with scrambling digits. */
 @keyframes clashDieSpin {
   0%   { transform: rotate(0deg)   scale(1); }
-  50%  { transform: rotate(180deg) scale(1.15); }
+  50%  { transform: rotate(180deg) scale(calc(1.10 + var(--heat) * 0.18)); }
   100% { transform: rotate(360deg) scale(1); }
 }
 .clash-die {
   width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center;
   border: 2px solid #FF00FF;
-  box-shadow: 0 0 10px #FF00FF88, inset 0 0 6px #FF00FF44;
-  animation: clashDieSpin 0.9s linear infinite;
+  /* Glow swells with the build-up. */
+  box-shadow:
+    0 0 calc(8px + var(--heat) * 16px) rgba(255, 0, 255, calc(0.45 + var(--heat) * 0.55)),
+    inset 0 0 6px #FF00FF44;
+  animation: clashDieSpin calc(1.15s - var(--heat) * 0.80s) linear infinite;
 }
+
 .clash-die-face {
   font-family: 'Press Start 2P', monospace;
   font-size: 7px; color: #FF00FF;
 }
 
-/* --- IMPACT: the one-shot hit when randomness lands --- */
-@keyframes clashLungeA {
-  0%   { transform: translateX(0); }
-  35%  { transform: translateX(26px) scale(1.06); }
-  55%  { transform: translateX(18px); }
-  100% { transform: translateX(0); }
+/* --- THE REVEAL: a tug-of-war unfolded from the seed ---------------
+   The chain decides with one bit, which is over instantly.  So the
+   reveal replays the SAME number slowly: higher bits drive a marker
+   that really does swing to one side and back, and the deciding bit
+   lands it.  Every "you were ahead" beat is a true property of the
+   seed and can be recomputed from it — which is the difference
+   between suspense and a slot machine's weighted near-miss. */
+.clash-side { transition: transform 0.28s ease-out, filter 0.28s ease-out; }
+/* Leading right now: the chip swells and warms. */
+.clash-ahead  { transform: scale(1.10); filter: brightness(1.35) drop-shadow(0 0 12px #FFD700); }
+/* Trailing right now: it shrinks back, but stays fully legible — being
+   behind is not the same as having lost. */
+.clash-behind { transform: scale(0.94); filter: brightness(0.72) saturate(0.85); }
+
+.clash-tug {
+  position: relative;
+  width: 116px; height: 10px;
+  border: 1px solid #4a4a8a;
+  background: linear-gradient(90deg, #2a1a3a 0%, #1a1a4e 50%, #1a2a3a 100%);
 }
-@keyframes clashLungeB {
-  0%   { transform: translateX(0); }
-  35%  { transform: translateX(-26px) scale(1.06); }
-  55%  { transform: translateX(-18px); }
-  100% { transform: translateX(0); }
+.clash-tug-mid {
+  position: absolute; left: 50%; top: -3px;
+  width: 1px; height: 14px; background: #4a4a8a;
 }
-.clash-lunge-a { animation: clashLungeA 0.55s cubic-bezier(.4,0,.2,1) 2; }
-.clash-lunge-b { animation: clashLungeB 0.55s cubic-bezier(.4,0,.2,1) 2; }
+.clash-tug-mark {
+  position: absolute; top: -3px;
+  width: 8px; height: 14px;
+  margin-left: -4px;
+  background: #FFD700;
+  box-shadow: 0 0 9px #FFD700;
+  /* --lean is -100..100; map onto the bar's width. */
+  left: calc(50% + var(--lean, 0) * 0.5%);
+  transition: left 0.30s cubic-bezier(.34, 1.4, .5, 1);
+}
+/* The last swing arrives harder and stops dead. */
+.clash-tug-lock {
+  transition: left 0.22s cubic-bezier(.9, 0, .2, 1);
+  width: 10px; margin-left: -5px;
+  box-shadow: 0 0 16px #FFD700, 0 0 30px #FFD700;
+}
 
 @keyframes clashShake {
   0%, 100% { transform: translate(0, 0); }
@@ -225,6 +260,24 @@ body::after {
 
 .clash-seed { font-family: 'Press Start 2P', monospace; letter-spacing: 1px; }
 
+/* --- Battle Royale: the field narrowing (useSeatNarrowing) --------
+   A seat that goes dark is out; a seat still lit while the sequence
+   runs is still in it.  Being one of the last two lit is a real fact
+   about a multi-seat draw, not a staged tease. */
+.seat-out {
+  animation: seatOut 0.45s ease-out 1 both;
+}
+@keyframes seatOut {
+  0%   { opacity: 1;   filter: grayscale(0)   brightness(1); transform: scale(1); }
+  35%  { opacity: 1;   filter: grayscale(0.4) brightness(1.5); transform: scale(1.04); }
+  100% { opacity: 0.32; filter: grayscale(1)  brightness(0.55); transform: scale(0.96); }
+}
+@keyframes seatAlive {
+  0%, 100% { box-shadow: 0 0 6px rgba(255,215,0,0.35); }
+  50%      { box-shadow: 0 0 16px rgba(255,215,0,0.85); }
+}
+.seat-alive { animation: seatAlive 0.7s ease-in-out infinite; }
+
 /* --- RESULT: winner swells, loser drops out of the fight --- */
 @keyframes clashVictor {
   0%   { transform: scale(1);    filter: brightness(1); }
@@ -245,10 +298,19 @@ body::after {
    alone. */
 @media (prefers-reduced-motion: reduce) {
   .clash-tremble-a, .clash-tremble-b,
-  .clash-lunge-a,   .clash-lunge-b,
   .clash-shake, .clash-vs-hit, .clash-spark, .clash-die {
     animation: none !important;
   }
+  /* The marker still MOVES — its position is information, not
+     decoration — it just snaps instead of easing, and the chips stop
+     pulsing. */
+  .clash-side, .clash-tug-mark { transition: none !important; }
+  /* Seats still change state — that IS the information — they just
+     stop pulsing and fading theatrically. */
+  .seat-alive { animation: none !important; }
+  .seat-out   { animation: none !important; opacity: 0.32; filter: grayscale(1) brightness(0.55); }
+  .clash-ahead  { transform: none; filter: brightness(1.25); }
+  .clash-behind { transform: none; filter: brightness(0.75); }
   .clash-victor { animation: none !important; filter: brightness(1.1); }
   .clash-fallen { animation: none !important; filter: grayscale(0.9) brightness(0.55); opacity: 0.6; }
 }

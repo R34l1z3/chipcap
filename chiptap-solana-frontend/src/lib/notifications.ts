@@ -59,3 +59,20 @@ export function notifyTxError(label: string, err: unknown): void {
   msg = msg.split("\n")[0].slice(0, 160);
   notify("error", `${label}: ${msg}`);
 }
+
+// ---- battles with a Watch screen open ------------------------------
+// That screen reveals the result itself (SEC-28), so the global
+// win/loss toast for the same battle would announce it before the
+// reveal — often before the page's own poll has even seen it.
+
+const watching = new Set<number>();
+
+/** Mark a battle as on screen; returns the cleanup that unmarks it. */
+export function watchingBattle(id: number): () => void {
+  watching.add(id);
+  return () => { watching.delete(id); };
+}
+
+export function isWatchingBattle(id: number): boolean {
+  return watching.has(id);
+}

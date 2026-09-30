@@ -359,7 +359,10 @@
       "cancelReason": "причина: {{reason}}",
       "claimPrize": "ЗАБРАТЬ {{amount}} SOL — МЕСТО {{rank}}",
       "claimChip": "ЗАБРАТЬ МОЙ ЧИП (место {{slot}})",
-      "reclaimed": "Ты забрал свой чип ✓"
+      "reclaimed": "Ты забрал свой чип ✓",
+      "runPlace": "{{place}} МЕСТО",
+      "runWins": "Выиграно {{wins}} из {{total}} матчей",
+      "runOneAway": "В ШАГЕ ОТ ТИТУЛА"
     }
   },
   "market": {

@@ -359,7 +359,10 @@
       "cancelReason": "razón: {{reason}}",
       "claimPrize": "RECLAMAR {{amount}} SOL — PUESTO {{rank}}",
       "claimChip": "RECLAMAR MI FICHA (asiento {{slot}})",
-      "reclaimed": "Recuperaste tu ficha ✓"
+      "reclaimed": "Recuperaste tu ficha ✓",
+      "runPlace": "{{place}}º PUESTO",
+      "runWins": "Ganaste {{wins}} de {{total}} partidas",
+      "runOneAway": "A UNA PARTIDA DEL TÍTULO"
     }
   },
   "market": {

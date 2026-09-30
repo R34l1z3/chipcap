@@ -17,7 +17,7 @@ import { useArenaConfig } from "../hooks/useArenaConfig";
 import { useIndexerBattles, type BattleData } from "../hooks/useIndexerBattles";
 import { useChipsByOwner } from "../hooks/useChipsByOwner";
 
-import { notify, notifyTxError } from "../lib/notifications";
+import { notify, notifyTxError, watchingBattle } from "../lib/notifications";
 import * as pda from "../lib/pda";
 import { MPL_CORE_PROGRAM } from "../lib/mpl";
 import { POOL_TIERS } from "../config";
@@ -518,6 +518,13 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
   // panel must disappear (clicking again would fail inside mpl-core
   // with a cryptic IncorrectOwner).
   const [winnerChipClaimed, setWinnerChipClaimed] = useState(false);
+  // SEC-28 — true while BattleClash plays the reveal.  Everything that
+  // names the winner waits for it, or the answer would sit right under
+  // the suspense.
+  const [revealing, setRevealing] = useState(false);
+  // This screen reveals the result itself, so the global "you won" toast
+  // is held back for this battle while it's open.
+  useEffect(() => watchingBattle(battleId), [battleId]);
 
   const fetchBattle = useCallback(async () => {
     if (!arena) return;
@@ -532,7 +539,10 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           setWinnerChipClaimed(owner.equals(acc.winner));
         }
       }
-    } catch { setBattle(null); }
+    } catch {
+      // Keep the last good read: one failed poll must not blank the page
+      // mid-reveal (it would unmount the clash).  Next tick retries.
+    }
   }, [arena, battleId]);
 
   useEffect(() => {
@@ -785,6 +795,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           rollingLabel={t("battle.watch.rolling")}
           seed={status >= 2 ? battle.randomSeed?.toString?.() : null}
           outcome={isWinner ? "win" : isLoser ? "lose" : "neutral"}
+          onRevealChange={setRevealing}
           left={
             <>
               <div className="font-pixel mb-1 truncate" style={{ fontSize: 8, color: isPlayerA ? "#FFD700" : "#00FFFF" }}>
@@ -822,7 +833,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           </div>
         )}
 
-        {status === 2 && (
+        {status === 2 && !revealing && (
           <div>
             <div className="text-center py-3 mb-4 font-pixel" style={{
               fontSize: 14,
@@ -920,7 +931,7 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
           </div>
         )}
 
-        {status === 3 && (
+        {status === 3 && !revealing && (
           <div className="text-center py-4">
             <div className="font-pixel mb-3" style={{
               fontSize: 16,
@@ -954,9 +965,9 @@ function WatchBattle({ battleId, onBack }: { battleId: number; onBack: () => voi
       {status >= 1 && (
         <BattleAuditPanel
           battleId={battleId}
-          randomSeed={status === 2 || status === 3 ? battle.randomSeed?.toString?.() : null}
-          winner={status === 2 || status === 3 ? battle.winner?.toBase58?.() : null}
-          loser={status === 2 || status === 3 ? battle.loser?.toBase58?.() : null}
+          randomSeed={(status === 2 || status === 3) && !revealing ? battle.randomSeed?.toString?.() : null}
+          winner={(status === 2 || status === 3) && !revealing ? battle.winner?.toBase58?.() : null}
+          loser={(status === 2 || status === 3) && !revealing ? battle.loser?.toBase58?.() : null}
         />
       )}
     </div>

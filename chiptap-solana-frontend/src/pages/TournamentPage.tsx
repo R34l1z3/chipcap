@@ -758,37 +758,7 @@ function Bracket({
   const { t } = useTranslation();
   // matches[0..4] = R0 (4 quarters) / [4..6] = R1 semis / [6] = final / [7] = 3rd-place
 
-  const cell = (i: number) => {
-    const ix = tournament.matches[i] ?? defaultMatch();
-    const oc = tChain?.matches?.[i];
-    if (!oc) return ix;   // wallet disconnected / no on-chain read — indexer only
-
-    // On-chain is authoritative for the bracket STRUCTURE (slot_a/slot_b
-    // for R1/R2 are filled by t_advance_round on chain, but the indexer's
-    // handleTournamentMatchDecided never back-fills next-round slots — so
-    // without this merge R1/R2 cells render "— vs —" forever).
-    //
-    // STATUS is the one field we DON'T blindly trust on-chain: the program
-    // only knows PENDING(0)/DECIDED(2) — the ROLLING(1) animation is an
-    // indexer-only state set on the TournamentMatchRolling event.  So:
-    // trust on-chain when it says DECIDED; otherwise show the indexer
-    // status (which may be 1=ROLLING mid Switchboard cycle).
-    const ocDecided = Number(oc.status) === 2;   // T_MATCH_DECIDED
-    const rndAcc = oc.randomnessAccount?.toBase58?.();
-    return {
-      status:      ocDecided ? 2 : Number(ix.status),
-      round:       Number(oc.round),
-      slot_a:      Number(oc.slotA),
-      slot_b:      Number(oc.slotB),
-      winner_slot: Number(oc.winnerSlot),
-      seed:        ocDecided && oc.seed ? oc.seed.toString() : ix.seed,
-      // Filter Pubkey::default() (all-1s) so we don't link to the system program.
-      randomness_account:
-        ocDecided && rndAcc && rndAcc !== "11111111111111111111111111111111"
-          ? rndAcc : (ix.randomness_account ?? null),
-      decided_at: ix.decided_at,
-    };
-  };
+  const cell = (i: number) => mergeMatch(tournament.matches[i], tChain?.matches?.[i]);
 
   return (
     <div className="overflow-x-auto">
@@ -818,6 +788,42 @@ function Bracket({
       </div>
     </div>
   );
+}
+
+/**
+ * One bracket cell: indexer row merged with the on-chain match.
+ * Shared by the bracket and the run summary so both read the same
+ * slots — the indexer alone never learns who plays R1/R2.
+ */
+function mergeMatch(ix: any, oc: any) {
+  ix = ix ?? defaultMatch();
+  if (!oc) return ix;   // wallet disconnected / no on-chain read — indexer only
+
+  // On-chain is authoritative for the bracket STRUCTURE (slot_a/slot_b
+  // for R1/R2 are filled by t_advance_round on chain, but the indexer's
+  // handleTournamentMatchDecided never back-fills next-round slots — so
+  // without this merge R1/R2 cells render "— vs —" forever).
+  //
+  // STATUS is the one field we DON'T blindly trust on-chain: the program
+  // only knows PENDING(0)/DECIDED(2) — the ROLLING(1) animation is an
+  // indexer-only state set on the TournamentMatchRolling event.  So:
+  // trust on-chain when it says DECIDED; otherwise show the indexer
+  // status (which may be 1=ROLLING mid Switchboard cycle).
+  const ocDecided = Number(oc.status) === 2;   // T_MATCH_DECIDED
+  const rndAcc = oc.randomnessAccount?.toBase58?.();
+  return {
+    status:      ocDecided ? 2 : Number(ix.status),
+    round:       Number(oc.round),
+    slot_a:      Number(oc.slotA),
+    slot_b:      Number(oc.slotB),
+    winner_slot: Number(oc.winnerSlot),
+    seed:        ocDecided && oc.seed ? oc.seed.toString() : ix.seed,
+    // Filter Pubkey::default() (all-1s) so we don't link to the system program.
+    randomness_account:
+      ocDecided && rndAcc && rndAcc !== "11111111111111111111111111111111"
+        ? rndAcc : (ix.randomness_account ?? null),
+    decided_at: ix.decided_at,
+  };
 }
 
 function defaultMatch() {
@@ -1042,6 +1048,54 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
             })}
           </div>
         )}
+
+        {/* SEC-28 — your own run through the bracket.
+            This is the one place in the game where "almost won" is a
+            plain fact rather than a staged effect: losing the final of
+            an 8-player single-elim really is one match from the title.
+            Nothing here is derived or dramatised — it is read straight
+            off the decided matches. */}
+        {tournament.status === 2 && mySeat && (() => {
+          const slot = Number(mySeat.slot);
+          // Same merged cells the bracket draws — the raw indexer rows
+          // never learn who played R1/R2, so reading them alone would
+          // count only the quarter-final.
+          const ms = Array.from({ length: 8 }, (_, i) =>
+            mergeMatch(tournament.matches?.[i], tChain?.matches?.[i]));
+          const mine = ms.filter((m) =>
+            (Number(m.slot_a) === slot || Number(m.slot_b) === slot) && Number(m.status) === 2);
+          const wins = mine.filter((m) => Number(m.winner_slot) === slot).length;
+          const lostAt = (i: number) => mine.includes(ms[i]) && Number(ms[i].winner_slot) !== slot;
+
+          // 6 = final, 7 = 3rd-place playoff, 4..5 = semis, 0..3 = quarters.
+          // A quarter-final exit has no playoff, so those four share 5–8.
+          const place =
+            Number(w1) === slot ? "1" : Number(w2) === slot ? "2" : Number(w3) === slot ? "3" :
+            lostAt(7) ? "4" : mine.length > wins ? "5–8" : null;
+
+          const oneAway = place === "2";    // beaten finalist
+          const colour = place === "1" ? "#FFD700" : place === "2" ? "#C0C0C0"
+                       : place === "3" ? "#CD7F32" : "#7a7aaa";
+
+          return (
+            <div
+              className="retro-panel mt-4 text-center"
+              style={{ borderColor: colour, padding: 10 }}
+            >
+              <div className="font-pixel" style={{ fontSize: 10, color: colour }}>
+                {t("tournament.watch.runPlace", { place: place ?? "—" })}
+              </div>
+              <div className="text-sm opacity-80 mt-1">
+                {t("tournament.watch.runWins", { wins, total: mine.length })}
+              </div>
+              {oneAway && (
+                <div className="font-pixel mt-2 animate-glow" style={{ fontSize: 9, color: "#C0C0C0" }}>
+                  {t("tournament.watch.runOneAway")}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Podium (when COMPLETED) */}
         {tournament.status === 2 && tChain && (

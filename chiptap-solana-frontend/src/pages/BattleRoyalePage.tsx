@@ -33,6 +33,7 @@ import { useChipNftProgram } from "../hooks/useChipNftProgram";
 import { useArenaConfig } from "../hooks/useArenaConfig";
 import { useUserAccount } from "../hooks/useUserAccount";
 import { useChipsByOwner } from "../hooks/useChipsByOwner";
+import { useSeatNarrowing } from "../hooks/useSeatNarrowing";
 import {
   useIndexerBattleRoyales, type BattleRoyaleData,
 } from "../hooks/useIndexerBattleRoyales";
@@ -624,7 +625,10 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
     try {
       const acc = await (arena.account as any).battleRoyale.fetchNullable(pda.royale(royaleId));
       setBr(acc);
-    } catch { setBr(null); }
+    } catch {
+      // Keep the last good read: one failed poll must not blank the page
+      // (or look like a status change to the reveal).  Next tick retries.
+    }
   }, [arena, royaleId]);
 
   useEffect(() => {
@@ -650,6 +654,24 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
   const mySeat = playerSeats.find((s) => s.player === me);
   const isWinner = me && br?.winner?.toBase58?.() === me;
   const poolLabel = br ? (POOL_TIERS[Number(br.poolTier)]?.label ?? "?") : "?";
+
+  // SEC-28 — unfold the single VRF pick into an elimination, so being
+  // one of the last seats standing is something you actually get to
+  // see.  Order is seed-derived and recomputable; the survivor is the
+  // real winner.
+  const winnerSlot = useMemo(() => {
+    const w = br?.winner?.toBase58?.();
+    if (!w) return null;
+    const idx = playerSeats.findIndex((s) => s.player === w);
+    return idx >= 0 ? idx : null;
+  }, [br, playerSeats]);
+
+  const narrowing = useSeatNarrowing(
+    brStatus,
+    (brStatus ?? 0) >= 2 ? br?.randomSeed?.toString?.() : null,
+    winnerSlot,
+    playerSeats.length,
+  );
 
   const claimChip = async () => {
     if (!arena || !publicKey || !mySeat) return;
@@ -769,6 +791,9 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
 
   const status = Number(br.status);
   const prizeClaimed = !!br.prizeClaimed;
+  // While the field is narrowing, nothing may name the winner — the
+  // banner, the border, the claim button and the audit panel all wait.
+  const showResult = !narrowing.running;
 
   return (
     <div>
@@ -778,7 +803,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
         className="retro-panel"
         style={{
           borderColor:
-            status === 2 ? (isWinner ? "#00FF88" : "#FF3333") :
+            status === 2 && showResult ? (isWinner ? "#00FF88" : "#FF3333") :
             status === 1 ? "#FF00FF" : "#4a4a8a",
         }}
       >
@@ -804,14 +829,18 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
         {/* Seats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
           {playerSeats.map((s) => {
-            const isWin = br.winner?.toBase58?.() === s.player;
+            const isWin = showResult && br.winner?.toBase58?.() === s.player;
+            const out   = narrowing.eliminated.has(s.slot);
+            // While the field is narrowing, a seat that is still lit is
+            // still in it — that's the whole point of the sequence.
+            const alive = narrowing.running && !out;
             return (
               <div
                 key={s.slot}
-                className="retro-panel"
+                className={`retro-panel ${out ? "seat-out" : ""} ${alive ? "seat-alive" : ""}`}
                 style={{
                   padding: 6,
-                  borderColor: isWin ? "#00FF88" : "#2a2a5a",
+                  borderColor: out ? "#2a2a5a" : (alive ? "#FFD700" : (isWin ? "#00FF88" : "#2a2a5a")),
                   background: isWin ? "#001a11" : undefined,
                 }}
               >
@@ -840,7 +869,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
           </div>
         )}
 
-        {status === 2 && (
+        {status === 2 && showResult && (
           <div className="text-center py-3 mb-3 font-pixel" style={{
             fontSize: 14,
             background: isWinner ? "#003300" : "#1a1a4e",
@@ -865,7 +894,7 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
 
         {/* Actions */}
         <div className="flex flex-col gap-2">
-          {isWinner && status >= 2 && !prizeClaimed && (
+          {isWinner && status >= 2 && !prizeClaimed && showResult && (
             <button
               onClick={claimWinnings}
               className="retro-btn retro-btn-gold py-2"
@@ -949,8 +978,8 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
         <BattleAuditPanel
           mode="royale"
           battleId={royaleId}
-          randomSeed={status === 2 || status === 3 ? br.randomSeed?.toString?.() : null}
-          winner={status === 2 || status === 3 ? br.winner?.toBase58?.() : null}
+          randomSeed={(status === 2 || status === 3) && showResult ? br.randomSeed?.toString?.() : null}
+          winner={(status === 2 || status === 3) && showResult ? br.winner?.toBase58?.() : null}
         />
       )}
     </div>
