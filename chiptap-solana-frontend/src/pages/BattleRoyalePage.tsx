@@ -34,6 +34,7 @@ import { useArenaConfig } from "../hooks/useArenaConfig";
 import { useUserAccount } from "../hooks/useUserAccount";
 import { useChipsByOwner } from "../hooks/useChipsByOwner";
 import { useSeatNarrowing } from "../hooks/useSeatNarrowing";
+import { useHeartbeat } from "../hooks/useHeartbeat";
 import {
   useIndexerBattleRoyales, type BattleRoyaleData,
 } from "../hooks/useIndexerBattleRoyales";
@@ -671,7 +672,10 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
     (brStatus ?? 0) >= 2 ? br?.randomSeed?.toString?.() : null,
     winnerSlot,
     playerSeats.length,
+    mySeat?.slot ?? null,
   );
+  // The VRF wait gets the same quickening heartbeat as a 1v1.
+  const beat = useHeartbeat(brStatus === 1);
 
   const claimChip = async () => {
     if (!arena || !publicKey || !mySeat) return;
@@ -864,7 +868,11 @@ function Watch({ royaleId, onBack }: { royaleId: number; onBack: () => void }) {
 
         {/* Status-specific banners */}
         {status === 1 && (
-          <div className="text-center py-3 animate-blink text-retro-magenta" style={{ fontSize: 12 }}>
+          <div
+            key={beat}
+            className="text-center py-3 animate-blink text-retro-magenta clash-vs-beat"
+            style={{ fontSize: 12 }}
+          >
             {t("royale.watch.rolling")}
           </div>
         )}

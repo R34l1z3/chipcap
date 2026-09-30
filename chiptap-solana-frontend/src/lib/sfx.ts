@@ -246,18 +246,69 @@ export function playImpact(): void {
 }
 
 /**
- * TICK — one swing of the tug-of-war.  `p` is 0..1 through the
- * sequence and raises the pitch, so the run of ticks reads as a
- * ratchet tightening rather than a metronome.  Short and dry; the
- * tension comes from the rising interval, not from any one hit.
+ * KNOCKOUT — one seat going dark in a Battle Royale.  Everyone hears
+ * the hit (a falling zap and a crack); then it turns personal:
+ *   mine === false — someone else is out and YOU are still in: a bright
+ *     rising chime.  `p` 0..1 through the run climbs it a full octave,
+ *     so every survived knockout lands a step higher than the last.
+ *   mine === true  — your own seat: a heavy falling hit, no chime.
+ *   mine === null  — spectator: the hit plus a plain ladder ping.
  */
-export function playTick(p: number): void {
+export function playKnockout(p: number, mine: boolean | null): void {
   safe(() => {
     const t = begin();
     if (t === null) return;
-    const f = 420 + Math.max(0, Math.min(1, p)) * 620;   // 420 -> 1040 Hz
-    note(f, t, 0.055, "square", 0.5);
-    note(f / 2, t, 0.05, "triangle", 0.25);              // body underneath
+    const k = Math.max(0, Math.min(1, p));
+    bend(1400 - k * 200, 180, t, 0.2, "square", 0.6);
+    noise(t, 0.16, 0.9, 5000, 700, "bandpass", 0.8);
+    if (mine === true) {
+      bend(330, 70, t + 0.06, 0.6, "square", 0.8);
+      bend(165, 40, t + 0.06, 0.7, "triangle", 0.9);
+      noise(t + 0.05, 0.5, 0.8, 900, 120, "lowpass", 0.7);
+      return;
+    }
+    const base = 523.25 * Math.pow(2, k);                 // C5 → C6 across the run
+    if (mine === false) {
+      note(base,        t + 0.10, 0.12, "square",   0.5);
+      note(base * 1.26, t + 0.16, 0.14, "square",   0.45);
+      note(base * 1.5,  t + 0.22, 0.22, "triangle", 0.5);
+    } else {
+      note(base, t + 0.10, 0.12, "triangle", 0.5);
+    }
+  });
+}
+
+/**
+ * RISER — a siren climbing under the drumroll, for when the viewer is
+ * one of the last two.  Two detuned voices for width.
+ */
+export function playRiser(dur: number): void {
+  safe(() => {
+    const t = begin();
+    if (t === null) return;
+    bend(260, 1040, t, dur, "square",   0.28);
+    bend(263, 1052, t, dur, "sawtooth", 0.18);
+  });
+}
+
+/**
+ * ROYALE WIN — last seat standing out of the whole field: a two-octave
+ * run, a held chord, a glitter trill and a noise swell for the crowd.
+ * Bigger than the 1v1 sting on purpose — it is a bigger win.
+ */
+export function playRoyaleWin(): void {
+  safe(() => {
+    const t = begin();
+    if (t === null) return;
+    const run = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568.0, 2093.0];
+    run.forEach((f, i) => note(f, t + i * 0.07, 0.10, "square", 0.5));
+    const h = t + run.length * 0.07;
+    note(1046.5, h, 0.9, "square",   0.45);
+    note(1318.5, h, 0.9, "triangle", 0.5);
+    note(1568.0, h, 0.9, "triangle", 0.45);
+    note(523.25, h, 0.9, "triangle", 0.6);
+    for (let i = 0; i < 6; i++) note(i % 2 ? 2093.0 : 1568.0, h + 0.3 + i * 0.06, 0.06, "square", 0.3);
+    noise(t + 0.25, 1.3, 0.7, 700, 2400, "bandpass", 0.5);   // the crowd
   });
 }
 

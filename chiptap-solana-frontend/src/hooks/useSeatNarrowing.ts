@@ -20,13 +20,17 @@
 // ============================================================
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { playTick, playDrumroll, playImpact } from "../lib/sfx";
+import {
+  playKnockout, playDrumroll, playRiser, playImpact, playRoyaleWin, playLose,
+} from "../lib/sfx";
 
 /** Pause before the FINAL elimination — the last-two beat. */
 const FINAL_GAP_MS = 1200;
 const FIRST_GAP_MS = 700;
 const MIN_GAP_MS   = 300;
 const SETTLE_MS    = 700;
+/** Impact → the viewer's win/lose sting. */
+const STING_MS     = 380;
 
 /**
  * Deterministic elimination order for every seat except the winner.
@@ -70,6 +74,8 @@ export function useSeatNarrowing(
   seed: string | null | undefined,
   winnerSlot: number | null,
   seatCount: number,
+  /** The viewer's own seat, if they are playing — makes the sound personal. */
+  mySlot: number | null = null,
 ): SeatNarrowing {
   const prevStatus = useRef<number | null>(null);
   const [eliminated, setEliminated] = useState<number[]>([]);
@@ -78,8 +84,8 @@ export function useSeatNarrowing(
 
   // Read at the moment of transition only.  Keeping them out of the
   // effect's deps means a re-derived value mid-sequence can't cancel it.
-  const inputs = useRef({ seed, winnerSlot, seatCount });
-  inputs.current = { seed, winnerSlot, seatCount };
+  const inputs = useRef({ seed, winnerSlot, seatCount, mySlot });
+  inputs.current = { seed, winnerSlot, seatCount, mySlot };
 
   // Layout effect: `running` must be true before the first paint of the
   // decided state, or the winner banner flashes for a frame.
@@ -94,7 +100,7 @@ export function useSeatNarrowing(
     // finished royale from history must not stage an elimination that
     // already happened.
     if (!(prev === 1 && status >= 2)) return;
-    const { seed: s, winnerSlot: w, seatCount: n } = inputs.current;
+    const { seed: s, winnerSlot: w, seatCount: n, mySlot: me } = inputs.current;
     if (w == null || n < 2) return;
 
     const order = eliminationOrder(s, w, n);
@@ -110,16 +116,30 @@ export function useSeatNarrowing(
       at += isLast
         ? FINAL_GAP_MS
         : Math.max(MIN_GAP_MS, FIRST_GAP_MS - i * 70);
-      // The last-two hold gets a drumroll across its whole length, and
-      // the final elimination lands as the impact.
+      // The last-two hold gets a drumroll across its whole length — and
+      // a siren on top when the viewer is one of the two — and the final
+      // elimination lands as the impact.
       if (isLast) {
-        timers.push(setTimeout(() => playDrumroll(FINAL_GAP_MS / 1000), at - FINAL_GAP_MS));
+        const inFinalTwo = me != null && (me === w || me === slot);
+        timers.push(setTimeout(() => {
+          playDrumroll(FINAL_GAP_MS / 1000);
+          if (inFinalTwo) playRiser(FINAL_GAP_MS / 1000);
+        }, at - FINAL_GAP_MS));
       }
       timers.push(setTimeout(() => {
         setEliminated((prevE) => [...prevE, slot]);
         if (isLast) playImpact();
-        else playTick(i / Math.max(1, order.length - 1));
+        else playKnockout(i / Math.max(1, order.length - 2), me == null ? null : slot === me);
       }, at));
+      // The sting, from the viewer's seat: the fanfare for the last one
+      // standing, a defeat for losing the final two.  A viewer knocked
+      // out earlier already heard their own knockout — nothing more.
+      if (isLast) {
+        timers.push(setTimeout(() => {
+          if (me === w) playRoyaleWin();
+          else if (me === slot) playLose();
+        }, at + STING_MS));
+      }
     });
 
     timers.push(setTimeout(() => {

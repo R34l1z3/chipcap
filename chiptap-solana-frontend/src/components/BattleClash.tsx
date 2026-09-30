@@ -25,8 +25,9 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
-  playWin, playLose, playHeartbeat, playSwing, playDrumroll, playFall, playImpact,
+  playWin, playLose, playSwing, playDrumroll, playFall, playImpact,
 } from "../lib/sfx";
+import { useHeartbeat, HEAT_RAMP_S } from "../hooks/useHeartbeat";
 
 type Phase = "idle" | "rolling" | "reveal" | "result";
 
@@ -55,17 +56,6 @@ const FALL_MS = 450;
 /** Impact → sting → settled result. */
 const STING_AFTER_IMPACT_MS = 380;
 const SETTLE_AFTER_IMPACT_MS = 1300;
-/**
- * Seconds for the roll to reach full intensity.  The wait is NOT a
- * fixed length — it depends on how fast the relayer gets the VRF back —
- * so the build-up ramps and then SATURATES instead of targeting a
- * finish line it cannot know.
- */
-const HEAT_RAMP_S = 8;
-/** Heartbeat period: calm at the start of the wait, racing at full heat. */
-const BEAT_SLOW_MS = 900;
-const BEAT_FAST_MS = 430;
-
 export interface BattleClashProps {
   status: number;
   /** Which side won, once known. */
@@ -168,31 +158,6 @@ function useHeat(active: boolean) {
     return () => clearInterval(id);
   }, [active]);
   return heat;
-}
-
-/**
- * The heartbeat under the VRF wait: one counter bump per beat (the key
- * that restarts the CSS pulse) plus the sound, on the same clock so the
- * glow and the thump never drift apart.
- */
-function useHeartbeat(active: boolean) {
-  const [beat, setBeat] = useState(0);
-  useEffect(() => {
-    if (!active) return;
-    let alive = true;
-    let timer: ReturnType<typeof setTimeout>;
-    const t0 = Date.now();
-    const tick = () => {
-      if (!alive) return;
-      const h = Math.min(1, (Date.now() - t0) / 1000 / HEAT_RAMP_S);
-      setBeat((b) => b + 1);
-      playHeartbeat(h);
-      timer = setTimeout(tick, BEAT_SLOW_MS - h * (BEAT_SLOW_MS - BEAT_FAST_MS));
-    };
-    timer = setTimeout(tick, 350);
-    return () => { alive = false; clearTimeout(timer); };
-  }, [active]);
-  return beat;
 }
 
 export default function BattleClash({
