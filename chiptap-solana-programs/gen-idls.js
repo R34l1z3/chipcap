@@ -596,6 +596,12 @@ const arenaIdl = {
       WS("player"),
       MPL,
       SP,
+      // SEC-29 — cancel refund (entry fee + re-minted ticket)
+      W ("player_user"),
+      W ("ticket_mint"),
+      W ("player_ata"),
+      A ("ticket_authority"),
+      TOKEN_PROGRAM,
     ]),
 
     ix("expire_tournament_registration", [

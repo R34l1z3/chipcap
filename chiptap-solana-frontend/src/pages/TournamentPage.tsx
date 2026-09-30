@@ -35,7 +35,7 @@ import {
 } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
+  getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentInstruction,
 } from "@solana/spl-token";
 
 import { useArenaProgram } from "../hooks/useArenaProgram";
@@ -954,16 +954,32 @@ function Watch({ tournamentId, onBack }: { tournamentId: number; onBack: () => v
   const claimChip = async () => {
     if (!arena || !publicKey || !mySeat) return;
     try {
+      // SEC-29 — a CANCELLED claim also re-mints the burned ticket, so the
+      // ticket ATA is part of every claim.  Recreate it idempotently in
+      // case the player closed it since registering: a missing ATA must
+      // never be the thing that keeps a chip stuck in escrow.
+      const ata = getAssociatedTokenAddressSync(pda.ticketMint(), publicKey);
       const sig = await (arena.methods as any).claimTournamentChip()
         .accounts({
-          config:        pda.arenaConfig(),
-          tournament:    pda.tournament(tournamentId),
-          chipAuthority: pda.chipAuthority(),
-          chip:          new PublicKey(mySeat.chip),
-          player:        publicKey,
-          mplCore:       MPL_CORE_PROGRAM,
-          systemProgram: SystemProgram.programId,
-        }).rpc();
+          config:          pda.arenaConfig(),
+          tournament:      pda.tournament(tournamentId),
+          chipAuthority:   pda.chipAuthority(),
+          chip:            new PublicKey(mySeat.chip),
+          player:          publicKey,
+          mplCore:         MPL_CORE_PROGRAM,
+          systemProgram:   SystemProgram.programId,
+          playerUser:      pda.userAccount(publicKey),
+          ticketMint:      pda.ticketMint(),
+          playerAta:       ata,
+          ticketAuthority: pda.ticketAuthority(),
+          tokenProgram:    TOKEN_PROGRAM_ID,
+        })
+        .preInstructions([
+          createAssociatedTokenAccountIdempotentInstruction(
+            publicKey, ata, publicKey, pda.ticketMint(),
+          ),
+        ])
+        .rpc();
       notify("info", `Reclaimed chip · ${sig.slice(0, 8)}…`);
       await Promise.all([fetchIndex(), fetchChain()]);
     } catch (e) { notifyTxError("Claim chip", e); }

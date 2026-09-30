@@ -1548,6 +1548,25 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "player_user",
+          "writable": true
+        },
+        {
+          "name": "ticket_mint",
+          "writable": true
+        },
+        {
+          "name": "player_ata",
+          "writable": true
+        },
+        {
+          "name": "ticket_authority"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
         }
       ],
       "args": []

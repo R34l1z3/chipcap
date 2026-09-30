@@ -1372,6 +1372,12 @@ pub mod battle_arena {
 
     /// Any participant reclaims their chip — chips are membership tokens
     /// (always returned, regardless of placement).  Mirrors claim_chip_br.
+    ///
+    /// SEC-29 — on a CANCELLED tournament this is also the refund: the
+    /// entry fee goes back to the internal balance and the burned ticket
+    /// is re-minted.  Same shape as the SEC-22 BR fix: done atomically
+    /// with the chip return, and the per-slot `chips_claimed_mask` bit
+    /// that already guards the chip also guards against a double refund.
     pub fn claim_tournament_chip(ctx: Context<ClaimTournamentChip>) -> Result<()> {
         let t = &mut ctx.accounts.tournament;
         require!(
@@ -1395,6 +1401,25 @@ pub mod battle_arena {
         require!((t.chips_claimed_mask & bit) == 0, ArenaError::ChipAlreadyClaimed);
         t.chips_claimed_mask |= bit;
 
+        // Both cancel paths (expire from REGISTERING, force_resolve from
+        // ACTIVE) run before any prize or fee has left arena_vault — the
+        // fee is only forwarded in claim_tournament_prize, which needs
+        // COMPLETED — so the full entry fee is still there to credit.
+        // `t.entry_fee` is locked at creation, so this is exactly what
+        // register_for_tournament debited.  COMPLETED pays nothing here:
+        // the fees became the prize pool.
+        if t.status == T_STATUS_CANCELLED {
+            ctx.accounts.player_user.balance = ctx.accounts.player_user.balance
+                .checked_add(t.entry_fee).ok_or(ArenaError::MathOverflow)?;
+            refund_ticket(
+                &ctx.accounts.token_program,
+                &ctx.accounts.ticket_mint,
+                &ctx.accounts.player_ata,
+                &ctx.accounts.ticket_authority,
+                ctx.bumps.ticket_authority,
+            )?;
+        }
+
         let auth_bump = ctx.accounts.config.chip_authority_bump;
         return_chip_to(
             &ctx.accounts.mpl_core,
@@ -1414,10 +1439,8 @@ pub mod battle_arena {
     }
 
     /// Cancel a still-REGISTERING tournament after join_timeout elapsed.
-    /// Sets status=CANCELLED; participants reclaim chips via
-    /// claim_tournament_chip.  Stake refunds: TODO out of scope for MVP
-    /// (entry fees stay in pool_amount until status flips → for now
-    /// admin can do a manual refund script post-cancel).
+    /// Sets status=CANCELLED; each participant then gets chip + entry fee
+    /// + ticket back in one claim_tournament_chip (SEC-29).
     pub fn expire_tournament_registration(
         ctx: Context<CancelTournament>,
     ) -> Result<()> {
@@ -1673,6 +1696,35 @@ fn t_is_fully_settled(t: &Tournament) -> bool {
     t.status == T_STATUS_COMPLETED
         && t.prize_claimed_mask == 0b111
         && t.chips_claimed_mask == 0xFF
+}
+
+/// Give back the ticket register_for_tournament burned.  Re-minting (not
+/// crediting its SOL price) keeps the refund an exact inverse of the
+/// burn: the player can re-enter another tournament with it, and a
+/// ticket that was ever handed out free can't be cashed out through a
+/// cancellation.  Own frame, like the other CPI helpers.
+#[inline(never)]
+fn refund_ticket<'info>(
+    token_program:    &Program<'info, Token>,
+    ticket_mint:      &Account<'info, Mint>,
+    player_ata:       &Account<'info, TokenAccount>,
+    ticket_authority: &AccountInfo<'info>,
+    bump:             u8,
+) -> Result<()> {
+    let seeds: &[&[u8]] = &[b"ticket_authority", core::slice::from_ref(&bump)];
+    let signer_seeds: &[&[&[u8]]] = &[seeds];
+    token::mint_to(
+        CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            MintTo {
+                mint:      ticket_mint.to_account_info(),
+                to:        player_ata.to_account_info(),
+                authority: ticket_authority.clone(),
+            },
+            signer_seeds,
+        ),
+        1,
+    )
 }
 
 #[inline(never)]
@@ -3145,6 +3197,40 @@ pub struct ClaimTournamentChip<'info> {
     pub mpl_core: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
+
+    // ---- SEC-29: cancel refund (entry fee + ticket) ----------------
+    // Required on every claim so the account list doesn't depend on
+    // status; only a CANCELLED claim actually touches them.  The player
+    // registered with this UserAccount and ATA, so both exist.
+
+    #[account(
+        mut,
+        seeds = [b"user".as_ref(), player.key().as_ref()],
+        bump  = player_user.bump,
+    )]
+    pub player_user: Box<Account<'info, UserAccount>>,
+
+    #[account(
+        mut,
+        constraint = ticket_mint.key() == config.ticket_mint @ ArenaError::WrongTicketMint,
+    )]
+    pub ticket_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        mut,
+        associated_token::mint = ticket_mint,
+        associated_token::authority = player,
+    )]
+    pub player_ata: Box<Account<'info, TokenAccount>>,
+
+    /// CHECK: PDA-only signer for mint_to — derived, carries no data.
+    #[account(
+        seeds = [b"ticket_authority".as_ref()],
+        bump,
+    )]
+    pub ticket_authority: AccountInfo<'info>,
+
+    pub token_program: Program<'info, Token>,
 }
 
 /// Refund-or-admin cancel path for tournaments.  Re-used by both

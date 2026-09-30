@@ -250,10 +250,15 @@ async function runOneSwitchboardMatch(tournamentId, matchIdx) {
 
   section("claim chips × 8");
   for (let i = 0; i < N; i++) {
+    // SEC-29 accounts: only a CANCELLED claim uses them (refund), but
+    // they're part of every claim.
     await arena.methods.claimTournamentChip().accounts({
       config: arenaConfig, tournament: tourneyPda(id), chipAuthority,
       chip: chips[i], player: players[i].publicKey,
       mplCore: MPL_CORE, systemProgram: SystemProgram.programId,
+      playerUser: userPda(players[i].publicKey), ticketMint,
+      playerAta: getAssociatedTokenAddressSync(ticketMint, players[i].publicKey),
+      ticketAuthority, tokenProgram: TOKEN_PROGRAM_ID,
     }).signers([players[i]]).rpc();
     process.stdout.write(`\rclaimed ${i+1}/${N}`);
   }
